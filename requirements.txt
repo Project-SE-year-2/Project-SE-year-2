@@ -1,0 +1,2 @@
+# Project dependencies for testing
+pytest==8.2.0

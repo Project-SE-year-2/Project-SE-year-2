@@ -10,20 +10,20 @@ class ExamPeriod:
         # This conversion allows other modules to perform date-based logic and comparisons
         self.start_date = datetime.strptime(start_date.strip(), "%d-%m-%Y").date()
         self.end_date = datetime.strptime(end_date.strip(), "%d-%m-%Y").date()
-        self.forbidden_dates = set()
+        self.possible_dates = []
 
     
-    #Generates a complete list of every single date within this exam period
-    def get_all_dates_in_range(self) -> list:
+    # Generates a complete list of every single date within this exam period
+    # to return a duplicate of the possible_dates
+        if self.possible_dates:
+            return self.possible_dates
+
         all_dates = []
         current = self.start_date
 
-        #Iterate through the entire range from start_date to end_date
+        # Iterate through the entire range from start_date to end_date.
         while current <= self.end_date:
-            if current not in self.forbidden_dates:
-                all_dates.append(current)
-            
-            #the next calendar day
+            all_dates.append(current)
             current += timedelta(days=1)
-            
+
         return all_dates

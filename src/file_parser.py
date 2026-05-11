@@ -56,6 +56,32 @@ def parse_exam_periods_file(filepath: str) -> list[ExamPeriod]:
     #find DD-MM-YYYY format in a string
     date_pattern = r'\d{2}-\d{2}-\d{4}'
 
+    def parse_forbidden_dates(record_lines: list[str], period_start: datetime, period_end: datetime) -> set:
+        forbidden_dates = set()
+
+        for line in record_lines[2:]:
+            dates = re.findall(date_pattern, line)
+
+            if not dates:
+                continue
+
+            start_date = datetime.strptime(dates[0], "%d-%m-%Y").date()
+
+            if len(dates) == 1:
+                if period_start <= start_date <= period_end:
+                    forbidden_dates.add(start_date)
+                continue
+
+            end_date = datetime.strptime(dates[1], "%d-%m-%Y").date()
+            current = max(start_date, period_start)
+            range_end = min(end_date, period_end)
+
+            while current <= range_end:
+                forbidden_dates.add(current)
+                current += timedelta(days=1)
+
+        return forbidden_dates
+
     for record in raw_records:
         lines = [line.strip() for line in record.strip().split('\n') if line.strip()]
         if not lines:
@@ -68,14 +94,11 @@ def parse_exam_periods_file(filepath: str) -> list[ExamPeriod]:
         #extarct start and end dates of the exam period
         start_end = lines[1].split(',')
         period = ExamPeriod(semester, moed, start_end[0].strip(), start_end[1].strip())
-        #Handle excluded dates or date ranges logic
-        #################################################################
-        #
-        #
-        #logic to extract forbidden dates
-        #
-        #
-        #################################################################
+        period.forbidden_dates = parse_forbidden_dates(
+            lines,
+            period.start_date,
+            period.end_date,
+        )
         periods.append(period)
 
     return periods

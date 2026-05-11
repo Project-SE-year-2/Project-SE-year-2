@@ -118,4 +118,10 @@ def parse_programs_file(filepath: str) -> list[str]:
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
     #split by comma and strip whitespace from each program ID
-    return [prog.strip() for prog in content.split(',') if prog.strip()]
+    programs = [prog.strip() for prog in content.split(',') if prog.strip()]
+
+    # User only allowed up to 5 program ID
+    if len(programs) > 5:
+        raise ValueError("Programs file cannot contain more than 5 programs")
+
+    return programs

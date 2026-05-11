@@ -15,6 +15,7 @@ class ExamPeriod:
     
     # Generates a complete list of every single date within this exam period
     # to return a duplicate of the possible_dates
+    def get_all_dates_in_range(self) -> list:
         if self.possible_dates:
             return self.possible_dates
 

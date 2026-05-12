@@ -11,3 +11,6 @@ env/
 # IDE files
 .vscode/
 .idea/
+
+# Test file
+tester_main.py

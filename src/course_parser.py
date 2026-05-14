@@ -1,5 +1,51 @@
+from src.file_parser import IFileParser
 from src.course import Course
+from src.program_requirement import ProgramRequirement
 
+# Parser class for loading courses
+class CourseFileParser(IFileParser):
+    def parse(self, filepath: str) -> list[Course]:
+        courses = []
+        
+        # read the file with UTF-8 encoding
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Split the content into records by $$$$ 
+        raw_records = content.split('$$$$')
+
+        for record in raw_records:
+            # remove empty lines
+            lines = [line.strip() for line in record.strip().split('\n') if line.strip()]
+            
+            if not lines:
+                continue
+                
+            # extract course metadata
+            name = lines[0]
+            course_id = lines[1]
+            instructor = lines[2]
+            evaluation = lines[-1]
+
+            course = Course(name, course_id, instructor, evaluation)
+            
+            # extract program requirements
+            for i in range(3, len(lines) - 1):
+                prog_data = lines[i].split(',')
+                
+                if len(prog_data) == 4:
+                    prog_id = prog_data[0].strip()
+                    year = int(prog_data[1].strip())
+                    semester = prog_data[2].strip()
+                    req_type = prog_data[3].strip()
+                    
+                    # create and attach the requirement to the course object
+                    requirement = ProgramRequirement(prog_id, year, semester, req_type)
+                    course.add_requirement(requirement)
+
+            courses.append(course)
+
+        return courses
 
 def filter_courses_for_scheduling(courses: list[Course], selected_programs: list[str]) -> list[Course]:
     """
@@ -19,15 +65,12 @@ def filter_courses_for_scheduling(courses: list[Course], selected_programs: list
     Raises:
         ValueError: If selected_programs is empty.
     """
-    # Validate input: need at least one program to filter by
     if not selected_programs:
         raise ValueError("At least one program must be selected for filtering")
 
-    # Convert to set for O(1) lookup performance
     selected_programs_set = set(selected_programs)
     valid_courses = []
 
-    # Iterate and apply both filter criteria
     for course in courses:
         # Step 1: Only keep courses with "Exam" evaluation type
         if course.evaluation != "Exam":
@@ -38,7 +81,6 @@ def filter_courses_for_scheduling(courses: list[Course], selected_programs: list
             req.program_id in selected_programs_set for req in course.requirements
         )
 
-        # Step 3: Add to valid list only if both criteria pass
         if not belongs_to_selected:
             continue
 

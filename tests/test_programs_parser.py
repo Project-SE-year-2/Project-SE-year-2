@@ -1,7 +1,5 @@
 import pytest
-
-from src.file_parser import parse_programs_file
-
+from src.program_parser import ProgramSelectionParser
 # A test to check that the system can read the programs with spaces between them
 def test_parse_programs_file_ignores_spaces(tmp_path):
     content = "83101, 83102, 83108"
@@ -9,7 +7,8 @@ def test_parse_programs_file_ignores_spaces(tmp_path):
     file_path = tmp_path / "programs.txt"
     file_path.write_text(content, encoding="utf-8")
 
-    programs = parse_programs_file(str(file_path))
+    parser = ProgramSelectionParser()
+    programs = parser.parse(str(file_path))
 
     assert programs == ["83101", "83102", "83108"]
 
@@ -20,7 +19,8 @@ def test_parse_programs_file_accepts_up_to_five_programs(tmp_path):
     file_path = tmp_path / "programs.txt"
     file_path.write_text(content, encoding="utf-8")
 
-    programs = parse_programs_file(str(file_path))
+    parser = ProgramSelectionParser()
+    programs = parser.parse(str(file_path))
 
     assert programs == ["83101", "83102", "83104", "83107", "83108"]
 
@@ -31,5 +31,6 @@ def test_parse_programs_file_rejects_more_than_five_programs(tmp_path):
     file_path = tmp_path / "programs.txt"
     file_path.write_text(content, encoding="utf-8")
 
+    parser = ProgramSelectionParser()
     with pytest.raises(ValueError):
-        parse_programs_file(str(file_path))
+        parser.parse(str(file_path))

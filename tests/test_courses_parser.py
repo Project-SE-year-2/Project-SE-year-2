@@ -1,5 +1,4 @@
-from src.file_parser import parse_courses_file
-
+from src.course_parser import CourseFileParser
 
 def test_parse_courses_file_loads_courses_correctly(tmp_path):
     content = """$$$$
@@ -20,7 +19,9 @@ Project
     file_path = tmp_path / "courses.txt"
     file_path.write_text(content, encoding="utf-8")
 
-    courses = parse_courses_file(str(file_path))
+    # Instantiate the class and call the parse method
+    parser = CourseFileParser()
+    courses = parser.parse(str(file_path))
 
     assert len(courses) == 2
 

@@ -12,10 +12,9 @@ class ExamPeriod:
         self.end_date = datetime.strptime(end_date.strip(), "%d-%m-%Y").date()
         self.possible_dates = []
 
-    
     # Generates a complete list of every single date within this exam period
     # to return a duplicate of the possible_dates
-    def get_all_dates_in_range(self) -> list:
+    def getAvailableDates(self) -> list:
         if self.possible_dates:
             return self.possible_dates
 

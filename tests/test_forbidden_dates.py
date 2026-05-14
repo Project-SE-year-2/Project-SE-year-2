@@ -1,6 +1,5 @@
 from datetime import date
-
-from src.file_parser import parse_forbidden_dates
+from src.exam_period_file_parser import ExamPeriodFileParser
 
 # A test to check that the system put the forbidden day in the list of forbidden days
 def test_parse_forbidden_dates_single_dates():
@@ -11,7 +10,8 @@ def test_parse_forbidden_dates_single_dates():
         "- 07-02-2026",
     ]
 
-    forbidden = parse_forbidden_dates(
+    parser = ExamPeriodFileParser()
+    forbidden = parser._parse_forbidden_dates(
         lines,
         date(2026, 1, 29),
         date(2026, 3, 11),
@@ -29,7 +29,8 @@ def test_parse_forbidden_dates_range():
         "- 02-03-2026, 04-03-2026 Purim",
     ]
 
-    forbidden = parse_forbidden_dates(
+    parser = ExamPeriodFileParser()
+    forbidden = parser._parse_forbidden_dates(
         lines,
         date(2026, 1, 29),
         date(2026, 3, 11),
@@ -50,7 +51,8 @@ def test_parse_forbidden_dates_outside_period_are_ignored():
         "- 20-03-2026 Outside period",
     ]
 
-    forbidden = parse_forbidden_dates(
+    parser = ExamPeriodFileParser()
+    forbidden = parser._parse_forbidden_dates(
         lines,
         date(2026, 1, 29),
         date(2026, 3, 11),

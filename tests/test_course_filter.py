@@ -1,6 +1,8 @@
 import pytest
 
-from src.course import Course, ProgramRequirement
+from src.course import Course
+# Fixed the import case (ProgramRequirement with capital P)
+from src.program_requirement import ProgramRequirement
 from src.course_parser import filter_courses_for_scheduling
 
 
@@ -8,6 +10,7 @@ from src.course_parser import filter_courses_for_scheduling
 # is kept after filtering.
 def test_filter_keeps_exam_course_that_belongs_to_selected_program():
     course = Course("Physics 1", "83102", "Prof. O. Some", "Exam")
+    # Fixed the class instantiation case
     course.add_requirement(
         ProgramRequirement("83101", 1, "FALL", "Obligatory")
     )

@@ -3,8 +3,8 @@ from datetime import date
 
 from src.course import Course
 from src.program_requirement import ProgramRequirement
-from src.schedule_validator import validate_no_same_program_obligatory_conflict
-from src.schedule_validator import validate_enough_dates_for_obligatory_courses
+from tests.schedule_validator import validate_no_same_program_obligatory_conflict
+from tests.schedule_validator import validate_enough_dates_for_obligatory_courses
 
 
 # Tests that the system raises a scheduling conflict error

@@ -59,3 +59,55 @@ def test_parse_forbidden_dates_outside_period_are_ignored():
     )
 
     assert forbidden == set()
+
+# Tests that duplicate forbidden dates are stored only once
+# even if the same date appears multiple times in the input.
+def test_parse_forbidden_dates_duplicate_dates():
+    lines = [
+        "FALL, Aleph",
+        "29-01-2026, 11-03-2026",
+        "- 31-01-2026 Shabat",
+        "- 31-01-2026 Holiday",
+    ]
+
+    parser = ExamPeriodFileParser()
+
+    forbidden = parser._parse_forbidden_dates(
+        lines,
+        date(2026, 1, 29),
+        date(2026, 3, 11),
+    )
+
+    assert date(2026, 1, 31) in forbidden
+
+    # Since forbidden_dates is a set,
+    # the duplicate date should only appear once.
+    assert len(forbidden) == 1
+
+
+# Tests that overlapping forbidden date ranges
+# are merged correctly without duplicate dates.
+def test_parse_forbidden_dates_overlapping_ranges():
+    lines = [
+        "FALL, Aleph",
+        "29-01-2026, 11-03-2026",
+        "- 02-03-2026, 04-03-2026 Purim",
+        "- 03-03-2026, 05-03-2026 Holiday",
+    ]
+
+    parser = ExamPeriodFileParser()
+
+    forbidden = parser._parse_forbidden_dates(
+        lines,
+        date(2026, 1, 29),
+        date(2026, 3, 11),
+    )
+
+    expected_dates = {
+        date(2026, 3, 2),
+        date(2026, 3, 3),
+        date(2026, 3, 4),
+        date(2026, 3, 5),
+    }
+
+    assert forbidden == expected_dates

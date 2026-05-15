@@ -33,16 +33,23 @@ class CourseFileParser(IFileParser):
             for i in range(3, len(lines) - 1):
                 prog_data = lines[i].split(',')
                 
-                if len(prog_data) == 4:
-                    prog_id = prog_data[0].strip()
-                    year = int(prog_data[1].strip())
-                    semester = prog_data[2].strip()
-                    req_type = prog_data[3].strip()
-                    
-                    # create and attach the requirement to the course object
-                    requirement = ProgramRequirement(prog_id, year, semester, req_type)
-                    course.add_requirement(requirement)
+                # raises an error if a program requirement line is missing fields
+                if len(prog_data) != 4:
+                    raise ValueError(
+                        f"Invalid requirement format in course {course_id}: {lines[i]}"
+                    )
+                prog_id = prog_data[0].strip()
+                year = int(prog_data[1].strip())
+                semester = prog_data[2].strip()
+                req_type = prog_data[3].strip()
 
+                requirement = ProgramRequirement(
+                    prog_id, 
+                    year, 
+                    semester, 
+                    req_type
+                )
+                course.add_requirement(requirement)
             courses.append(course)
 
         return courses

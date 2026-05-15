@@ -1,4 +1,4 @@
-from src.file_parser import IFileParser
+from parsers.file_parser import IFileParser
 
 # Parser class for loading selected programs
 class ProgramSelectionParser(IFileParser):

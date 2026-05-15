@@ -1,19 +1,24 @@
 import os
-from src.course_parser import CourseFileParser, filter_courses_for_scheduling
-from src.exam_period_file_parser import ExamPeriodFileParser
-from src.program_parser import ProgramSelectionParser
-from src.scheduling_algoritem import match_courses_to_periods
+from src.parsers.course_parser import CourseFileParser, filter_courses_for_scheduling
+from src.parsers.exam_period_file_parser import ExamPeriodFileParser
+from src.parsers.program_parser import ProgramSelectionParser
+from src.algorithm.scheduling_algoritem import match_courses_to_periods
+from src.algorithm.constraint_index import ConstraintIndex
+from src.algorithm.exam_period_catalog import ExamPeriodCatalog
+from src.algorithm.basic_version_validator import BasicVersionValidator
+from src.algorithm.constraint_validator import ConstraintValidator
+from src.algorithm.scheduling_engine import SchedulingEngine
+from src.output.schedule_report_writer import ScheduleReportWriter
+
 
 class AppController:
     def __init__(self):
-        # Initialize all parser objects according to UML
         self.course_parser = CourseFileParser()
         self.period_parser = ExamPeriodFileParser()
         self.program_parser = ProgramSelectionParser()
-        # Future modules like self.engine and self.writer will be added here
+        self.writer = ScheduleReportWriter()
 
     def _validate_paths(self, paths: list):
-        # Check if all provided files exist and are not empty
         for path in paths:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"Error: Could not find file at {path}!")
@@ -21,23 +26,32 @@ class AppController:
                 raise ValueError(f"Error: The file at {path} is empty!")
 
     def run(self, courses_path: str, periods_path: str, programs_path: str):
-        #Validate input files
         self._validate_paths([courses_path, periods_path, programs_path])
 
-        #Parse all files using the parser objects
         courses = self.course_parser.parse(courses_path)
-
         periods = self.period_parser.parse(periods_path)
-
         programs = self.program_parser.parse(programs_path)
-        #Filter courses based on requirements
+
         valid_courses = filter_courses_for_scheduling(courses, programs)
 
-        # Generate tasks mapping: ExamPeriod -> { Course -> [Program IDs] }
+        # Problem Partition — already implemented
         scheduling_tasks = match_courses_to_periods(valid_courses, periods)
 
-        # Returns the mapped tasks for the scheduling algorithm
-        return scheduling_tasks
+        # Build constraint index and period catalog
+        index = ConstraintIndex()
+        index.build(valid_courses, programs)
 
-        # In the next step, we will pass valid_courses and periods to the SchedulingEngine
-        return valid_courses, periods
+        catalog = ExamPeriodCatalog(periods)
+
+        collision_validator = BasicVersionValidator(index)
+        constraint_validator = ConstraintValidator(index, collision_validator)
+
+        self.engine = SchedulingEngine(constraint_validator, catalog, index)
+
+        schedules, metadata = self.engine.generateAll(scheduling_tasks)
+
+        project_root = os.path.normpath(os.path.join(os.path.dirname(courses_path), ".."))
+        output_dir = os.path.join(project_root, "output")
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, "schedule_output.txt")
+        self.writer.write(schedules, metadata, programs, output_path=output_path)

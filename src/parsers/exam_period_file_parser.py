@@ -1,7 +1,7 @@
 import re
 from datetime import datetime, date, timedelta
-from src.file_parser import IFileParser
-from src.exam_period import ExamPeriod
+from parsers.file_parser import IFileParser
+from models.exam_period import ExamPeriod
 
 # Parser class for loading exam periods and forbidden dates
 class ExamPeriodFileParser(IFileParser):

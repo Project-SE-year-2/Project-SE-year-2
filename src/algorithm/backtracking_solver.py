@@ -1,10 +1,10 @@
-from models.course import Course
-from models.exam_period import ExamPeriod
-from models.exam_schedule import ExamSchedule
-from algorithm.i_collision_validator import ICollisionValidator
-from algorithm.constraint_validator import ConstraintValidator
-from algorithm.course_ordering_heuristic import CourseOrderingHeuristic
-from algorithm.forward_checker import ForwardChecker
+from src.models.course import Course
+from src.models.exam_period import ExamPeriod
+from src.models.exam_schedule import ExamSchedule
+from src.algorithm.i_collision_validator import ICollisionValidator
+from src.algorithm.constraint_validator import ConstraintValidator
+from src.algorithm.course_ordering_heuristic import CourseOrderingHeuristic
+from src.algorithm.forward_checker import ForwardChecker
 
 
 class BacktrackingSolver:

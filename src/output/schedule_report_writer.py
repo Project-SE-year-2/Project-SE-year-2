@@ -1,6 +1,6 @@
-from models.exam_schedule import ExamSchedule
-from models.exam_period import ExamPeriod
-from models.course import Course
+from src.models.exam_schedule import ExamSchedule
+from src.models.exam_period import ExamPeriod
+from src.models.course import Course
 
 
 class ScheduleReportWriter:

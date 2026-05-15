@@ -1,7 +1,7 @@
-from models.course import Course
-from models.exam_schedule import ExamSchedule
-from models.exam_period import ExamPeriod
-from algorithm.constraint_validator import ConstraintValidator
+from src.models.course import Course
+from src.models.exam_schedule import ExamSchedule
+from src.models.exam_period import ExamPeriod
+from src.algorithm.constraint_validator import ConstraintValidator
 
 
 class ForwardChecker:

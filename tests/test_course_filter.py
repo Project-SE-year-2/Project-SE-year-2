@@ -1,9 +1,9 @@
 import pytest
 
-from src.course import Course
+from src.models.course import Course
 # Fixed the import case (ProgramRequirement with capital P)
-from src.program_requirement import ProgramRequirement
-from src.course_parser import filter_courses_for_scheduling
+from src.models.program_requirement import ProgramRequirement
+from src.parsers.course_parser import filter_courses_for_scheduling
 
 
 # Tests that an Exam course that belongs to a selected program

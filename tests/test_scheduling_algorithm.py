@@ -1,9 +1,9 @@
 import pytest
-from src.course import Course
-from src.exam_period import ExamPeriod
-from src.program_requirement import ProgramRequirement
+from src.models.course import Course
+from src.models.exam_period import ExamPeriod
+from src.models.program_requirement import ProgramRequirement
 # Adjust the import path based on where match_courses_to_periods is actually located
-from src.scheduling_algoritem import match_courses_to_periods
+from src.algorithm.scheduling_algoritem import match_courses_to_periods
 
 def test_match_single_period_multiple_programs():
     # Setup a single exam period

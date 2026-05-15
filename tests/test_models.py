@@ -1,6 +1,6 @@
 import pytest
-from src.course import Course
-from src.program_requirement import ProgramRequirement
+from src.models.course import Course
+from src.models.program_requirement import ProgramRequirement
 
 def test_program_requirement_is_obligatory():
     req_ob = ProgramRequirement("83101", 1, "FALL", "Obligatory")

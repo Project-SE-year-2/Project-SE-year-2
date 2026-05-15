@@ -1,5 +1,5 @@
 import pytest
-from src.program_parser import ProgramSelectionParser
+from src.parsers.program_parser import ProgramSelectionParser
 # A test to check that the system can read the programs with spaces between them
 def test_parse_programs_file_ignores_spaces(tmp_path):
     content = "83101, 83102, 83108"

@@ -1,5 +1,5 @@
-from models.course import Course
-from models.exam_period import ExamPeriod
+from src.models.course import Course
+from src.models.exam_period import ExamPeriod
 
 def match_courses_to_periods(valid_courses: list[Course], periods: list[ExamPeriod]) -> dict[ExamPeriod, dict[Course, list[str]]]:
     """

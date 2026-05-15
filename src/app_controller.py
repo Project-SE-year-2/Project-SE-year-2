@@ -2,6 +2,7 @@ import os
 from src.course_parser import CourseFileParser, filter_courses_for_scheduling
 from src.exam_period_file_parser import ExamPeriodFileParser
 from src.program_parser import ProgramSelectionParser
+from src.scheduling_algoritem import match_courses_to_periods
 
 class AppController:
     def __init__(self):
@@ -25,19 +26,18 @@ class AppController:
 
         #Parse all files using the parser objects
         courses = self.course_parser.parse(courses_path)
-        print(f"Successfully loaded {len(courses)} courses")
 
         periods = self.period_parser.parse(periods_path)
-        print(f"Successfully loaded {len(periods)} exam periods")
 
         programs = self.program_parser.parse(programs_path)
-        print(f"-> Successfully loaded {len(programs)} programs")
-        print(f"-> Programs list: {programs}\n")
-
         #Filter courses based on requirements
         valid_courses = filter_courses_for_scheduling(courses, programs)
-        print(f"Filtered courses: {len(valid_courses)} valid courses for scheduling")
-        print(f" (filtered out {len(courses) - len(valid_courses)} courses)\n")
+
+        # Generate tasks mapping: ExamPeriod -> { Course -> [Program IDs] }
+        scheduling_tasks = match_courses_to_periods(valid_courses, periods)
+
+        # Returns the mapped tasks for the scheduling algorithm
+        return scheduling_tasks
 
         # In the next step, we will pass valid_courses and periods to the SchedulingEngine
         return valid_courses, periods

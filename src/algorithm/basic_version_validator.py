@@ -1,7 +1,7 @@
 from datetime import date
-from src.course import Course
-from src.i_collision_validator import ICollisionValidator
-from src.constraint_index import ConstraintIndex
+from models.course import Course
+from algorithm.i_collision_validator import ICollisionValidator
+from algorithm.constraint_index import ConstraintIndex
 
 
 class BasicVersionValidator(ICollisionValidator):

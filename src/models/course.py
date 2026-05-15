@@ -1,4 +1,4 @@
-from src.program_requirement import ProgramRequirement
+from models.program_requirement import ProgramRequirement
 
 class Course:
     def __init__(self, name: str, course_id: str, instructor: str, evaluation: str):

@@ -1,6 +1,6 @@
 from datetime import date as DateType
-from src.course import Course
-from src.exam_period import ExamPeriod
+from models.course import Course
+from models.exam_period import ExamPeriod
 
 _SEM_ORDER = {"FALL": 0, "SPRI": 1, "SUMM": 2}
 _MOED_ORDER = {"Aleph": 0, "Bet": 1, "Gimel": 2}

@@ -1,14 +1,14 @@
 import os
-from src.course_parser import CourseFileParser, filter_courses_for_scheduling
-from src.exam_period_file_parser import ExamPeriodFileParser
-from src.program_parser import ProgramSelectionParser
-from src.scheduling_algoritem import match_courses_to_periods
-from src.constraint_index import ConstraintIndex
-from src.exam_period_catalog import ExamPeriodCatalog
-from src.basic_version_validator import BasicVersionValidator
-from src.constraint_validator import ConstraintValidator
-from src.scheduling_engine import SchedulingEngine
-from src.schedule_report_writer import ScheduleReportWriter
+from src.parsers.course_parser import CourseFileParser, filter_courses_for_scheduling
+from src.parsers.exam_period_file_parser import ExamPeriodFileParser
+from src.parsers.program_parser import ProgramSelectionParser
+from src.algorithm.scheduling_algoritem import match_courses_to_periods
+from src.algorithm.constraint_index import ConstraintIndex
+from src.algorithm.exam_period_catalog import ExamPeriodCatalog
+from src.algorithm.basic_version_validator import BasicVersionValidator
+from src.algorithm.constraint_validator import ConstraintValidator
+from src.algorithm.scheduling_engine import SchedulingEngine
+from src.output.schedule_report_writer import ScheduleReportWriter
 
 
 class AppController:
@@ -50,7 +50,8 @@ class AppController:
 
         schedules, metadata = self.engine.generateAll(scheduling_tasks)
 
-        output_path = os.path.join(os.path.dirname(courses_path), "..", "schedule_output.txt")
-        output_path = os.path.normpath(output_path)
+        project_root = os.path.normpath(os.path.join(os.path.dirname(courses_path), ".."))
+        output_dir = os.path.join(project_root, "output")
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, "schedule_output.txt")
         self.writer.write(schedules, metadata, programs, output_path=output_path)
-        print(f"\nOutput saved to: {output_path}")

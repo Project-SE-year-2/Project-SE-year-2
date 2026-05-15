@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import date
-from src.course import Course
+from models.course import Course
 
 
 class ICollisionValidator(ABC):

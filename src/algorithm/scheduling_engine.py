@@ -1,15 +1,15 @@
 from math import comb
 
-from src.exam_period import ExamPeriod
-from src.exam_schedule import ExamSchedule
-from src.constraint_validator import ConstraintValidator
-from src.exam_period_catalog import ExamPeriodCatalog
-from src.constraint_index import ConstraintIndex
-from src.basic_version_validator import BasicVersionValidator
-from src.course_ordering_heuristic import CourseOrderingHeuristic
-from src.forward_checker import ForwardChecker
-from src.backtracking_solver import BacktrackingSolver
-from src.schedule_combiner import ScheduleCombiner
+from models.exam_period import ExamPeriod
+from models.exam_schedule import ExamSchedule
+from algorithm.constraint_validator import ConstraintValidator
+from algorithm.exam_period_catalog import ExamPeriodCatalog
+from algorithm.constraint_index import ConstraintIndex
+from algorithm.basic_version_validator import BasicVersionValidator
+from algorithm.course_ordering_heuristic import CourseOrderingHeuristic
+from algorithm.forward_checker import ForwardChecker
+from algorithm.backtracking_solver import BacktrackingSolver
+from algorithm.schedule_combiner import ScheduleCombiner
 
 
 class SchedulingEngine:

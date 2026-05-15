@@ -1,6 +1,6 @@
-from src.course import Course
-from src.exam_period import ExamPeriod
-from src.constraint_index import ConstraintIndex
+from models.course import Course
+from models.exam_period import ExamPeriod
+from algorithm.constraint_index import ConstraintIndex
 
 
 class CourseOrderingHeuristic:

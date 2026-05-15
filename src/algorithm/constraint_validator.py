@@ -1,8 +1,8 @@
 from datetime import date
-from src.course import Course
-from src.exam_schedule import ExamSchedule
-from src.constraint_index import ConstraintIndex
-from src.i_collision_validator import ICollisionValidator
+from models.course import Course
+from models.exam_schedule import ExamSchedule
+from algorithm.constraint_index import ConstraintIndex
+from algorithm.i_collision_validator import ICollisionValidator
 
 
 class ConstraintValidator:

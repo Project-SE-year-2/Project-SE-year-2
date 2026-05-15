@@ -1,4 +1,4 @@
-from src.exam_schedule import ExamSchedule
+from models.exam_schedule import ExamSchedule
 
 
 class ScheduleCombiner:

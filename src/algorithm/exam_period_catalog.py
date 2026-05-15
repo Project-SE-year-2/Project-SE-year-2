@@ -1,5 +1,5 @@
-from src.exam_period import ExamPeriod
-from src.course import Course
+from models.exam_period import ExamPeriod
+from models.course import Course
 
 
 class ExamPeriodCatalog:

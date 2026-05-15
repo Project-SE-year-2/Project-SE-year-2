@@ -1,4 +1,4 @@
-from src.course import Course
+from models.course import Course
 
 
 class ConstraintIndex:

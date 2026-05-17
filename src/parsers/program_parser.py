@@ -10,6 +10,18 @@ class ProgramSelectionParser(IFileParser):
         # split by comma and strip whitespace from each program ID
         programs = [prog.strip() for prog in content.split(',') if prog.strip()]
 
+        # Validate program ID format: exactly 5 digits
+        for prog in programs:
+            if not prog.isdigit() or len(prog) != 5:
+                raise ValueError(
+                    f"Invalid program ID format: '{prog}'. "
+                    "Program IDs must contain exactly 5 digits."
+                )
+            
+        # Remove duplicate program IDs while preserving order
+        programs = list(dict.fromkeys(programs))
+
+        
         # User only allowed up to 5 program ID
         if len(programs) > 5:
             raise ValueError("Programs file cannot contain more than 5 programs")

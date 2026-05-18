@@ -1,7 +1,8 @@
 from src.models.program_requirement import ProgramRequirement
+from src.models.enums import Evaluation
 
 class Course:
-    def __init__(self, name: str, course_id: str, instructor: str, evaluation: str):
+    def __init__(self, name: str, course_id: str, instructor: str, evaluation: Evaluation):
         # course name
         self.name = name
         # course ID

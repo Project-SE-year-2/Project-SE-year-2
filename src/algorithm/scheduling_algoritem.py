@@ -16,7 +16,7 @@ def match_courses_to_periods(valid_courses: list[Course], periods: list[ExamPeri
         for course in valid_courses:
             for req in course.requirements:
                 # Match based on the semester defined in the course requirements
-                if req.semester.strip() == period.semester.strip():
+                if req.semester == period.semester:
                     
                     # If the course is not yet in this period's dictionary, initialize it
                     if course not in period_to_tasks[period]:

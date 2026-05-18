@@ -3,16 +3,17 @@ from datetime import date
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
 from src.models.exam_schedule import ExamSchedule
+from src.models.enums import Evaluation, Semester, ReqType,Moed
 
 
 # Tests that sortByDate returns assignments in chronological order
 # for a schedule that belongs to a single exam period.
 def test_sort_by_date_single_period_sorts_assignments_chronologically():
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "03-02-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 3))
 
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
-    course3 = Course("Algebra 1", "83120", "Prof. C", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
+    course3 = Course("Algebra 1", "83120", "Prof. C", Evaluation.Exam)
 
     schedule = ExamSchedule(period)
 
@@ -32,13 +33,13 @@ def test_sort_by_date_single_period_sorts_assignments_chronologically():
 # Tests that sortByDate correctly sorts cross-period schedules
 # by semester order, moed order, and finally exam date.
 def test_sort_by_date_cross_period_sorts_by_semester_moed_then_date():
-    fall_aleph = ExamPeriod("FALL", "Aleph", "01-02-2026", "01-02-2026")
-    fall_bet = ExamPeriod("FALL", "Bet", "10-04-2026", "10-04-2026")
-    spri_aleph = ExamPeriod("SPRI", "Aleph", "01-07-2026", "01-07-2026")
+    fall_aleph = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
+    fall_bet = ExamPeriod(Semester.FALL, Moed.Bet, date(2026, 4, 10), date(2026, 4, 10))
+    spri_aleph = ExamPeriod(Semester.SPRI, Moed.Aleph, date(2026, 7, 1), date(2026, 7, 1))
 
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
-    course3 = Course("Algebra 1", "83120", "Prof. C", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
+    course3 = Course("Algebra 1", "83120", "Prof. C", Evaluation.Exam)
 
     schedule1 = ExamSchedule(fall_bet)
     schedule1.assign(course1, date(2026, 4, 10))
@@ -64,11 +65,11 @@ def test_sort_by_date_cross_period_sorts_by_semester_moed_then_date():
 # Tests that merge creates a cross-period schedule
 # that contains assignments from both original schedules.
 def test_merge_combines_assignments_from_multiple_periods():
-    fall = ExamPeriod("FALL", "Aleph", "01-02-2026", "01-02-2026")
-    spri = ExamPeriod("SPRI", "Aleph", "01-07-2026", "01-07-2026")
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
+    spri = ExamPeriod(Semester.SPRI, Moed.Aleph, date(2026, 7, 1), date(2026, 7, 1))
 
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
 
     schedule1 = ExamSchedule(fall)
     schedule1.assign(course1, date(2026, 2, 1))
@@ -89,10 +90,10 @@ def test_merge_combines_assignments_from_multiple_periods():
 # Tests that sort_key returns dates in chronological order
 # for schedules that belong to a single exam period.
 def test_sort_key_single_period():
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "03-02-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 3))
 
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
 
     schedule = ExamSchedule(period)
 
@@ -108,11 +109,11 @@ def test_sort_key_single_period():
 # Tests that sort_key for cross-period schedules
 # preserves the global chronological ordering of all exams.
 def test_sort_key_cross_period():
-    fall = ExamPeriod("FALL", "Aleph", "01-02-2026", "01-02-2026")
-    spri = ExamPeriod("SPRI", "Aleph", "01-07-2026", "01-07-2026")
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
+    spri = ExamPeriod(Semester.SPRI, Moed.Aleph, date(2026, 7, 1), date(2026, 7, 1))
 
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
 
     schedule1 = ExamSchedule(spri)
     schedule1.assign(course2, date(2026, 7, 1))
@@ -131,10 +132,10 @@ def test_sort_key_cross_period():
 # Tests that copy creates a completely independent schedule object
 # while preserving all original assignments.
 def test_copy_creates_independent_schedule():
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "02-02-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 2))
 
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
 
     original = ExamSchedule(period)
     original.assign(course1, date(2026, 2, 1))

@@ -16,21 +16,16 @@ classDiagram
     class IFileParser~T~ {
         <<interface>>
         +parse(path: String) List~T~
-        +parseRecord(lines: List~String~) T
     }
-
-    
 
     class CourseFileParser {
         +parse(path: String) List~Course~
-        +parseRecord(lines: List~String~) Course
-        +filter_courses_for_scheduling(courses, selected_programs) List~Course~
+        ..creates ProgramRequirement
     }
 
     class ExamPeriodFileParser {
         +parse(path: String) List~ExamPeriod~
-        +parseRecord(lines: List~String~) ExamPeriod
-        -parseExcluded(line: String) Set~Date~
+        -_parse_forbidden_dates(lines: List~String~, period_start: Date, period_end: Date) Set~Date~
     }
 
     class ProgramSelectionParser {
@@ -38,21 +33,11 @@ classDiagram
     }
 
     class ScheduleReportWriter {
-        +write(schedules: List~ExamSchedule~, path: String) void
-        -formatSchedule(schedule: ExamSchedule) String
-        -groupByPeriod(schedule: ExamSchedule) Map
-    }
-
-    %% ===== Output Layer =====
-    class IOutputWriter {
-        <<interface>>
-        +write(schedules: List~ExamSchedule~, metadata: Map, programs: List~String~, output_path: String) void
-    }
-
-    class OutputManager {
-        -writers: List~IOutputWriter~
-        +prepareOutputDir(path: String) void
-        +writeReport(schedules: List~ExamSchedule~, metadata: Map, programs: List~String~, output_dir: String) void
+        +write(schedules: List~ExamSchedule~, metadata: Map~ExamPeriod, Map~, programs: List~String~, output_path: String) void
+        -_buildReport(schedules: List~ExamSchedule~, metadata: Map~ExamPeriod, Map~, programs: List~String~) List~String~
+        -_printSummary(metadata: Map~ExamPeriod, Map~, schedules: List~ExamSchedule~, output_path: String) void
+        -_formatSchedule(schedule: ExamSchedule) String
+        -_groupByPeriod(schedules: List~ExamSchedule) Map
     }
 
     %% ===== Domain Layer =====
@@ -62,7 +47,8 @@ classDiagram
         -instructor: String
         -evaluation: Evaluation
         -requirements: List~ProgramRequirement~
-        +belongsToProgram(programId: String) bool
+        +hasExam() bool
+        +belongsTo(programId: String) bool
         +getRequirementFor(programId: String) ProgramRequirement
     }
 
@@ -71,7 +57,7 @@ classDiagram
         -year: int
         -semester: Semester
         -requirement: ReqType
-        +is_obligatory() bool
+        +isObligatory() bool
         +groupKey() Tuple
     }
 
@@ -126,8 +112,8 @@ classDiagram
         -index: ConstraintIndex
         -solver: BacktrackingSolver
         -combiner: ScheduleCombiner
-        +generateAll(courses, periods, programs) List~ExamSchedule~
-        -orderCourses(courses) List~Course~
+        +generateAll(scheduling_tasks: Map~ExamPeriod, Map~Course,List~String~) Tuple~List~ExamSchedule~, Map~ExamPeriod, Map~~
+        -_orderCourses(courses) List~Course~
     }
 
     class BacktrackingSolver {
@@ -178,10 +164,11 @@ classDiagram
 
     %% Application controls everything
     AppController --> CourseFileParser : uses
+    AppController --> CourseFileParser : uses
     AppController --> ExamPeriodFileParser : uses
     AppController --> ProgramSelectionParser : uses
     AppController --> SchedulingEngine : uses
-    AppController --> OutputManager : uses
+    AppController --> ScheduleReportWriter : uses
     AppController --> ConstraintIndex : builds
 
     %% Parsers implement interface
@@ -192,11 +179,6 @@ classDiagram
     CourseFileParser ..> Course : creates
     CourseFileParser ..> Course : filters
     ExamPeriodFileParser ..> ExamPeriod : creates
-
-    %% Output wiring
-    OutputManager --> IOutputWriter : delegates
-    IOutputWriter <|.. ScheduleReportWriter
-    ScheduleReportWriter ..> ExamSchedule : reads
 
     %% Domain composition
     Course "1" *-- "1..*" ProgramRequirement : owns

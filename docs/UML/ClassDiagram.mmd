@@ -15,24 +15,16 @@ classDiagram
     class IFileParser~T~ {
         <<interface>>
         +parse(path: String) List~T~
-        +parseRecord(lines: List~String~) T
     }
 
     class CourseFileParser {
         +parse(path: String) List~Course~
-        +parseRecord(lines: List~String~) Course
-        -parseRequirement(line: String) ProgramRequirement
-    }
-
-    class CourseParser {
-        +filter_courses_for_scheduling(courses, selected_programs) List~Course~
-        +parseAdditionalRules() void
+        ..creates ProgramRequirement
     }
 
     class ExamPeriodFileParser {
         +parse(path: String) List~ExamPeriod~
-        +parseRecord(lines: List~String~) ExamPeriod
-        -parseExcluded(line: String) Set~Date~
+        -_parse_forbidden_dates(lines: List~String~, period_start: Date, period_end: Date) Set~Date~
     }
 
     class ProgramSelectionParser {
@@ -40,9 +32,11 @@ classDiagram
     }
 
     class ScheduleReportWriter {
-        +write(schedules: List~ExamSchedule~, path: String) void
-        -formatSchedule(schedule: ExamSchedule) String
-        -groupByPeriod(schedule: ExamSchedule) Map
+        +write(schedules: List~ExamSchedule~, metadata: Map~ExamPeriod, Map~, programs: List~String~, output_path: String) void
+        -_buildReport(schedules: List~ExamSchedule~, metadata: Map~ExamPeriod, Map~, programs: List~String~) List~String~
+        -_printSummary(metadata: Map~ExamPeriod, Map~, schedules: List~ExamSchedule~, output_path: String) void
+        -_formatSchedule(schedule: ExamSchedule) String
+        -_groupByPeriod(schedules: List~ExamSchedule) Map
     }
 
     %% ===== Domain Layer =====
@@ -115,11 +109,10 @@ classDiagram
         -validator: ConstraintValidator
         -catalog: ExamPeriodCatalog
         -index: ConstraintIndex
-        -partitioner: ProblemPartitioner
         -solver: BacktrackingSolver
         -combiner: ScheduleCombiner
-        +generateAll(courses, periods, programs) List~ExamSchedule~
-        -orderCourses(courses) List~Course~
+        +generateAll(scheduling_tasks: Map~ExamPeriod, Map~Course,List~String~) Tuple~List~ExamSchedule~, Map~ExamPeriod, Map~~
+        -_orderCourses(courses) List~Course~
     }
 
     class BacktrackingSolver {
@@ -170,7 +163,7 @@ classDiagram
 
     %% Application controls everything
     AppController --> CourseFileParser : uses
-    AppController --> CourseParser : uses
+    AppController --> CourseFileParser : uses
     AppController --> ExamPeriodFileParser : uses
     AppController --> ProgramSelectionParser : uses
     AppController --> SchedulingEngine : uses
@@ -183,7 +176,7 @@ classDiagram
 
     %% Parsers create domain objects
     CourseFileParser ..> Course : creates
-    CourseParser ..> Course : filters
+    CourseFileParser ..> Course : filters
     ExamPeriodFileParser ..> ExamPeriod : creates
 
     %% Domain composition

@@ -1,0 +1,57 @@
+classDiagram
+    direction TB
+
+    %% ===== Application Layer =====
+    class AppController {
+        -courseParser: CourseFileParser
+        -periodParser: ExamPeriodFileParser
+        -programParser: ProgramSelectionParser
+        -engine: SchedulingEngine
+        -writer: OutputManager
+        +run(coursesPath, periodsPath, programsPath) void
+        -_validate_paths(paths) void
+    }
+
+    %% ===== System Boundaries =====
+    class Parsers {
+        <<boundary>>
+        CourseFileParser
+        ExamPeriodFileParser
+        ProgramSelectionParser
+    }
+
+    class Algorithm {
+        <<boundary>>
+        SchedulingEngine
+    }
+
+    class Output {
+        <<boundary>>
+        OutputManager
+    }
+
+    class IOutputWriter {
+        <<interface>>
+        +write(schedules, metadata, programs, output_path) void
+    }
+
+    class OutputManager {
+        +prepareOutputDir(path: String) void
+        +writeReport(schedules, metadata, programs, output_dir) void
+    }
+
+    class ScheduleReportWriter {
+        +write(schedules, metadata, programs, output_path) void
+        -_buildReport(schedules, metadata, programs) List~String~
+        -_printSummary(metadata, schedules, output_path) void
+    }
+
+    %% ===== Relationships =====
+    AppController --> Parsers : uses
+    AppController --> Algorithm : uses
+    AppController --> Output : uses
+
+    Output --> OutputManager : contains
+    OutputManager --> IOutputWriter : delegates
+    IOutputWriter <|.. ScheduleReportWriter : implements
+    OutputManager ..> ScheduleReportWriter : uses

@@ -14,3 +14,9 @@ env/
 
 # Test file
 tester_main.py
+
+CLAUDE.md
+ruvector.db
+.claude/
+.claude-flow/
+.swarm/

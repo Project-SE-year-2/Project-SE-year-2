@@ -1,0 +1,105 @@
+classDiagram
+
+    %% ===== Domain Models (Used by the algorithm) =====
+    class Course {
+        +String courseID
+        +List~ProgramRequirement~ requirements
+        +belongsTo(programID) bool
+        +getYearForProgram(programID) int
+    }
+
+    class ExamPeriod {
+        +String semester
+        +String moed
+        +getAvailableDates() List~Date~
+        +matches(course) bool
+    }
+
+    class ExamSchedule {
+        +String semester
+        +String moed
+        +Map~Course, Date~ assignments
+        +merge(other) ExamSchedule
+    }
+
+    %% ===== Engine Orchestrator =====
+    class SchedulingEngine {
+        -ProblemPartitioner partitioner
+        -BacktrackingSolver solver
+        -ScheduleCombiner combiner
+        +generateAllSchedules(courses, periods, programs) List~ExamSchedule~
+    }
+
+    %% ===== Problem Decomposition =====
+    class ProblemPartitioner {
+        +partition(courses, programs, periods) List~SchedulingSubProblem~
+    }
+
+    class SchedulingSubProblem {
+        +String programID
+        +int year
+        +ExamPeriod period
+        +List~Course~ courses
+    }
+
+    %% ===== Backtracking Core =====
+    class BacktrackingSolver {
+        -ICollisionValidator validator
+        -CourseOrderingHeuristic heuristic
+        -ForwardChecker forwardChecker
+        +solve(subProblem) List~ExamSchedule~
+        -backtrack(remaining, partial, results) void
+    }
+
+    class CourseOrderingHeuristic {
+        +orderByMostConstrained(courses, period) List~Course~
+    }
+
+    class ForwardChecker {
+        +hasViableAssignment(remaining, partial, period) bool
+    }
+
+    class ICollisionValidator {
+        <<interface>>
+        +isValid(courseA, dateA, courseB, dateB) bool
+    }
+
+    class BasicVersionValidator {
+        +isValid(courseA, dateA, courseB, dateB) bool
+    }
+
+    %% ===== Combination =====
+    class ScheduleCombiner {
+        +combineSubResults(subResults) List~ExamSchedule~
+    }
+
+    %% ===== Relationships =====
+    SchedulingEngine --> ProblemPartitioner
+    SchedulingEngine --> BacktrackingSolver
+    SchedulingEngine --> ScheduleCombiner
+
+    ProblemPartitioner ..> SchedulingSubProblem : creates
+    SchedulingSubProblem o-- Course
+    SchedulingSubProblem o-- ExamPeriod
+
+    BacktrackingSolver --> ICollisionValidator
+    BacktrackingSolver --> CourseOrderingHeuristic
+    BacktrackingSolver --> ForwardChecker
+    BacktrackingSolver ..> ExamSchedule : produces
+
+    ICollisionValidator <|.. BasicVersionValidator
+
+    ScheduleCombiner ..> ExamSchedule : combines
+
+    %% Added components: filtering and partitioning
+    class ProblemPartitioner {
+        +partition(courses, programs, periods) List~SchedulingSubProblem~
+    }
+
+    class CourseParser {
+        +filter_courses_for_scheduling(courses, selected_programs) List~Course~
+    }
+
+    SchedulingEngine --> ProblemPartitioner
+    SchedulingEngine --> CourseParser
+    ProblemPartitioner ..> SchedulingSubProblem : creates

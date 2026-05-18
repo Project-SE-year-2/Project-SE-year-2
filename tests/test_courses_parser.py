@@ -134,7 +134,7 @@ $$$$
     assert courses[0].course_id == "83102"
 
 
-# Tests that the parser raises a clear error or handles gracefully when a course record
+# Tests that the parser raises a clear ValueError when a course record
 # is missing the course name field.
 def test_parse_courses_file_missing_course_name(tmp_path):
     content = """$$$$
@@ -149,15 +149,13 @@ Exam
     file_path.write_text(content, encoding="utf-8")
 
     parser = CourseFileParser()
-    courses = parser.parse(str(file_path))
-
-    # The parser should either skip this record or handle it gracefully
-    # This test validates the actual behavior
-    assert isinstance(courses, list)
+    
+    with pytest.raises(ValueError):
+        parser.parse(str(file_path))
 
 
-# Tests that the parser raises a clear error or handles gracefully
-# when a course record is missing the course ID field.
+# Tests that the parser raises a clear ValueError when a course record
+# is missing the course ID field.
 def test_parse_courses_file_missing_course_id(tmp_path):
     content = """$$$$
 Physics 1
@@ -171,19 +169,13 @@ Exam
     file_path.write_text(content, encoding="utf-8")
 
     parser = CourseFileParser()
-
-    # Parser should handle this gracefully (may raise or skip)
-    try:
-        courses = parser.parse(str(file_path))
-        # If no error, verify it returned a list
-        assert isinstance(courses, list)
-    except (ValueError, IndexError):
-        # Expected if parser validates mandatory fields
-        pass
+    
+    with pytest.raises(ValueError):
+        parser.parse(str(file_path))
 
 
-# Tests that the parser raises a clear error or handles gracefully 
-# when a course record is missing the instructor name field.
+# Tests that the parser raises a clear ValueError when a course record
+# is missing the instructor name field.
 def test_parse_courses_file_missing_instructor_name(tmp_path):
     content = """$$$$
 Physics 1
@@ -197,16 +189,13 @@ Exam
     file_path.write_text(content, encoding="utf-8")
 
     parser = CourseFileParser()
-
-    try:
-        courses = parser.parse(str(file_path))
-        assert isinstance(courses, list)
-    except (ValueError, IndexError):
-        pass
+    
+    with pytest.raises(ValueError):
+        parser.parse(str(file_path))
 
 
-# Tests that the parser raises a clear error or handles gracefully 
-# when a course record is missing the evaluation type field.
+# Tests that the parser raises a clear ValueError when a course record
+# is missing the evaluation type field.
 def test_parse_courses_file_missing_evaluation_type(tmp_path):
     content = """$$$$
 Physics 1
@@ -220,9 +209,6 @@ Prof. O. Some
     file_path.write_text(content, encoding="utf-8")
 
     parser = CourseFileParser()
-
-    try:
-        courses = parser.parse(str(file_path))
-        assert isinstance(courses, list)
-    except (ValueError, IndexError):
-        pass
+    
+    with pytest.raises(ValueError):
+        parser.parse(str(file_path))

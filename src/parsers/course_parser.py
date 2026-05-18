@@ -20,7 +20,27 @@ class CourseFileParser(IFileParser):
             
             if not lines:
                 continue
-                
+
+            if len(lines) < 5:
+                raise ValueError("Invalid course record format")
+
+            name = lines[0]
+            course_id = lines[1]
+            instructor = lines[2]
+            evaluation = lines[-1]
+
+            if "," in name:
+                raise ValueError("Missing course name")
+
+            if "," in course_id:
+                raise ValueError("Missing course ID")
+
+            if "," in instructor:
+                     raise ValueError("Missing instructor name")
+
+            if evaluation not in ["Exam", "Project", "Attendance"]:
+                raise ValueError("Missing or invalid evaluation type")
+            
             # extract course metadata
             name = lines[0]
             course_id = lines[1]

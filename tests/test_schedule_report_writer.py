@@ -202,18 +202,17 @@ def test_report_no_duplicate_courses_in_single_schedule(tmp_path):
 
     content = output_file.read_text(encoding="utf-8")
 
-    # Count occurrences of the course in the actual schedule output
-    # (not in the metadata section)
-    lines = content.split("\n")
-    schedule_section_started = False
-    course_count = 0
-    for line in lines:
-        if "Complete Exam Schedules" in line:
-            schedule_section_started = True
-        if schedule_section_started and "83102" in line and "Courses" not in line:
-            course_count += 1
+    # Count only actual exam assignment lines
+    # and ignore schedule title/header lines.
+    exam_record_lines = [
+        line for line in content.split("\n")
+        if "83102" in line
+        and "Prof. A" in line
+        and "01-02-2026" in line
+    ]
 
-    assert course_count == 1, "Course should appear exactly once per schedule"
+    assert len(exam_record_lines) == 1, \
+        "Course should appear exactly once in the actual exam assignments"
 
 # Tests that the report writer handles an empty schedules list gracefully
 # by generating a proper report format indicating that zero valid options were found.

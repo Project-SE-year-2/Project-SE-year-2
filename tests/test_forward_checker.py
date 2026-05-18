@@ -55,3 +55,37 @@ def test_has_viable_assignment_returns_false_when_no_dates_available():
     
     # c2 has no viable options left, so the forward checker must return False
     assert checker.hasViableAssignment([c2], schedule, period) is False
+
+# Tests that empty remaining courses always has a viable assignment.
+def test_has_viable_assignment_returns_true_for_empty_remaining():
+    checker, _ = _setup_checker([], ["83101"])
+
+    period = ExamPeriod("FALL", "Aleph", "01-01-2026", "01-01-2026")
+    period.possible_dates = [date(2026, 1, 1)]
+
+    schedule = ExamSchedule(period)
+
+    assert checker.hasViableAssignment([], schedule, period) is True
+
+
+# Tests that ForwardChecker returns False when at least one remaining course
+# has no valid date, even if other remaining courses are still assignable.
+def test_has_viable_assignment_returns_false_when_one_remaining_course_blocked():
+    c1 = Course("C1", "1", "A", "Exam")
+    c1.add_requirement(ProgramRequirement("83101", 1, "FALL", "Obligatory"))
+
+    c2 = Course("C2", "2", "B", "Exam")
+    c2.add_requirement(ProgramRequirement("83101", 1, "FALL", "Obligatory"))
+
+    c3 = Course("C3", "3", "C", "Exam")
+    c3.add_requirement(ProgramRequirement("83108", 1, "FALL", "Obligatory"))
+
+    checker, _ = _setup_checker([c1, c2, c3], ["83101", "83108"])
+
+    period = ExamPeriod("FALL", "Aleph", "01-01-2026", "01-01-2026")
+    period.possible_dates = [date(2026, 1, 1)]
+
+    schedule = ExamSchedule(period)
+    schedule.assign(c1, date(2026, 1, 1))
+
+    assert checker.hasViableAssignment([c2, c3], schedule, period) is False

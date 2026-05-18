@@ -41,3 +41,47 @@ def test_constraint_index_group_key_for():
     index.build([course1], ["83101"])
     
     assert index.groupKeyFor(course1) == ("83101", 1, "FALL")
+
+# Tests that a course belonging to two selected programs
+# is inserted into both obligatory conflict groups.
+def test_constraint_index_course_belonging_to_two_programs_added_to_both_groups():
+    course = Course("Shared Course", "100", "Prof. A", "Exam")
+    course.add_requirement(
+        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+    )
+    course.add_requirement(
+        ProgramRequirement("83108", 1, "FALL", "Obligatory")
+    )
+
+    index = ConstraintIndex()
+    index.build([course], ["83101", "83108"])
+
+    groups = index.obligatoryGroups()
+
+    assert ("83101", 1, "FALL") in groups
+    assert ("83108", 1, "FALL") in groups
+
+    assert course in groups[("83101", 1, "FALL")]
+    assert course in groups[("83108", 1, "FALL")]
+
+
+# Tests that examCoursesInPrograms returns only Exam courses
+# and ignores Project or other non-exam courses.
+def test_constraint_index_exam_courses_in_programs_ignores_non_exam_courses():
+    exam_course = Course("Physics 1", "83102", "Prof. A", "Exam")
+    exam_course.add_requirement(
+        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+    )
+
+    project_course = Course("Software Project", "83533", "Prof. B", "Project")
+    project_course.add_requirement(
+        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+    )
+
+    index = ConstraintIndex()
+    index.build([exam_course, project_course], ["83101"])
+
+    exam_courses = index.examCoursesInPrograms()
+
+    assert exam_course in exam_courses
+    assert project_course not in exam_courses

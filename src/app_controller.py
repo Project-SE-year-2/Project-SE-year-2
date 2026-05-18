@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from src.parsers.course_parser import CourseFileParser, filter_courses_for_scheduling
 from src.parsers.exam_period_file_parser import ExamPeriodFileParser
 from src.parsers.program_parser import ProgramSelectionParser
@@ -63,5 +64,7 @@ class AppController:
         project_root = os.path.normpath(os.path.join(os.path.dirname(courses_path), ".."))
         output_dir = os.path.join(project_root, "output")
         os.makedirs(output_dir, exist_ok=True)
-        output_path = os.path.join(output_dir, "schedule_output.txt")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        #output_path = f"output/schedule_output_{timestamp}.txt"
+        output_path = os.path.join(output_dir, f"schedule_output_{timestamp}.txt")
         self.writer.write(schedules, metadata, programs, output_path=output_path)

@@ -1,5 +1,5 @@
 from src.models.course import Course
-
+from src.models.enums import Evaluation
 
 class ConstraintIndex:
     """
@@ -15,13 +15,13 @@ class ConstraintIndex:
 
     def build(self, courses: list[Course], programs: list[str]) -> None:
         self._selected_programs = list(programs)
-        self._exam_courses = [c for c in courses if c.evaluation == "Exam"]
+        self._exam_courses = [c for c in courses if c.evaluation == Evaluation.Exam]
         self._obligatory_groups = {}
 
         for course in self._exam_courses:
             for req in course.requirements:
                 if req.is_obligatory() and req.program_id in self._selected_programs:
-                    key = (req.program_id, req.year, req.semester.strip())
+                    key = (req.program_id, req.year, req.semester)
                     if key not in self._obligatory_groups:
                         self._obligatory_groups[key] = []
                     if course not in self._obligatory_groups[key]:
@@ -33,7 +33,7 @@ class ConstraintIndex:
     def groupKeyFor(self, course: Course) -> tuple | None:
         for req in course.requirements:
             if req.is_obligatory() and req.program_id in self._selected_programs:
-                return (req.program_id, req.year, req.semester.strip())
+                return (req.program_id, req.year, req.semester)
         return None
 
     def examCoursesInPrograms(self) -> list[Course]:

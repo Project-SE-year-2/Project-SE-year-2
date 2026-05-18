@@ -58,7 +58,7 @@ class ScheduleReportWriter:
             valid: int = info["valid_count"]
 
             lines.append(
-                f"Period : {period.semester} - {period.moed}  "
+                f"Period : {period.semester.value} - {period.moed.value}  "
                 f"({period.start_date.strftime('%d-%m-%Y')} to "
                 f"{period.end_date.strftime('%d-%m-%Y')})"
             )
@@ -108,7 +108,7 @@ class ScheduleReportWriter:
                 # 2.3.3 — already sorted FALL Aleph -> FALL Bet -> SPRI
                 for period, course, exam_date in sorted_items:
                     lines.append(
-                        f"    [{period.semester} - {period.moed}]  "
+                        f"    [{period.semester.value} - {period.moed.value}]  "
                         f"{course.name} ({course.course_id}) | "
                         f"{course.instructor} : "
                         f"{exam_date.strftime('%d-%m-%Y')}"
@@ -139,7 +139,7 @@ class ScheduleReportWriter:
             if n_c == 0:
                 continue
             print(
-                f"  {period.semester} - {period.moed}: "
+                f"  {period.semester.value} - {period.moed.value}: "
                 f"{info['valid_count']:,} valid schedules  "
                 f"[C({info['available_days']}, {n_c}) x {n_c} = {info['theoretical_count']:,}]"
             )
@@ -157,7 +157,7 @@ class ScheduleReportWriter:
         parts = []
         for period, course, exam_date in schedule.sortByDate():
             parts.append(
-                f"[{period.semester}-{period.moed}] "
+                f"[{period.semester.value}-{period.moed.value}] "
                 f"{course.name} ({course.course_id}) | "
                 f"{course.instructor}: {exam_date.strftime('%d-%m-%Y')}"
             )

@@ -2,6 +2,7 @@ import re
 from datetime import datetime, date, timedelta
 from src.parsers.file_parser import IFileParser
 from src.models.exam_period import ExamPeriod
+from src.models.enums import Semester, Moed
 
 # Parser class for loading exam periods and forbidden dates
 class ExamPeriodFileParser(IFileParser):
@@ -64,7 +65,7 @@ class ExamPeriodFileParser(IFileParser):
 
             # extract start and end dates of the exam period
             start_end = lines[1].split(',')
-            period = ExamPeriod(semester, moed, start_end[0].strip(), start_end[1].strip())
+            period = ExamPeriod(Semester(semester), Moed(moed), start_end[0].strip(), start_end[1].strip())
             
             # Use self. to call class helper methods
             forbidden_dates = self._parse_forbidden_dates(lines, period.start_date, period.end_date)

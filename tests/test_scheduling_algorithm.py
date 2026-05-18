@@ -1,21 +1,24 @@
+from datetime import date
+
 import pytest
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
 from src.models.program_requirement import ProgramRequirement
 # Adjust the import path based on where match_courses_to_periods is actually located
 from src.algorithm.scheduling_algoritem import match_courses_to_periods
+from src.models.enums import Evaluation, Semester, ReqType,Moed
 
 def test_match_single_period_multiple_programs():
     # Setup a single exam period
-    fall_period = ExamPeriod("FALL", "Aleph", "01-01-2026", "31-01-2026")
+    fall_period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 1), date(2026, 1, 31))
     periods = [fall_period]
 
     # Setup a course required by multiple programs in the same semester
-    c1 = Course("Calculus 1", "83112", "Dr. Erez", "Exam")
-    c1.add_requirement(ProgramRequirement("SE", 1, "FALL", "Obligatory"))
-    c1.add_requirement(ProgramRequirement("CS", 1, "FALL", "Obligatory"))
+    c1 = Course("Calculus 1", "83112", "Dr. Erez", Evaluation.Exam)
+    c1.add_requirement(ProgramRequirement("SE", 1, Semester.FALL, ReqType.Obligatory))
+    c1.add_requirement(ProgramRequirement("CS", 1, Semester.FALL, ReqType.Obligatory))
     # Add a requirement for a different program in a different semester to ensure it's ignored
-    c1.add_requirement(ProgramRequirement("EE", 1, "SPRI", "Obligatory"))
+    c1.add_requirement(ProgramRequirement("EE", 1, Semester.SPRI, ReqType.Obligatory))
 
     valid_courses = [c1]
 
@@ -34,14 +37,14 @@ def test_match_single_period_multiple_programs():
 
 def test_course_split_across_different_semesters():
     # Setup two distinct exam periods
-    fall_period = ExamPeriod("FALL", "Aleph", "01-01-2026", "31-01-2026")
-    spri_period = ExamPeriod("SPRI", "Aleph", "01-06-2026", "30-06-2026")
+    fall_period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 1), date(2026, 1, 31))
+    spri_period = ExamPeriod(Semester.SPRI, Moed.Aleph, date(2026, 6, 1), date(2026, 6, 30))
     periods = [fall_period, spri_period]
 
     # Setup a course that is taken in FALL by SE, but in SPRI by Data
-    c2 = Course("Physics 1", "83101", "Prof. Some", "Exam")
-    c2.add_requirement(ProgramRequirement("SE", 1, "FALL", "Obligatory"))
-    c2.add_requirement(ProgramRequirement("Data", 1, "SPRI", "Obligatory"))
+    c2 = Course("Physics 1", "83101", "Prof. Some", Evaluation.Exam)
+    c2.add_requirement(ProgramRequirement("SE", 1, Semester.FALL, ReqType.Obligatory))
+    c2.add_requirement(ProgramRequirement("Data", 1, Semester.SPRI, ReqType.Obligatory))
 
     valid_courses = [c2]
 
@@ -59,9 +62,9 @@ def test_course_split_across_different_semesters():
 def test_whitespace_and_case_handling():
     # Setup period and course with messy whitespace strings
     # The strip() function inside the logic should handle this smoothly
-    messy_period = ExamPeriod(" FALL ", "Aleph", "01-01-2026", "31-01-2026")
-    c3 = Course("Data Structures", "102", "Dr. Jane", "Exam")
-    c3.add_requirement(ProgramRequirement("SE", 1, "FALL\n", "Obligatory"))
+    messy_period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 1), date(2026, 1, 31))
+    c3 = Course("Data Structures", "102", "Dr. Jane", Evaluation.Exam)
+    c3.add_requirement(ProgramRequirement("SE", 1, Semester.FALL, ReqType.Obligatory))
     
     result = match_courses_to_periods([c3], [messy_period])
     
@@ -71,8 +74,8 @@ def test_whitespace_and_case_handling():
     assert "SE" in result[messy_period][c3]
 
 def test_empty_lists():
-    fall_period = ExamPeriod("FALL", "Aleph", "01-01-2026", "31-01-2026")
-    c4 = Course("Math", "101", "T", "Exam")
+    fall_period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 1), date(2026, 1, 31))
+    c4 = Course("Math", "101", "T", Evaluation.Exam)
     
     # Test 1: Empty courses list
     result_empty_courses = match_courses_to_periods([], [fall_period])

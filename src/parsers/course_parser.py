@@ -1,6 +1,6 @@
-from parsers.file_parser import IFileParser
-from models.course import Course
-from models.program_requirement import ProgramRequirement
+from src.parsers.file_parser import IFileParser
+from src.models.course import Course
+from src.models.program_requirement import ProgramRequirement
 
 # Parser class for loading courses
 class CourseFileParser(IFileParser):

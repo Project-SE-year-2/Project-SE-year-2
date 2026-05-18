@@ -1,6 +1,6 @@
 import pytest
 
-from src.course_parser import CourseFileParser
+from src.parsers.course_parser import CourseFileParser
 
 def test_parse_courses_file_loads_courses_correctly(tmp_path):
     content = """$$$$

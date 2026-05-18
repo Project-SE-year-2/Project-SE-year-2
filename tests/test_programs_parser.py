@@ -1,5 +1,5 @@
 import pytest
-from src.program_parser import ProgramSelectionParser
+from src.parsers.program_parser import ProgramSelectionParser
 # A test to check that the system can read the programs with spaces between them
 def test_parse_programs_file_ignores_spaces(tmp_path):
     content = "83101, 83102, 83108"
@@ -34,3 +34,33 @@ def test_parse_programs_file_rejects_more_than_five_programs(tmp_path):
     parser = ProgramSelectionParser()
     with pytest.raises(ValueError):
         parser.parse(str(file_path))
+
+# Tests that malformed program IDs are rejected.
+# Program IDs must contain exactly 5 digits.
+def test_parse_programs_file_rejects_malformed_program_id(tmp_path):
+
+    content = "8310, 83108"
+
+    file_path = tmp_path / "programs.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = ProgramSelectionParser()
+
+    with pytest.raises(ValueError, match="Invalid program ID"):
+        parser.parse(str(file_path))
+
+
+# Tests that duplicate program IDs are handled correctly
+# and are not duplicated in the final parsed result.
+def test_parse_programs_file_removes_duplicate_program_ids(tmp_path):
+
+    content = "83101, 83101, 83108"
+
+    file_path = tmp_path / "programs.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = ProgramSelectionParser()
+
+    programs = parser.parse(str(file_path))
+
+    assert programs == ["83101", "83108"]

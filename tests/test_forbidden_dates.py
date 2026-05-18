@@ -1,5 +1,5 @@
 from datetime import date
-from src.exam_period_file_parser import ExamPeriodFileParser
+from src.parsers.exam_period_file_parser import ExamPeriodFileParser
 
 # A test to check that the system put the forbidden day in the list of forbidden days
 def test_parse_forbidden_dates_single_dates():

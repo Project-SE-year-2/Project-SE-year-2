@@ -1,6 +1,6 @@
 from datetime import date as DateType
-from models.course import Course
-from models.exam_period import ExamPeriod
+from src.models.course import Course
+from src.models.exam_period import ExamPeriod
 
 _SEM_ORDER = {"FALL": 0, "SPRI": 1, "SUMM": 2}
 _MOED_ORDER = {"Aleph": 0, "Bet": 1, "Gimel": 2}
@@ -100,9 +100,7 @@ class ExamSchedule:
 
     @property
     def sort_key(self) -> tuple:
-        """
-        Sort key for the outer schedules list (requirement 2.3.3):
-        sorts the list by dates in period order — FALL Aleph first,
-        then FALL Bet, then SPRING Aleph, etc.
-        """
-        return tuple(d for _, _, d in self.sortByDate())
+        sorted_items = self.sortByDate()
+        if self.period is not None:
+            return tuple(d for _, d in sorted_items)
+        return tuple(d for _, _, d in sorted_items)

@@ -1,5 +1,5 @@
 from datetime import date
-from src.exam_period_file_parser import ExamPeriodFileParser
+from src.parsers.exam_period_file_parser import ExamPeriodFileParser
 
 # A test that checks that the systems filters the forbidden dates and do not put them in possible_dates
 def test_parse_exam_periods_file_creates_possible_dates_without_forbidden_dates(tmp_path):

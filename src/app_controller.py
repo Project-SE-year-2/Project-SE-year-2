@@ -34,6 +34,16 @@ class AppController:
 
         valid_courses = filter_courses_for_scheduling(courses, programs)
 
+        valid_program_ids = {
+            req.program_id
+            for course in courses
+            for req in course.requirements
+        }
+
+        for program_id in programs:
+            if program_id not in valid_program_ids:
+                raise ValueError(f"Program ID does not exist: '{program_id}'")
+
         # Problem Partition — already implemented
         scheduling_tasks = match_courses_to_periods(valid_courses, periods)
 

@@ -1,6 +1,7 @@
 from src.parsers.file_parser import IFileParser
 from src.models.course import Course
 from src.models.program_requirement import ProgramRequirement
+from src.models.enums import Evaluation, Semester, ReqType
 
 # Parser class for loading courses
 class CourseFileParser(IFileParser):
@@ -27,7 +28,7 @@ class CourseFileParser(IFileParser):
             instructor = lines[2]
             evaluation = lines[-1]
 
-            course = Course(name, course_id, instructor, evaluation)
+            course = Course(name, course_id, instructor, Evaluation(evaluation))
             
             # extract program requirements
             for i in range(3, len(lines) - 1):
@@ -46,8 +47,8 @@ class CourseFileParser(IFileParser):
                 requirement = ProgramRequirement(
                     prog_id, 
                     year, 
-                    semester, 
-                    req_type
+                    Semester(semester), 
+                    ReqType(req_type)
                 )
                 course.add_requirement(requirement)
             courses.append(course)
@@ -80,7 +81,7 @@ def filter_courses_for_scheduling(courses: list[Course], selected_programs: list
 
     for course in courses:
         # Step 1: Only keep courses with "Exam" evaluation type
-        if course.evaluation != "Exam":
+        if course.evaluation != Evaluation.Exam:
             continue
 
         # Step 2: Check if course belongs to any selected program via its requirements

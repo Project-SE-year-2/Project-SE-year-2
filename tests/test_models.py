@@ -1,16 +1,16 @@
 import pytest
 from src.models.course import Course
 from src.models.program_requirement import ProgramRequirement
+from src.models.enums import Evaluation, Semester, ReqType,Moed
 
 def test_program_requirement_is_obligatory():
-    req_ob = ProgramRequirement("83101", 1, "FALL", "Obligatory")
-    req_el = ProgramRequirement("83102", 2, "SPRI", "Elective")
-
+    req_ob = ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+    req_el = ProgramRequirement("83102", 2, Semester.SPRI, ReqType.Elective)
     assert req_ob.is_obligatory() is True
     assert req_el.is_obligatory() is False
 
 def test_program_requirement_prevents_duplicate_courses():
-    req = ProgramRequirement("83101", 1, "FALL", "Obligatory")
+    req = ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     
     req.add_course("Physics 1")
     req.add_course("Math 1")
@@ -21,11 +21,11 @@ def test_program_requirement_prevents_duplicate_courses():
     assert "Math 1" in req.courses
 
 def test_course_belongs_to_program():
-    course = Course("Physics 1", "83102", "Prof. O. Some", "Exam")
+    course = Course("Physics 1", "83102", "Prof. O. Some", Evaluation.Exam)
     
     # Add requirements for programs 83101 and 83102
-    course.add_requirement(ProgramRequirement("83101", 1, "FALL", "Obligatory"))
-    course.add_requirement(ProgramRequirement("83102", 1, "FALL", "Obligatory"))
+    course.add_requirement(ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory))
+    course.add_requirement(ProgramRequirement("83102", 1, Semester.FALL, ReqType.Obligatory))
 
     assert course.belongsToProgram("83101") is True
     assert course.belongsToProgram("83102") is True

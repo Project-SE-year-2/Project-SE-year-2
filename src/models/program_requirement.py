@@ -1,3 +1,5 @@
+from src.models.enums import Semester, ReqType
+
 class ProgramRequirement:
     """
     This class acts as a data container that defines a specific 'context' for a course.
@@ -7,7 +9,7 @@ class ProgramRequirement:
     - Since one course can be required by multiple programs, 
       each Course object holds a list of these ProgramRequirement objects.
     """
-    def __init__(self, program_id: str, year: int, semester: str, req_type: str, courses: list[str] = None):
+    def __init__(self, program_id: str, year: int, semester: Semester, req_type: ReqType, courses: list[str] = None):
         # program ID
         self.program_id = program_id
         
@@ -25,5 +27,5 @@ class ProgramRequirement:
             self.courses.append(course)
 
     def is_obligatory(self) -> bool:
-        # Returns True if the requirement type is Obligatory
-        return self.req_type == "Obligatory"
+        # Check against the Enum value instead of a string
+        return self.req_type == ReqType.Obligatory

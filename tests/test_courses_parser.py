@@ -1,6 +1,7 @@
 import pytest
 
 from src.parsers.course_parser import CourseFileParser
+from src.models.enums import Evaluation, Semester, ReqType
 
 def test_parse_courses_file_loads_courses_correctly(tmp_path):
     content = """$$$$
@@ -30,18 +31,17 @@ Project
     assert courses[0].name == "Physics 1"
     assert courses[0].course_id == "83102"
     assert courses[0].instructor == "Prof. O. Some"
-    assert courses[0].evaluation == "Exam"
+    assert courses[0].evaluation == Evaluation.Exam
 
     assert len(courses[0].requirements) == 2
 
     assert courses[0].requirements[0].program_id == "83101"
     assert courses[0].requirements[0].year == 1
-    assert courses[0].requirements[0].semester == "FALL"
-    assert courses[0].requirements[0].req_type == "Obligatory"
+    assert courses[0].requirements[0].semester == Semester.FALL
+    assert courses[0].requirements[0].req_type == ReqType.Obligatory
 
     assert courses[1].name == "Software Project"
-    assert courses[1].evaluation == "Project"
-
+    assert courses[1].evaluation == Evaluation.Project
 # Tests that the course parser can load a large number of courses
 # without crashing or skipping any course records.
 def test_parse_courses_file_large_number_of_courses(tmp_path):

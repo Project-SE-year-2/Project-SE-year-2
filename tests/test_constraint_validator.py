@@ -7,6 +7,7 @@ from src.algorithm.constraint_index import ConstraintIndex
 from src.algorithm.basic_version_validator import BasicVersionValidator
 from src.algorithm.constraint_validator import ConstraintValidator
 from src.models.exam_period import ExamPeriod
+from src.models.enums import Evaluation, Semester, ReqType
 
 
 def _build_constraint_validator(courses, selected_programs):
@@ -21,14 +22,14 @@ def _build_constraint_validator(courses, selected_programs):
 # Tests that returns False when assigning a course
 # to a date with an already assigned obligatory course.
 def test_can_assign_returns_false_for_same_program_obligatory_conflict():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
     period = ExamPeriod("FALL", "Aleph", "01-02-2026", "03-02-2026")
@@ -43,14 +44,14 @@ def test_can_assign_returns_false_for_same_program_obligatory_conflict():
 # Tests that returns True when two obligatory courses
 # from the same program are assigned to different dates.
 def test_can_assign_returns_true_for_same_program_different_dates():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
     period = ExamPeriod("FALL", "Aleph", "01-02-2026", "03-02-2026")
@@ -65,14 +66,14 @@ def test_can_assign_returns_true_for_same_program_different_dates():
 # Tests that the canAssign function returns True when two obligatory courses
 # from different programs are assigned to the same date.
 def test_can_assign_returns_true_for_different_programs_same_date():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83108", 1, "FALL", "Obligatory")
+        ProgramRequirement("83108", 1, Semester.FALL, ReqType.Obligatory)
     )
 
     period = ExamPeriod("FALL", "Aleph", "01-02-2026", "03-02-2026")
@@ -90,14 +91,14 @@ def test_can_assign_returns_true_for_different_programs_same_date():
 # Tests that the canAssign function returns True when an obligatory course
 # and an elective course from the same program are assigned to the same date.
 def test_can_assign_returns_true_for_obligatory_and_elective_same_program():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Advanced Topics", "83999", "Prof. B", "Exam")
+    course2 = Course("Advanced Topics", "83999", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Elective")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Elective)
     )
 
     period = ExamPeriod("FALL", "Aleph", "01-02-2026", "03-02-2026")
@@ -112,14 +113,14 @@ def test_can_assign_returns_true_for_obligatory_and_elective_same_program():
 # Tests that the function collides returns True for two obligatory courses
 # that belong to the same program, year, and semester.
 def test_collides_returns_true_for_same_obligatory_group():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
     validator = _build_constraint_validator([course1, course2], ["83101"])
@@ -130,14 +131,14 @@ def test_collides_returns_true_for_same_obligatory_group():
 # Tests that the collides function returns False for courses that do not
 # belong to the same obligatory conflict group.
 def test_collides_returns_false_for_non_conflicting_courses():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Advanced Topics", "83999", "Prof. B", "Exam")
+    course2 = Course("Advanced Topics", "83999", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Elective")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Elective)
     )
 
     validator = _build_constraint_validator([course1, course2], ["83101"])

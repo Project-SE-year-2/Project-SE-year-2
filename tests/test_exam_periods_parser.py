@@ -1,5 +1,6 @@
 from datetime import date
 from src.parsers.exam_period_file_parser import ExamPeriodFileParser
+from src.models.enums import Semester, Moed
 
 # A test that checks that the systems filters the forbidden dates and do not put them in possible_dates
 def test_parse_exam_periods_file_creates_possible_dates_without_forbidden_dates(tmp_path):
@@ -21,8 +22,8 @@ FALL, Aleph
 
     period = periods[0]
 
-    assert period.semester == "FALL"
-    assert period.moed == "Aleph"
+    assert period.semester == Semester.FALL
+    assert period.moed == Moed.Aleph
 
     assert period.start_date == date(2026, 1, 29)
     assert period.end_date == date(2026, 2, 3)
@@ -52,8 +53,8 @@ SPRI, Bet
 
     assert len(periods) == 2
 
-    assert periods[0].semester == "FALL"
-    assert periods[0].moed == "Aleph"
+    assert periods[0].semester == Semester.FALL
+    assert periods[0].moed == Moed.Aleph
 
-    assert periods[1].semester == "SPRI"
-    assert periods[1].moed == "Bet"
+    assert periods[1].semester == Semester.SPRI
+    assert periods[1].moed == Moed.Bet

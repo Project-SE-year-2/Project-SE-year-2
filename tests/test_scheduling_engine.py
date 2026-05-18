@@ -9,6 +9,7 @@ from src.algorithm.exam_period_catalog import ExamPeriodCatalog
 from src.algorithm.basic_version_validator import BasicVersionValidator
 from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
+from src.models.enums import Evaluation, Semester, ReqType,Moed
 
 
 def _build_engine(courses, programs, periods):
@@ -30,17 +31,17 @@ def _build_engine(courses, programs, periods):
 # Tests that the scheduling engine creates schedules
 # when two obligatory courses from the same program have enough available dates.
 def test_engine_generates_schedules_for_two_obligatory_courses_with_two_dates():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "02-02-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 2))
     period.possible_dates = [
         date(2026, 2, 1),
         date(2026, 2, 2),
@@ -77,17 +78,17 @@ def test_engine_generates_schedules_for_two_obligatory_courses_with_two_dates():
 # Tests that the scheduling engine returns no valid schedules
 # when two obligatory courses from the same program have only one available date.
 def test_engine_returns_no_schedules_when_conflict_cannot_be_avoided():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "01-02-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
     period.possible_dates = [
         date(2026, 2, 1),
     ]
@@ -113,17 +114,17 @@ def test_engine_returns_no_schedules_when_conflict_cannot_be_avoided():
 # Tests that the scheduling engine allows two obligatory courses
 # from different programs to be scheduled on the same date.
 def test_engine_allows_obligatory_courses_from_different_programs_same_date():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83108", 1, "FALL", "Obligatory")
+        ProgramRequirement("83108", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "01-02-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
     period.possible_dates = [
         date(2026, 2, 1),
     ]
@@ -154,17 +155,17 @@ def test_engine_allows_obligatory_courses_from_different_programs_same_date():
 # Tests that the scheduling engine allows an obligatory course
 # and an elective course from the same program to be scheduled on the same date.
 def test_engine_allows_obligatory_and_elective_same_program_same_date():
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Advanced Topics", "83999", "Prof. B", "Exam")
+    course2 = Course("Advanced Topics", "83999", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Elective")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Elective)
     )
 
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "01-02-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
     period.possible_dates = [
         date(2026, 2, 1),
     ]
@@ -195,12 +196,12 @@ def test_engine_allows_obligatory_and_elective_same_program_same_date():
 # Tests that forbidden dates are not used by the scheduling engine
 # because the engine only uses period.possible_dates.
 def test_engine_does_not_schedule_on_forbidden_dates():
-    course = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "03-02-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 3))
 
     # 02-02-2026 represents a forbidden date,
     # so it is intentionally not included in possible_dates.

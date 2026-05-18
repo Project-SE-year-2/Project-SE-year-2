@@ -1,10 +1,11 @@
 from datetime import date as DateType
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
+from src.models.enums import Semester, Moed
 
-_SEM_ORDER = {"FALL": 0, "SPRI": 1, "SUMM": 2}
-_MOED_ORDER = {"Aleph": 0, "Bet": 1, "Gimel": 2}
-
+# By giving each Enum a number (0/1/2), we sorting the schedules in the correct chronological order.
+_SEM_ORDER = {Semester.FALL: 0, Semester.SPRI: 1, Semester.SUMM: 2}
+_MOED_ORDER = {Moed.Aleph: 0, Moed.Bet: 1, Moed.Gimel: 2}
 
 class ExamSchedule:
     """

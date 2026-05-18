@@ -25,7 +25,7 @@ class ScheduleReportWriter:
             f.write("\n".join(lines) + "\n")
 
         # Print brief console summary only
-        self._printSummary(metadata, schedules, output_path)
+       # self._printSummary(metadata, schedules, output_path)
 
     # ------------------------------------------------------------------
     # Full report (written to file)

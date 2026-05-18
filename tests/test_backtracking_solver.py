@@ -9,6 +9,7 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.course_ordering_heuristic import CourseOrderingHeuristic
 from src.algorithm.forward_checker import ForwardChecker
 from src.algorithm.backtracking_solver import BacktrackingSolver
+from src.models.enums import Evaluation, Semester, Moed, ReqType
 
 def _setup_solver(courses, programs):
     index = ConstraintIndex()
@@ -38,22 +39,23 @@ def test_solver_finds_all_solutions_no_conflicts():
     assert len(schedules) == 4
 
 def test_solver_returns_empty_when_impossible():
-    """
-    Tests that BacktrackingSolver correctly returns an empty list when 
-    obligatory constraints cannot be satisfied given the limited number 
-    of available exam dates.
-    """
-    c1 = Course("C1", "1", "A", "Exam")
-    c1.add_requirement(ProgramRequirement("83101", 1, "FALL", "Obligatory"))
-    c2 = Course("C2", "2", "B", "Exam")
-    c2.add_requirement(ProgramRequirement("83101", 1, "FALL", "Obligatory"))
-    
+    c1 = Course("C1", "1", "A", Evaluation.Exam)
+    c1.add_requirement(
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+    )
+
+    c2 = Course("C2", "2", "B", Evaluation.Exam)
+    c2.add_requirement(
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+    )
+
     solver, validator = _setup_solver([c1, c2], ["83101"])
-    period = ExamPeriod("FALL", "Aleph", "01-01-2026", "01-01-2026")
-    period.possible_dates = [date(2026, 1, 1)] 
-    
-    # Two obligatory courses from the same year/semester cannot share the single available day
+
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "01-01-2026")
+    period.possible_dates = [date(2026, 1, 1)]
+
     schedules = solver.solve([c1, c2], period, validator)
+
     assert len(schedules) == 0
 
 def test_solver_with_empty_courses():
@@ -93,18 +95,24 @@ def test_solver_single_course_with_multiple_days():
 # Tests that conflicts apply only to courses in the same obligatory group,
 # while non-conflicting courses may still share dates.
 def test_solver_three_courses_some_conflict_some_not():
-    c1 = Course("C1", "1", "A", "Exam")
-    c1.add_requirement(ProgramRequirement("83101", 1, "FALL", "Obligatory"))
+    c1 = Course("C1", "1", "A", Evaluation.Exam)
+    c1.add_requirement(
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+    )
 
-    c2 = Course("C2", "2", "B", "Exam")
-    c2.add_requirement(ProgramRequirement("83101", 1, "FALL", "Obligatory"))
+    c2 = Course("C2", "2", "B", Evaluation.Exam)
+    c2.add_requirement(
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+    )
 
-    c3 = Course("C3", "3", "C", "Exam")
-    c3.add_requirement(ProgramRequirement("83108", 1, "FALL", "Obligatory"))
+    c3 = Course("C3", "3", "C", Evaluation.Exam)
+    c3.add_requirement(
+        ProgramRequirement("83108", 1, Semester.FALL, ReqType.Obligatory)
+    )
 
     solver, validator = _setup_solver([c1, c2, c3], ["83101", "83108"])
 
-    period = ExamPeriod("FALL", "Aleph", "01-01-2026", "02-01-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "02-01-2026")
     period.possible_dates = [
         date(2026, 1, 1),
         date(2026, 1, 2),
@@ -127,15 +135,15 @@ def test_solver_sanity_load_many_courses_many_days():
     courses = []
 
     for i in range(5):
-        course = Course(f"C{i}", str(i), "A", "Exam")
+        course = Course(f"C{i}", str(i), "A", Evaluation.Exam)
         course.add_requirement(
-            ProgramRequirement("83101", 1, "FALL", "Obligatory")
+            ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
         )
         courses.append(course)
 
     solver, validator = _setup_solver(courses, ["83101"])
 
-    period = ExamPeriod("FALL", "Aleph", "01-01-2026", "07-01-2026")
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "07-01-2026")
     period.possible_dates = [
         date(2026, 1, day)
         for day in range(1, 8)

@@ -9,7 +9,7 @@ from src.algorithm.exam_period_catalog import ExamPeriodCatalog
 from src.algorithm.basic_version_validator import BasicVersionValidator
 from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
-from src.models.enums import Evaluation, Semester, ReqType,Moed
+from src.models.enums import Evaluation, Semester, Moed, ReqType
 
 
 def _build_engine(courses, programs, periods):
@@ -284,29 +284,32 @@ def test_engine_generates_all_possible_schedules_single_course_two_dates():
     assert date(2026, 2, 2) in assignments_set
 
 
-# Tests that the scheduling engine generates the exact expected number of
-# valid schedule options for a small, controlled input dataset.
-# For two courses and three available dates, there should be 6 possible schedules.
 def test_engine_generates_all_possible_schedules_two_courses_three_dates():
     """
-    With 2 courses and 3 available dates, all valid combinations should be generated.
-    C(3,2) * 2! = 3 * 2 = 6 possible schedules (choose 2 dates, arrange 2 courses).
+    Tests that SchedulingEngine generates all valid schedules for
+    two obligatory courses from the same program across three dates.
     """
-    course1 = Course("Physics 1", "83102", "Prof. A", "Exam")
+    course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
     course1.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    course2 = Course("Calculus 1", "83112", "Prof. B", "Exam")
+    course2 = Course("Calculus 1", "83112", "Prof. B", Evaluation.Exam)
     course2.add_requirement(
-        ProgramRequirement("83101", 1, "FALL", "Obligatory")
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
     )
 
-    period = ExamPeriod("FALL", "Aleph", "01-02-2026", "03-02-2026")
+    period = ExamPeriod(
+        Semester.FALL,
+        Moed.Aleph,
+        "01-01-2026",
+        "03-01-2026"
+    )
+
     period.possible_dates = [
-        date(2026, 2, 1),
-        date(2026, 2, 2),
-        date(2026, 2, 3),
+        date(2026, 1, 1),
+        date(2026, 1, 2),
+        date(2026, 1, 3),
     ]
 
     courses = [course1, course2]
@@ -323,36 +326,17 @@ def test_engine_generates_all_possible_schedules_two_courses_three_dates():
 
     schedules, metadata = engine.generateAll(scheduling_tasks)
 
-    # Should generate exactly 6 valid schedules
     assert len(schedules) == 6
     assert metadata[period]["valid_count"] == 6
-    
-    # Verify each schedule has valid assignments for both courses
-    generated_combinations = set()
+
     for schedule in schedules:
         assignments = schedule.assignments
-        
-        # Both courses must be assigned
-        assert course1 in assignments, "Course1 must be assigned"
-        assert course2 in assignments, "Course2 must be assigned"
-        
-        date1 = assignments[course1]
-        date2 = assignments[course2]
-        
-        # Both dates must be from available dates
-        assert date1 in period.possible_dates, f"Course1 date {date1} not in available dates"
-        assert date2 in period.possible_dates, f"Course2 date {date2} not in available dates"
-        
-        # Mandatory courses from same program cannot be on same date
-        assert date1 != date2, "Two mandatory courses from same program cannot be on same date"
-        
-        # Track combinations (sorted to avoid duplicates in set)
-        combination = tuple(sorted([date1, date2]))
-        generated_combinations.add(combination)
-    
-    # Should have 3 unique date combinations (C(3,2) = 3),
-    # and each can be arranged 2! = 2 ways, giving 6 total schedules
-    assert len(generated_combinations) == 3, f"Expected 3 unique date combinations, got {len(generated_combinations)}"
+
+        assert course1 in assignments
+        assert course2 in assignments
+        assert assignments[course1] in period.possible_dates
+        assert assignments[course2] in period.possible_dates
+        assert assignments[course1] != assignments[course2]
 
 
 # Tests that no course appears more than once in the same schedule

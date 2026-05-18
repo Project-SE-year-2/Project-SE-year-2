@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 from src.parsers.course_parser import CourseFileParser, filter_courses_for_scheduling
 from src.parsers.exam_period_file_parser import ExamPeriodFileParser
 from src.parsers.program_parser import ProgramSelectionParser
@@ -10,6 +9,7 @@ from src.algorithm.basic_version_validator import BasicVersionValidator
 from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
 from src.output.schedule_report_writer import ScheduleReportWriter
+from src.output.output_manager import OutputManager
 
 
 class AppController:
@@ -17,7 +17,7 @@ class AppController:
         self.course_parser = CourseFileParser()
         self.period_parser = ExamPeriodFileParser()
         self.program_parser = ProgramSelectionParser()
-        self.writer = ScheduleReportWriter()
+        self.output_manager = OutputManager([ScheduleReportWriter()])
 
     def _validate_paths(self, paths: list):
         for path in paths:
@@ -45,7 +45,7 @@ class AppController:
             if program_id not in valid_program_ids:
                 raise ValueError(f"Program ID does not exist: '{program_id}'")
 
-        # Problem Partition — already implemented
+        # Problem Partition
         scheduling_tasks = match_courses_to_periods(valid_courses, periods)
 
         # Build constraint index and period catalog
@@ -63,8 +63,5 @@ class AppController:
 
         project_root = os.path.normpath(os.path.join(os.path.dirname(courses_path), ".."))
         output_dir = os.path.join(project_root, "output")
-        os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        #output_path = f"output/schedule_output_{timestamp}.txt"
-        output_path = os.path.join(output_dir, f"schedule_output_{timestamp}.txt")
-        self.writer.write(schedules, metadata, programs, output_path=output_path)
+        self.output_manager.prepareOutputDir(output_dir)
+        self.output_manager.writeReport(schedules, metadata, programs, output_dir)

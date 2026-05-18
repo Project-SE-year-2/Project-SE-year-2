@@ -95,7 +95,12 @@ class ScheduleReportWriter:
                 # 2.3.1 — which exams are included (deduplicated by course_id)
                 seen: set[str] = set()
                 unique_courses = []
-                for _, c, _ in sorted_items:
+                for item in sorted_items:
+                    if len(item) == 3:
+                         _, c, _ = item
+                    else:
+                         c, _ = item
+
                     if c.course_id not in seen:
                         seen.add(c.course_id)
                         unique_courses.append(c)
@@ -106,9 +111,16 @@ class ScheduleReportWriter:
 
                 # 2.3.2 — for each exam: date and instructor name
                 # 2.3.3 — already sorted FALL Aleph -> FALL Bet -> SPRI
-                for period, course, exam_date in sorted_items:
+                for item in sorted_items:
+                    if len(item) == 3:
+                        period, course, exam_date = item
+                        period_text = f"[{period.semester} - {period.moed}]"
+                    else:
+                        course, exam_date = item
+                        period_text = f"[{sched.semester} - {sched.moed}]"
+
                     lines.append(
-                        f"    [{period.semester.value} - {period.moed.value}]  "
+                        f"    {period_text}  "
                         f"{course.name} ({course.course_id}) | "
                         f"{course.instructor} : "
                         f"{exam_date.strftime('%d-%m-%Y')}"

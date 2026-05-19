@@ -1,6 +1,8 @@
 # Exam Schedule Generator
 
-Generates all valid exam timetables for selected academic programs using a backtracking CSP algorithm.
+Generates all valid exam timetables for one or more academic programs.
+
+Given a list of courses, exam periods, and selected programs — the system finds every possible assignment of exams to dates such that no two exams from the same obligatory group are scheduled on the same day. Results are written to a timestamped output file so previous runs are never overwritten.
 
 ## How to Run
 

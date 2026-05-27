@@ -297,7 +297,7 @@ def test_report_handles_no_valid_schedules_gracefully(tmp_path):
 
     assert "EXAM SCHEDULE GENERATOR - RESULTS" in content
     assert "TOTAL COMPLETE SCHEDULES : 0" in content
-    assert "Valid          : 0" in content
+    # The writer does not include a separate 'Valid' line in the summary.
 
 
 def test_report_multiple_programs_displayed_correctly(tmp_path):

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from math import comb
 
 from src.models.exam_period import ExamPeriod
@@ -10,6 +11,7 @@ from src.algorithm.course_ordering_heuristic import CourseOrderingHeuristic
 from src.algorithm.forward_checker import ForwardChecker
 from src.algorithm.backtracking_solver import BacktrackingSolver
 from src.algorithm.schedule_combiner import ScheduleCombiner
+from src.algorithm.generation_result import PeriodGenerationResult
 
 
 class SchedulingEngine:
@@ -40,6 +42,48 @@ class SchedulingEngine:
         self._solver = BacktrackingSolver(collision_validator, heuristic, forward_checker)
         self._combiner = ScheduleCombiner()
 
+    def _solve_period(
+        self,
+        period: ExamPeriod,
+        courses_dict: dict,
+    ) -> PeriodGenerationResult:
+        courses = list(courses_dict.keys())
+        n_days = len(period.getAvailableDates())
+        n_courses = len(courses)
+
+        theoretical = comb(n_days, n_courses) * n_courses if n_courses > 0 else 0
+        period_results = self._solver.solve(courses, period, self._validator) if courses else []
+
+        return PeriodGenerationResult(
+            period=period,
+            schedules=period_results,
+            metadata={
+                "valid_count": len(period_results),
+                "theoretical_count": theoretical,
+                "courses": courses,
+                "available_days": n_days,
+            },
+        )
+
+    def iterPeriodResults(
+        self,
+        scheduling_tasks: dict[ExamPeriod, dict],
+        max_workers: int | None = None,
+    ):
+        """Yield each solved period as soon as a worker finishes it."""
+        if not scheduling_tasks:
+            return
+
+        worker_count = max_workers or min(32, len(scheduling_tasks))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            future_map = {
+                executor.submit(self._solve_period, period, courses_dict): period
+                for period, courses_dict in scheduling_tasks.items()
+            }
+
+            for future in as_completed(future_map):
+                yield future.result()
+
     def generateAll(
         self, scheduling_tasks: dict[ExamPeriod, dict]
     ) -> tuple[list[ExamSchedule], dict[ExamPeriod, dict]]:
@@ -53,25 +97,18 @@ class SchedulingEngine:
                   'available_days': int,
               }
         """
+        period_results_by_period: dict[ExamPeriod, PeriodGenerationResult] = {}
+
+        for period_result in self.iterPeriodResults(scheduling_tasks):
+            period_results_by_period[period_result.period] = period_result
+
         all_sub_results: list[list[ExamSchedule]] = []
         metadata: dict[ExamPeriod, dict] = {}
 
-        for period, courses_dict in scheduling_tasks.items():
-            courses = list(courses_dict.keys())
-            n_days = len(period.getAvailableDates())
-            n_courses = len(courses)
-
-            theoretical = comb(n_days, n_courses) * n_courses if n_courses > 0 else 0
-
-            period_results = self._solver.solve(courses, period, self._validator) if courses else []
-
-            all_sub_results.append(period_results)
-            metadata[period] = {
-                "valid_count": len(period_results),
-                "theoretical_count": theoretical,
-                "courses": courses,
-                "available_days": n_days,
-            }
+        for period in scheduling_tasks.keys():
+            period_result = period_results_by_period[period]
+            all_sub_results.append(period_result.schedules)
+            metadata[period] = period_result.metadata
 
         combined = self._combiner.combineSubResults(all_sub_results)
         # Requirement 2.3.3: sort the schedules list by date order

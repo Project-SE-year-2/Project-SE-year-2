@@ -74,6 +74,9 @@ class ExamPeriodFileParser(IFileParser):
                 for current_date in self._generate_date_range(period.start_date, period.end_date)
                 if current_date not in forbidden_dates
             ]
+            # Stage 2.0 — persist file-level forbidden dates so the UI can
+            # display them as red cells on the calendar.
+            period.forbidden_days = sorted(list(forbidden_dates))
             periods.append(period)
 
         return periods

@@ -23,5 +23,5 @@ class InputScreen(QWidget):
         layout.addWidget(self.generate_btn)
 
     def _on_generate_clicked(self):
-        # TODO EP-46: replace with GenerateWorker(self._service).start()
+        # TODO EP-46: replace with GenerateWorker(self._service).start() 
         self.switch_to_output.emit()

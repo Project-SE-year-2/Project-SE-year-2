@@ -3,8 +3,8 @@ from PyQt5.QtCore import pyqtSignal, Qt
 
 # Import the Singleton service and screen modules
 from src.presenter.app_service import AppService
-from src.views.input_screen.input_screen import input_screen
-from src.views.output_screen.calendar_table_widget import CalendarTableWidget
+# Updated import path and PascalCase class name based on PR feedback
+from src.views.input_screen.input_screen import InputScreen
 
 class PlaceholderOutputScreen(QWidget):
     """
@@ -19,7 +19,7 @@ class PlaceholderOutputScreen(QWidget):
         
         layout = QVBoxLayout(self)
         
-        label = QLabel("Output Screen (Calendar)")
+        label = QLabel("Output Screen (Calendar)\nComing Soon in EP-59!")
         label.setAlignment(Qt.AlignCenter)
         label.setStyleSheet("color: #4CAF50; font-size: 24px; font-weight: bold;")
         layout.addWidget(label)
@@ -48,7 +48,7 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # 1. Instantiate AppService.getInstance exactly once
+        # 1. Instantiate AppService.getInstance() exactly once
         self.service = AppService.getInstance()
 
         # 2. Build MainWindow as a QMainWindow containing a QStackedWidget
@@ -61,8 +61,8 @@ class MainWindow(QMainWindow):
         """
         Initializes screens, injects dependencies, and wires navigation signals.
         """
-        # Inject the SAME service instance into both screens
-        self.input_screen = input_screen(self.service)
+        # Inject the SAME service instance into both screens (using the renamed PascalCase class)
+        self.input_screen = InputScreen(self.service)
         self.output_screen = PlaceholderOutputScreen(self.service)
 
         # 3. InputScreen on page 0, OutputScreen on page 1

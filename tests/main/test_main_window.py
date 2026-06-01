@@ -24,11 +24,11 @@ class TestMainWindow(unittest.TestCase):
         # The stack should contain exactly 2 widgets
         self.assertEqual(self.window.stacked_widget.count(), 2)
         
-        # Verify the types of widgets at specific indices
-        from views.input_screen.input_screen import input_screen
+        # Updated import path and class name per PR feedback
+        from src.views.input_screen.input_screen import InputScreen
         from src.main_window import PlaceholderOutputScreen
         
-        self.assertIsInstance(self.window.stacked_widget.widget(0), input_screen)
+        self.assertIsInstance(self.window.stacked_widget.widget(0), InputScreen)
         self.assertIsInstance(self.window.stacked_widget.widget(1), PlaceholderOutputScreen)
         
         # The application should start on page 0

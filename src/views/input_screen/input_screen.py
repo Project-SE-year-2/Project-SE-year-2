@@ -1,15 +1,16 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel
 from PyQt5.QtCore import pyqtSignal, Qt
 
-class input_screen(QWidget):
-    # 1. Define the signal exactly as the MainWindow expects it
+# Class renamed to PascalCase per PR feedback
+class InputScreen(QWidget):
+    """
+    The main input screen where users select programs and trigger schedule generation.
+    """
     switch_to_output = pyqtSignal()
 
     def __init__(self, service, parent=None):
         super().__init__(parent)
         self.service = service
-        
-        # 2. Call the function that actually draws the buttons!
         self._setup_ui()
 
     def _setup_ui(self):
@@ -50,4 +51,3 @@ class input_screen(QWidget):
         Emits the correct signal name to trigger the MainWindow transition.
         """
         self.switch_to_output.emit()
-

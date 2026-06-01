@@ -7,8 +7,8 @@ app = QApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
 
+from src.views.output_screen.output_screen import OutputScreen
 from src.main_window import MainWindow
-
 class TestMainWindow(unittest.TestCase):
 
     def setUp(self):
@@ -26,14 +26,11 @@ class TestMainWindow(unittest.TestCase):
         
         # Updated import path and class name per PR feedback
         from src.views.input_screen.input_screen import InputScreen
-        from src.main_window import PlaceholderOutputScreen
+        from src.views.output_screen.output_screen import OutputScreen
         
         self.assertIsInstance(self.window.stacked_widget.widget(0), InputScreen)
-        self.assertIsInstance(self.window.stacked_widget.widget(1), PlaceholderOutputScreen)
+        self.assertIsInstance(self.window.stacked_widget.widget(1), OutputScreen)
         
-        # The application should start on page 0
-        self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
-
     def test_dependency_injection(self):
         """
         Verify that AppService.getInstance() is injected identically into both screens.

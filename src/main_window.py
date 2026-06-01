@@ -48,7 +48,7 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # 1. Instantiate AppService.getInstance() exactly once
+        # 1. Instantiate AppService.getInstance exactly once
         self.service = AppService.getInstance()
 
         # 2. Build MainWindow as a QMainWindow containing a QStackedWidget

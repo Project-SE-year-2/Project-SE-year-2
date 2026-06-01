@@ -50,6 +50,9 @@ class AppService(IAppService):
         self._selected_programs: list[str] = []
         self._results: list[ExamSchedule] = []
         self._last_metadata: dict = {}
+        # EP-72 — per-period streaming cache
+        # keyed by period_id ("FALL_Aleph", …), values are raw ExamSchedule lists
+        self._results_by_period: dict[str, list[ExamSchedule]] = {}
 
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                        #
@@ -138,10 +141,11 @@ class AppService(IAppService):
         self._datastore.save()
 
     # ------------------------------------------------------------------ #
-    # EP-39 / TASK7 — Generation & export                                 #
+    # EP-68 / TASK7 — Generation & export                                 #
     # ------------------------------------------------------------------ #
 
-    def generate(self) -> int:
+    def _prepare_engine(self):
+        """Build and return (engine, scheduling_tasks) — shared by generate() and generate_stream()."""
         if not self._selected_programs:
             raise ValueError("No programs selected. Select at least one program before generating.")
 
@@ -159,11 +163,78 @@ class AppService(IAppService):
         constraint_validator = ConstraintValidator(index, collision_validator)
         engine = SchedulingEngine(constraint_validator, catalog, index)
 
-        schedules, metadata = engine.generateAll(scheduling_tasks)
+        return engine, scheduling_tasks
 
+    def generate(self) -> int:
+        """Blocking generation — waits for all periods. Backward-compatible."""
+        engine, scheduling_tasks = self._prepare_engine()
+        schedules, metadata = engine.generateAll(scheduling_tasks)
         self._results = schedules
         self._last_metadata = metadata
         return len(schedules)
+
+    # ------------------------------------------------------------------ #
+    # EP-72 — Streaming generation                                         #
+    # ------------------------------------------------------------------ #
+
+    def generate_stream(self):
+        """Generator that yields (period_id, schedules) one period at a time.
+
+        Stores each period's results in _results_by_period as they arrive.
+        When exhausted, runs the Combiner on the full cache and populates
+        _results so get_schedule() / get_schedule_count() work normally.
+        """
+        from src.algorithm.schedule_combiner import ScheduleCombiner
+
+        engine, scheduling_tasks = self._prepare_engine()
+        self._results_by_period = {}
+
+        for period_result in engine.iterPeriodResults(scheduling_tasks):
+            pid = _period_id(period_result.period)
+            self._results_by_period[pid] = period_result.schedules
+            self._last_metadata[period_result.period] = period_result.metadata
+            yield pid, period_result.schedules
+
+        # All periods done — combine for navigation and export
+        all_sub_results = list(self._results_by_period.values())
+        combined = ScheduleCombiner().combineSubResults(all_sub_results)
+        combined.sort(key=lambda s: s.sort_key)
+        self._results = combined
+
+    def get_period_ids(self) -> list[str]:
+        """Return period ids that have results in the cache (in arrival order)."""
+        return list(self._results_by_period.keys())
+
+    def get_period_schedules(self, period_id: str) -> list[dict]:
+        """Return formatted schedule dicts for one period from the streaming cache."""
+        if period_id not in self._results_by_period:
+            raise KeyError(f"Period '{period_id}' not yet in cache.")
+
+        result = []
+        for schedule in self._results_by_period[period_id]:
+            for (semester, moed), course_date_map in schedule.groupBySemesterAndMoed().items():
+                sem_key  = semester.value if hasattr(semester, "value") else str(semester)
+                moed_key = moed.value     if hasattr(moed,     "value") else str(moed)
+                for course, exam_date in course_date_map.items():
+                    programs = [
+                        req.program_id for req in course.requirements
+                        if req.program_id in self._selected_programs
+                    ]
+                    req_type = "Obligatory"
+                    for req in course.requirements:
+                        if req.program_id in self._selected_programs:
+                            req_type = req.req_type.value
+                            break
+                    result.append({
+                        "course_number": course.course_id,
+                        "course_name":   course.name,
+                        "type":          req_type,
+                        "programs":      programs,
+                        "exam_date":     exam_date,
+                        "semester":      sem_key,
+                        "moed":          moed_key,
+                    })
+        return result
 
     def get_schedule_count(self) -> int:
         return len(self._results)

@@ -114,20 +114,63 @@ class IAppService(ABC):
 
     @abstractmethod
     def generate(self) -> int:
-        """Run the scheduling engine and store results.
+        """Run the full blocking generation (backward-compatible).
 
-        Always called from a background worker thread, never on the main thread.
+        Calls generateAll() and waits for every period before returning.
+        Used for export and testing. Always called from a background thread.
 
         Returns:
-            Total number of valid schedules produced.
+            Total number of combined schedules produced.
 
         Raises:
             ValueError: if no programs have been selected.
         """
 
     @abstractmethod
+    def generate_stream(self):
+        """Streaming generation — yields one period at a time.
+
+        A generator that wraps engine.iterPeriodResults(). For each period
+        that finishes it stores the result in the per-period cache and
+        yields (period_id, schedules) so the caller can emit a signal.
+
+        When the generator is exhausted all periods are done, the Combiner
+        has run, and self._results is populated for normal navigation.
+
+        Always called from GenerateWorker, never on the main thread.
+
+        Yields:
+            tuple[str, list]: (period_id, list_of_ExamSchedule_for_that_period)
+
+        Raises:
+            ValueError: if no programs have been selected.
+        """
+
+    @abstractmethod
+    def get_period_ids(self) -> list[str]:
+        """Return the period ids that have results in the cache so far.
+
+        Returns:
+            List of period id strings in arrival order, e.g. ["FALL_Aleph", "FALL_Bet"]
+        """
+
+    @abstractmethod
+    def get_period_schedules(self, period_id: str) -> list[dict]:
+        """Return formatted schedules for one period from the streaming cache.
+
+        Used by the Output screen to display a period's results while
+        generation is still in progress.
+
+        Returns:
+            List of schedule dicts identical in structure to get_schedule().
+
+        Raises:
+            KeyError: if period_id is not yet in the cache.
+        """
+
+    @abstractmethod
     def get_schedule_count(self) -> int:
-        """Return the total number of schedules from the last generate() call."""
+        """Return the total number of combined schedules from the last generate() call."""
 
     @abstractmethod
     def get_schedule(self, index: int) -> dict:

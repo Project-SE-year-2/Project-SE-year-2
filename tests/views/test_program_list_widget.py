@@ -110,3 +110,30 @@ def test_program_list_reenables_rows_after_deselecting(qtbot):
     widget._rows_by_id["83101"].click()
 
     assert widget._rows_by_id["83111"].isEnabled() is True
+
+# Tests that clear_selection resets the widget state and updates the service with an empty selection.
+def test_program_list_clear_selection_resets_state(qtbot):
+    service = MockAppService()
+    widget = ProgramListWidget(service)
+
+    qtbot.addWidget(widget)
+    widget.refresh()
+
+    widget._rows_by_id["83101"].click()
+    widget.clear_selection()
+
+    assert widget.selected_programs() == []
+    assert service.selected_calls[-1] == []
+
+# Tests that refresh handles an empty program list without crashing and displays the empty-state label.
+def test_program_list_refresh_with_empty_program_list(qtbot):
+    service = MockAppService()
+    service.programs = []
+
+    widget = ProgramListWidget(service)
+
+    qtbot.addWidget(widget)
+    widget.refresh()
+
+    assert widget.selected_programs() == []
+    assert widget._rows_by_id == {}

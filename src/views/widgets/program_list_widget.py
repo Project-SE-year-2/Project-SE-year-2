@@ -124,6 +124,9 @@ class ProgramListWidget(QWidget):
         self._selected_ids: set[str] = set()
         self._rows_by_id: dict[str, ProgramRowWidget] = {}
 
+        # The program list should not be shown before the user loads the required files.
+        # InputScreen is responsible for displaying this widget and refreshing its data
+        # once the file loading process has completed successfully.
         self._build_ui()
 
     # Public API

@@ -1,6 +1,6 @@
 import pytest
 
-from src.gui.widgets.file_loader_widget import FileLoaderWidget
+from src.views.widgets.file_loader_widget import FileLoaderWidget
 
 
 class MockFileLoadingService:

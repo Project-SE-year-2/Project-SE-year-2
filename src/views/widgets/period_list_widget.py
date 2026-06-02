@@ -155,8 +155,7 @@ class PeriodListWidget(QWidget):
         """Clear the current period selection."""
         self._selected_period_id = None
         self._update_row_states()
-
-    # Mock service for testing purposes. 
+ 
     def _build_ui(self) -> None:
         self._title_label = QLabel("Exam Periods")
         self._title_label.setStyleSheet("font-weight: bold; font-size: 16px;")

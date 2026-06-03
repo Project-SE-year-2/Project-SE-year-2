@@ -1,89 +1,140 @@
-# import unittest
-# import sys
-# from PyQt5.QtWidgets import QApplication
-# from PyQt5.QtCore import Qt
-# from PyQt5.QtGui import QColor
+import unittest
+import datetime
+import sys
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QDate
 
-# # Ensure QApplication exists before testing QWidgets
-# app = QApplication.instance()
-# if app is None:
-#     app = QApplication(sys.argv)
+# Ensure QApplication exists before testing QWidgets
+app = QApplication.instance() or QApplication(sys.argv)
 
-# from src.views.calendar_table_widget import CalendarTableWidget
+from src.views.output_screen.calendar_table_widget import ScheduleCalendarWidget
 
-# class TestCalendarTableWidget(unittest.TestCase):
+class TestCalendarTableWidget(unittest.TestCase):
 
-#     def setUp(self):
-#         """
-#         Initialize instances for both required modes before each test.
-#         """
-#         self.period_widget = CalendarTableWidget(mode="period")
-#         self.schedule_widget = CalendarTableWidget(mode="schedule")
+    def setUp(self):
+        """Initialize the calendar widget before each test."""
+        self.widget = ScheduleCalendarWidget()
 
-#     def test_period_mode_coloring(self):
-#         """
-#         Verify that period mode applies the correct colors:
-#         Green for allowed, Red for forbidden, Grey for outside.
-#         """
-#         dummy_data = [
-#             {'date': '01', 'status': 'allowed'},
-#             {'date': '02', 'status': 'forbidden'},
-#             {'date': '03', 'status': 'outside'}
-#         ]
+    def test_update_schedule_handles_datetime_objects(self):
+        """Verify that the calendar gracefully handles datetime.date objects without crashing."""
+        schedule_data = [
+            {
+                "course_name": "Data Structures",
+                "course_number": "101",
+                "exam_date": datetime.date(2026, 1, 15) 
+            }
+        ]
         
-#         self.period_widget.render_period_mode(dummy_data)
-        
-#         # Extract the background colors applied to the generated items
-#         color_allowed = self.period_widget.item(0, 0).background().color().name()
-#         color_forbidden = self.period_widget.item(0, 1).background().color().name()
-#         color_outside = self.period_widget.item(0, 2).background().color().name()
-        
-#         self.assertEqual(color_allowed, '#2e7d32') # Green
-#         self.assertEqual(color_forbidden, '#c62828') # Red
-#         self.assertEqual(color_outside, '#424242') # Grey
-
-#     def test_schedule_mode_truncation(self):
-#         """
-#         Verify that schedule mode shortens long course names to fit the grid.
-#         """
-#         dummy_data = [
-#             {'date': '01', 'course_name': 'Short Name'},
-#             {'date': '02', 'course_name': 'Advanced Systems Programming'}
-#         ]
-        
-#         self.schedule_widget.render_schedule_mode(dummy_data)
-        
-#         item_short = self.schedule_widget.item(0, 0).text()
-#         item_long = self.schedule_widget.item(0, 1).text()
-        
-#         # Verify short names remain untouched
-#         self.assertIn('Short Name', item_short)
-        
-#         # Verify long names are truncated with an ellipsis
-#         self.assertIn('Advanced Sys...', item_long)
-#         self.assertTrue(len(item_long) < 25)
-
-#     def test_day_clicked_signal_emission(self):
-#         """
-#         Verify that clicking a cell emits the day_clicked signal with the correct dictionary payload.
-#         """
-#         dummy_data = [{'date': '15', 'status': 'allowed', 'meta': 'test_data'}]
-#         self.period_widget.render_period_mode(dummy_data)
-        
-#         # Create a mock slot to capture the emitted signal
-#         emitted_data = []
-#         def mock_slot(data):
-#             emitted_data.append(data)
+        try:
+            self.widget.update_schedule(schedule_data)
+            success = True
+        except Exception as e:
+            success = False
+            self.fail(f"update_schedule crashed with object: {e}")
             
-#         self.period_widget.day_clicked.connect(mock_slot)
+        self.assertTrue(success)
         
-#         # Simulate a click on the first cell
-#         self.period_widget._handle_cell_click(0, 0)
+        # Verify the data was stored correctly in the internal dictionary
+        qdate = QDate(2026, 1, 15)
+        self.assertIn(qdate, self.widget.exams_by_date)
+        self.assertEqual(self.widget.exams_by_date[qdate][0]["course_name"], "Data Structures")
         
-#         # Assert the signal fired exactly once with the correct dictionary
-#         self.assertEqual(len(emitted_data), 1)
-#         self.assertEqual(emitted_data[0]['meta'], 'test_data')
-#         self.assertEqual(emitted_data[0]['date'], '15')
+    def test_update_schedule_empty(self):
+        """Verify the widget handles an empty schedule gracefully."""
+        try:
+            self.widget.update_schedule([])
+            success = True
+        except Exception:
+            success = False
+            
+        self.assertTrue(success)
+        self.assertEqual(len(self.widget.exams_by_date), 0)
 
-# if __name__ == '__main__':
-#     unittest.main()
+    def test_exam_clicked_signal_emission(self):
+        """Verify that clicking a valid date emits the exam_clicked signal with the correct payload."""
+        schedule_data = [
+            {
+                "course_name": "Algorithms",
+                "course_number": "102",
+                "exam_date": datetime.date(2026, 5, 20)
+            }
+        ]
+        self.widget.update_schedule(schedule_data)
+        
+        # Create a mock slot to capture the emitted signal
+        emitted_data = []
+        def mock_slot(data):
+            emitted_data.append(data)
+            
+        self.widget.exam_clicked.connect(mock_slot)
+        
+        # Simulate a click on the specific date
+        qdate = QDate(2026, 5, 20)
+        self.widget._on_date_clicked(qdate)
+        
+        # Assert the signal fired exactly once with the correct dictionary
+        self.assertEqual(len(emitted_data), 1)
+        self.assertEqual(emitted_data[0]['course_name'], 'Algorithms')
+
+    def test_update_schedule_multiple_exams_same_day(self):
+        """Verify that multiple exams on the same day are grouped correctly in the dictionary."""
+        schedule_data = [
+            {"course_name": "Data Structures", "exam_date": datetime.date(2026, 6, 10)},
+            {"course_name": "Algorithms", "exam_date": datetime.date(2026, 6, 10)}
+        ]
+        
+        self.widget.update_schedule(schedule_data)
+        
+        qdate = QDate(2026, 6, 10)
+        self.assertIn(qdate, self.widget.exams_by_date)
+        # Verify there are 2 exams in the list for this date
+        self.assertEqual(len(self.widget.exams_by_date[qdate]), 2)
+        self.assertEqual(self.widget.exams_by_date[qdate][0]["course_name"], "Data Structures")
+        self.assertEqual(self.widget.exams_by_date[qdate][1]["course_name"], "Algorithms")
+
+    def test_update_schedule_string_dates(self):
+        """Verify that the widget correctly parses string-formatted dates."""
+        schedule_data = [
+            {"course_name": "Operating Systems", "exam_date": "2026-07-15"}
+        ]
+        
+        self.widget.update_schedule(schedule_data)
+        
+        qdate = QDate(2026, 7, 15)
+        self.assertIn(qdate, self.widget.exams_by_date)
+
+    def test_update_schedule_invalid_or_missing_date(self):
+        """Verify that missing or invalid dates are gracefully ignored without crashing."""
+        schedule_data = [
+            {"course_name": "Course Without Date"}, # No exam_date key
+            {"course_name": "Course With None Date", "exam_date": None} # None value
+        ]
+        
+        try:
+            self.widget.update_schedule(schedule_data)
+            success = True
+        except Exception:
+            success = False
+            
+        self.assertTrue(success)
+        # Verify nothing was added to the calendar
+        self.assertEqual(len(self.widget.exams_by_date), 0)
+
+    def test_empty_date_click_does_not_emit_signal(self):
+        """Verify that clicking a date with no exams does not emit the exam_clicked signal."""
+        # Create a mock slot to capture signals
+        emitted_data = []
+        def mock_slot(data):
+            emitted_data.append(data)
+            
+        self.widget.exam_clicked.connect(mock_slot)
+        
+        # Simulate click on an empty date
+        qdate = QDate(2026, 1, 1)
+        self.widget._on_date_clicked(qdate)
+        
+        # Verify the slot was never called
+        self.assertEqual(len(emitted_data), 0)
+        
+if __name__ == '__main__':
+    unittest.main()

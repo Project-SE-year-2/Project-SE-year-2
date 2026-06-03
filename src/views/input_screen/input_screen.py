@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox
 from PyQt5.QtCore import pyqtSignal, Qt
 
 # Import the existing GenerateWorker per task requirements
@@ -29,6 +29,13 @@ class InputScreen(QWidget):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
         """
+        # ---TEMP FOR OUTPUT SCREEN UI ---
+        try:
+            self.service.select_programs(["dummy_program_1"]) 
+        except Exception:
+            self.service._selected_programs = ["dummy_program_1"]
+        # -----------------------------
+
         self._worker = GenerateWorker(self.service)
         self._worker.period_ready.connect(self._on_period_ready)
         self._worker.finished.connect(self._on_generation_finished)
@@ -52,4 +59,7 @@ class InputScreen(QWidget):
         """
         Callback executed if the background processing encounters an exception.
         """
-        pass  # EP-48 will add ErrorBanner here
+        print(f"ALGORITHM ERROR: {message}") #PRINTS TO CONSOLE FOR DEBUGGING, BUT
+        
+        # pop up an error dialog to inform the user of the failure
+        QMessageBox.critical(self, "Generation Error", f"Failed to generate schedules:\n{message}")

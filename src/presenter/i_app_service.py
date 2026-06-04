@@ -169,8 +169,16 @@ class IAppService(ABC):
         """
 
     @abstractmethod
-    def get_schedule_count(self) -> int:
-        """Return the total number of combined schedules from the last generate() call."""
+    def get_schedule_count(self, period_id: str | None = None) -> int:
+        """Return the total number of combined schedules or the count for one period.
+
+        Args:
+            period_id: Optional stable period ID to query a single period.
+
+        Returns:
+            Total combined schedule count if period_id is None, otherwise the
+            number of schedules available for the requested period.
+        """
 
     @abstractmethod
     def get_schedule_batch(self, start: int, limit: int) -> list[list[dict]]:
@@ -229,3 +237,23 @@ class IAppService(ABC):
             IndexError:  if index is out of range.
             IOError:     if the file cannot be written.
         """
+
+    @abstractmethod
+    def navigate(self, period_id: str, direction: int) -> dict:
+        """Move the current schedule index for one period only.
+
+        Args:
+            period_id: Stable period ID ("FALL_Aleph", etc.).
+            direction: +1 to advance, -1 to rewind.
+
+        Returns:
+            Dict with the updated period_id, index, and schedule data.
+
+        Raises:
+            IndexError: if navigation goes out of bounds.
+            ValueError: if the period_id is unknown.
+        """
+
+    @abstractmethod
+    def export_current(self, path: str) -> None:
+        """Export the current schedule from each period into one combined file."""

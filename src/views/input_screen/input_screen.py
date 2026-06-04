@@ -3,6 +3,7 @@ from PyQt5.QtCore import pyqtSignal, Qt
 
 # Import the existing GenerateWorker per task requirements
 from src.presenter.generate_worker import GenerateWorker
+from src.styles.input_screen_style import INPUT_SCREEN_STYLE
 from src.views.shared_components.error_banner import ErrorBanner
 from src.views.shared_components.loading_spinner import LoadingSpinner
 
@@ -16,6 +17,8 @@ class InputScreen(QWidget):
     def __init__(self, service, parent=None):
         super().__init__(parent)
         self.service = service
+        # Apply the Dark Mode stylesheet to the entire screen
+        self.setStyleSheet(INPUT_SCREEN_STYLE)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -26,12 +29,11 @@ class InputScreen(QWidget):
         layout.addWidget(self.title_label)
 
         # Loading spinner shown during generation processing
-        # Initially hidden until generation starts
         self.spinner = LoadingSpinner()
         layout.addWidget(self.spinner, alignment=Qt.AlignCenter)
 
         # Error banner for displaying generation errors
-        # Initially hidden until an error occurs
+        # Uses the shared ErrorBanner component
         self.error_banner = ErrorBanner()
         layout.addWidget(self.error_banner)
 
@@ -44,13 +46,11 @@ class InputScreen(QWidget):
     def _on_generate_clicked(self):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
-        Updates UI state to prevent concurrent generation attempts.
         """
         # Reset UI state for new generation attempt
         self.error_banner.hide_error()
         self.spinner.start()
         
-        # Disable the generate button to prevent multiple concurrent generation attempts
         self.generate_btn.setEnabled(False)
 
         self._worker = GenerateWorker(self.service)
@@ -60,25 +60,15 @@ class InputScreen(QWidget):
         self._worker.start()
 
     def _on_generation_finished(self, count):
-        """
-        Callback executed when the worker completes streaming all periods.
-        Resets UI state and triggers the navigation transition to the output screen.
-        """
         self.spinner.stop()
         self.generate_btn.setEnabled(True)
         self.switch_to_output.emit()
 
     def _on_period_ready(self, period_id):
-        """
-        Callback executed when a distinct scheduling period finishes processing.
-        """
-        pass  # Output screen handles this in EP-59
+        pass
 
     def _on_error(self, message):
-        """
-        Callback executed if the background processing encounters an exception.
-        Stops the spinner, re-enables the button, and displays the error banner.
-        """
+        """Handles errors emitted from the background worker, updating the UI accordingly."""
         self.spinner.stop()
         self.generate_btn.setEnabled(True)
         self.error_banner.show_error(message)

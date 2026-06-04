@@ -173,6 +173,22 @@ class IAppService(ABC):
         """Return the total number of combined schedules from the last generate() call."""
 
     @abstractmethod
+    def get_schedule_batch(self, start: int, limit: int) -> list[list[dict]]:
+        """Return a page of flattened schedules for the output calendar.
+
+        Args:
+            start: Zero-based index of the first schedule to return.
+            limit: Maximum number of schedules to return.
+
+        Returns:
+            List of schedules. Each schedule is a list of exam dictionaries.
+
+        Raises:
+            IndexError: if start is negative.
+            ValueError: if limit is negative.
+        """
+
+    @abstractmethod
     def get_schedule(self, index: int) -> dict:
         """Return one schedule by index.
 

@@ -40,6 +40,7 @@ class ErrorBanner(QWidget):
         self.message_label = QLabel()
         self.message_label.setStyleSheet(
             f"color: {th.ERROR_TEXT}; "
+            f"font-family: {th.FONT_FAMILY}; "
             f"font-size: {th.FONT_SIZE_MD}px; "
             f"font-weight: {th.BANNER_FONT_WEIGHT};"
         )
@@ -54,6 +55,7 @@ class ErrorBanner(QWidget):
                 background-color: transparent; 
                 color: {th.ERROR_TEXT}; 
                 border: none; 
+                font-family: {th.FONT_FAMILY};
                 font-size: {th.BANNER_BTN_FONT_SIZE}px; 
                 font-weight: {th.BANNER_BTN_FONT_WEIGHT}; 
             }}

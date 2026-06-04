@@ -239,6 +239,15 @@ class AppService(IAppService):
     def get_schedule_count(self) -> int:
         return len(self._results)
 
+    def get_schedule_batch(self, start: int, limit: int) -> list[list[dict]]:
+        if start < 0:
+            raise IndexError("Schedule batch start index cannot be negative.")
+        if limit < 0:
+            raise ValueError("Schedule batch limit cannot be negative.")
+
+        end = min(start + limit, len(self._results))
+        return [self._format_schedule_rows(schedule) for schedule in self._results[start:end]]
+
     def get_schedule(self, index: int) -> dict:
         if index < 0 or index >= len(self._results):
             raise IndexError(f"Schedule index {index} is out of range (0–{len(self._results) - 1}).")
@@ -277,6 +286,35 @@ class AppService(IAppService):
                     "exam_date":     exam_date,
                 })
 
+        return result
+
+    def _format_schedule_rows(self, schedule: ExamSchedule) -> list[dict]:
+        result = []
+        for (semester, moed), course_date_map in schedule.groupBySemesterAndMoed().items():
+            sem_key = semester.value if hasattr(semester, "value") else str(semester)
+            moed_key = moed.value if hasattr(moed, "value") else str(moed)
+
+            for course, exam_date in course_date_map.items():
+                programs = [
+                    req.program_id
+                    for req in course.requirements
+                    if req.program_id in self._selected_programs
+                ]
+                req_type = "Obligatory"
+                for req in course.requirements:
+                    if req.program_id in self._selected_programs:
+                        req_type = req.req_type.value
+                        break
+
+                result.append({
+                    "course_number": course.course_id,
+                    "course_name": course.name,
+                    "type": req_type,
+                    "programs": programs,
+                    "exam_date": exam_date,
+                    "semester": sem_key,
+                    "moed": moed_key,
+                })
         return result
 
     def export_schedule(self, index: int, path: str) -> None:

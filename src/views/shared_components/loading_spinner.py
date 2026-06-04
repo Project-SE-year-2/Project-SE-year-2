@@ -31,7 +31,9 @@ class LoadingSpinner(QWidget):
         
         # Enforce transparent background and ignore global stylesheet cascades
         self.setAttribute(Qt.WA_StyledBackground, False)
-        self.setStyleSheet("background: transparent; border: none;")
+        self.setStyleSheet(
+            f"background: transparent; border: none; font-family: {th.FONT_FAMILY};"
+        )
 
         # Animation timer
         self.timer = QTimer()

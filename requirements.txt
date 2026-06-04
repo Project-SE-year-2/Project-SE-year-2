@@ -1,2 +1,4 @@
 # Project dependencies for testing
 pytest==8.2.0
+pytest-qt>=4.0.0
+PyQt5>=5.15.0

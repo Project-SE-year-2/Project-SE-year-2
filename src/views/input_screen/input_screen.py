@@ -4,6 +4,7 @@ from PyQt5.QtCore import pyqtSignal, Qt
 
 # Import the existing GenerateWorker per task requirements
 from src.presenter.generate_worker import GenerateWorker
+from src.styles.input_screen_style import INPUT_SCREEN_STYLE
 
 class InputScreen(QWidget):
     """
@@ -14,6 +15,8 @@ class InputScreen(QWidget):
     def __init__(self, service, parent=None):
         super().__init__(parent)
         self.service = service
+        # Apply the Dark Mode stylesheet to the entire screen
+        self.setStyleSheet(INPUT_SCREEN_STYLE)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -35,7 +38,7 @@ class InputScreen(QWidget):
         and adds it to the parent layout in a hidden state.
         """
         self.error_banner = QLabel("")
-        self.error_banner.setStyleSheet("color: #FF5555; background-color: #2D2D2D; padding: 10px; border-radius: 5px;")
+        self.error_banner.setObjectName("errorBanner")
         self.error_banner.setAlignment(Qt.AlignCenter)
         self.error_banner.hide() 
         layout.addWidget(self.error_banner)

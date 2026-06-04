@@ -255,5 +255,27 @@ class IAppService(ABC):
         """
 
     @abstractmethod
+    def navigate_global(self, direction: int) -> dict:
+        """Advance or rewind all periods together using odometer carry logic.
+
+        The rightmost period (last in insertion order) changes fastest.
+        When a period overflows (direction=+1) it resets to 0 and the carry
+        propagates left.  When it underflows (direction=-1) it is set to its
+        maximum and the borrow propagates left.
+
+        Args:
+            direction: +1 to advance to the next combination,
+                       -1 to rewind to the previous one.
+
+        Returns:
+            The new combination as {period_id: index, ...}.
+
+        Raises:
+            IndexError: if already at the first (direction=-1) or last
+                        (direction=+1) combination.
+            ValueError: if direction is not ±1, or no periods are initialised.
+        """
+
+    @abstractmethod
     def export_current(self, path: str) -> None:
         """Export the current schedule from each period into one combined file."""

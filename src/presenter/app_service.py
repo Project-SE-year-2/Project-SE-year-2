@@ -53,6 +53,11 @@ class AppService(IAppService):
         # EP-72 — per-period streaming cache
         # keyed by period_id ("FALL_Aleph", …), values are raw ExamSchedule lists
         self._results_by_period: dict[str, list[ExamSchedule]] = {}
+        # EP-82 — file-based per-period navigation
+        # Set externally (or via generate_stream) before calling navigate/export_current
+        self._results_writer = None
+        self._results_reader = None
+        self._current_indices: dict[str, int] = {}
 
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                        #
@@ -180,14 +185,31 @@ class AppService(IAppService):
     def generate_stream(self):
         """Generator that yields (period_id, schedules) one period at a time.
 
-        Stores each period's results in _results_by_period as they arrive.
-        When exhausted, runs the Combiner on the full cache and populates
-        _results so get_schedule() / get_schedule_count() work normally.
+        Two modes:
+        - File-based mode  (_results_writer set): writes each period's
+          results to disk in batches of 50, initialises _current_indices
+          for per-period navigation, and skips the ScheduleCombiner.
+        - Legacy mode (_results_writer is None): same behaviour as before —
+          caches results in _results_by_period, runs ScheduleCombiner at the
+          end, populates _results for get_schedule() / get_schedule_count().
         """
-        from src.algorithm.schedule_combiner import ScheduleCombiner
-
         engine, scheduling_tasks = self._prepare_engine()
         self._results_by_period = {}
+
+        if self._results_writer is not None:
+            # File-based flow - write batches to disk, no combiner
+            self._current_indices = {}
+            for period_result in engine.iterPeriodResults(scheduling_tasks):
+                pid = _period_id(period_result.period)
+                self._results_by_period[pid] = period_result.schedules
+                self._last_metadata[period_result.period] = period_result.metadata
+                self._results_writer.write_batch(pid, period_result.schedules)
+                self._current_indices.setdefault(pid, 0)
+                yield pid, period_result.schedules
+            return
+
+        # Legacy flow - collect all, combine, sort
+        from src.algorithm.schedule_combiner import ScheduleCombiner
 
         for period_result in engine.iterPeriodResults(scheduling_tasks):
             pid = _period_id(period_result.period)
@@ -195,7 +217,6 @@ class AppService(IAppService):
             self._last_metadata[period_result.period] = period_result.metadata
             yield pid, period_result.schedules
 
-        # All periods done — combine for navigation and export
         all_sub_results = list(self._results_by_period.values())
         combined = ScheduleCombiner().combineSubResults(all_sub_results)
         combined.sort(key=lambda s: s.sort_key)
@@ -236,8 +257,14 @@ class AppService(IAppService):
                     })
         return result
 
-    def get_schedule_count(self) -> int:
-        return len(self._results)
+    def get_schedule_count(self, period_id: str | None = None) -> int:
+        # If we are in global navigation mode, return total product of all periods
+        if period_id is None:
+            return len(self._results)
+        # Otherwise, return the count for a specific period from disk
+        if self._results_reader is None:
+            raise RuntimeError("Results reader not initialised.")
+        return self._results_reader.get_count(period_id)
 
     def get_schedule_batch(self, start: int, limit: int) -> list[list[dict]]:
         if start < 0:
@@ -324,6 +351,109 @@ class AppService(IAppService):
         writer = ScheduleReportWriter()
         writer.write(
             schedules=[schedule],
+            metadata=self._last_metadata,
+            programs=self._selected_programs,
+            output_path=path,
+        )
+
+    # ------------------------------------------------------------------ #
+    # EP-82 — Per-period navigation & combined export                     #
+    # ------------------------------------------------------------------ #
+
+    def navigate(self, period_id: str, direction: int) -> dict:
+        """Move the current schedule index for one period only (±1).
+
+        Other periods are unaffected.  Raises ValueError for an unknown
+        period_id and IndexError if the new index would go out of bounds.
+        """
+        # Ensure the requested period is valid and exists in our navigation state
+        if period_id not in self._current_indices:
+            raise ValueError(f"Unknown period '{period_id}'.")
+        if self._results_reader is None:
+            raise RuntimeError("Results reader not initialised.")
+
+        # Calculate the new index and validate boundaries
+        new_idx = self._current_indices[period_id] + direction
+        count = self._results_reader.get_count(period_id)
+
+        if new_idx < 0 or new_idx >= count:
+            raise IndexError(
+                f"Schedule index {new_idx} out of range for period "
+                f"'{period_id}' (0–{count - 1})."
+            )
+
+        # Update the current index and fetch the new schedule from the disk
+        self._current_indices[period_id] = new_idx
+        schedule = self._results_reader.get_schedule_at(period_id, new_idx)
+        return {
+            "period_id": period_id,
+            "index": new_idx,
+            "schedule": self._format_schedule_rows(schedule),
+        }
+
+    def navigate_global(self, direction: int) -> dict:
+        """Advance or rewind all periods by one combination (odometer carry).
+
+        direction=+1: rightmost period increments; on overflow it resets to 0
+                      and the carry propagates left.
+        direction=-1: rightmost period decrements; on underflow it is set to
+                      its max and the borrow propagates left.
+
+        State is restored before raising so the indices are never corrupted.
+        """
+        if direction not in (+1, -1):
+            raise ValueError(f"direction must be +1 or -1, got {direction}.")
+        if not self._current_indices:
+            raise ValueError("No periods initialised.")
+        if self._results_reader is None:
+            raise RuntimeError("Results reader not initialised.")
+
+        period_order = list(self._current_indices.keys())
+        snapshot = dict(self._current_indices)
+
+        for pid in reversed(period_order):
+            count = self._results_reader.get_count(pid)
+            new_idx = self._current_indices[pid] + direction
+
+            if direction == +1:
+                if new_idx < count:
+                    self._current_indices[pid] = new_idx
+                    return dict(self._current_indices)
+                self._current_indices[pid] = 0   # carry
+            else:
+                if new_idx >= 0:
+                    self._current_indices[pid] = new_idx
+                    return dict(self._current_indices)
+                self._current_indices[pid] = count - 1   # borrow
+
+        # Overflow/ underflow - restore and raise
+        self._current_indices.update(snapshot)
+        raise IndexError(
+            "Already at the last combination."
+            if direction == +1
+            else "Already at the first combination."
+        )
+
+    def export_current(self, path: str) -> None:
+        """Write one schedule per period (at the current index) into one file.
+
+        No ScheduleCombiner — each period's schedule is loaded from its
+        own batch file and all are written together by ScheduleReportWriter.
+        """
+        if self._results_reader is None:
+            raise RuntimeError("Results reader not initialised.")
+
+        # Collect the currently selected schedule for every active period
+        schedules = []
+        for period_id, idx in self._current_indices.items():
+            if self._results_reader.get_count(period_id) > 0:
+                schedules.append(
+                    self._results_reader.get_schedule_at(period_id, idx)
+                )
+
+        # Use the dedicated writer to compile all gathered schedules into the final output
+        ScheduleReportWriter().write(
+            schedules=schedules,
             metadata=self._last_metadata,
             programs=self._selected_programs,
             output_path=path,

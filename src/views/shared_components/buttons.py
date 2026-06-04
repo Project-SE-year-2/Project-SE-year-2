@@ -24,6 +24,7 @@ class PrimaryButton(QPushButton):
                 border: none;
                 border-radius: {th.BUTTON_BORDER_RADIUS}px;
                 padding: {th.BUTTON_PADDING_VERTICAL_SM}px {th.BUTTON_PADDING_HORIZONTAL}px;
+                font-family: {th.FONT_FAMILY};
                 font-weight: {th.FONT_WEIGHT_BOLD};
                 font-size: {th.FONT_SIZE_MD}px;
                 min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
@@ -58,6 +59,7 @@ class SecondaryButton(QPushButton):
                 border: 1px solid {th.BUTTON_SECONDARY_BORDER};
                 border-radius: {th.BUTTON_BORDER_RADIUS}px;
                 padding: {th.BUTTON_PADDING_VERTICAL_SM}px {th.BUTTON_PADDING_HORIZONTAL}px;
+                font-family: {th.FONT_FAMILY};
                 font-weight: {th.FONT_WEIGHT_MEDIUM};
                 font-size: {th.FONT_SIZE_MD}px;
                 min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
@@ -94,6 +96,7 @@ class DangerButton(QPushButton):
                 border: none;
                 border-radius: {th.BUTTON_BORDER_RADIUS}px;
                 padding: {th.BUTTON_PADDING_VERTICAL_SM}px {th.BUTTON_PADDING_HORIZONTAL}px;
+                font-family: {th.FONT_FAMILY};
                 font-weight: {th.FONT_WEIGHT_BOLD};
                 font-size: {th.FONT_SIZE_MD}px;
                 min-height: {th.BUTTON_MIN_HEIGHT_SM}px;

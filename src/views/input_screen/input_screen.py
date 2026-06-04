@@ -6,6 +6,9 @@ from src.presenter.generate_worker import GenerateWorker
 from src.styles.input_screen_style import INPUT_SCREEN_STYLE
 from src.views.shared_components.error_banner import ErrorBanner
 from src.views.shared_components.loading_spinner import LoadingSpinner
+from src.views.widgets.file_loader_widget import FileLoaderWidget
+from src.views.widgets.program_list_widget import ProgramListWidget
+from src.views.widgets.period_list_widget import PeriodListWidget
 
 class InputScreen(QWidget):
     """
@@ -28,6 +31,20 @@ class InputScreen(QWidget):
         self.title_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.title_label)
 
+        # The users will select input files and load them into the service
+        self.file_loader = FileLoaderWidget(self.service)
+        layout.addWidget(self.file_loader)
+
+        # After loading, the program list will be populated and shown for selection.
+        self.program_list = ProgramListWidget(self.service)
+        self.program_list.setVisible(False)
+        layout.addWidget(self.program_list)
+
+        # After selecting a program, the period list will be shown for selection.
+        self.period_list = PeriodListWidget(self.service)
+        self.period_list.setVisible(False)
+        layout.addWidget(self.period_list)
+
         # Loading spinner shown during generation processing
         self.spinner = LoadingSpinner()
         layout.addWidget(self.spinner, alignment=Qt.AlignCenter)
@@ -41,7 +58,39 @@ class InputScreen(QWidget):
         
         self.generate_btn = QPushButton("GENERATE CALENDAR")
         self.generate_btn.clicked.connect(self._on_generate_clicked)
+
+        # Hidden until a period is selected
+        self.generate_btn.setVisible(False)
+
         layout.addWidget(self.generate_btn)
+
+        # Connect signals from child widgets to handle UI state transitions
+        self.file_loader.files_loaded.connect(self._on_files_loaded)
+        self.program_list.programs_selected.connect(
+            self._on_programs_selected
+        )
+        self.period_list.period_selected.connect(
+            self._on_period_selected
+        )
+
+    def _on_files_loaded(self):
+        # After files are loaded, show the program list for selection
+        self.program_list.refresh()
+        self.program_list.setVisible(True)
+
+    def _on_programs_selected(self, selected_programs):
+        # Show the period list only if there are selected programs
+        has_selection = len(selected_programs) > 0
+        self.period_list.setVisible(has_selection)
+
+        if has_selection:
+            self.period_list.refresh()
+        else:
+            self.period_list.clear_selection()
+
+    # When a period is selected, show the generate button
+    def _on_period_selected(self, period_id):
+        self.generate_btn.setVisible(True)
 
     def _on_generate_clicked(self):
         """

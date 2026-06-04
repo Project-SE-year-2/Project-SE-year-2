@@ -1,0 +1,46 @@
+sequenceDiagram
+    participant User
+    participant InputScreen
+    participant GenerateWorker
+    participant AppService
+    participant DataStore
+    participant CourseFileParser
+    participant ExamPeriodFileParser
+    participant SchedulingEngine
+    participant ScheduleReportWriter
+
+    User->>InputScreen: clicks Load Data
+    InputScreen->>AppService: load_data(courses_path, dates_path, mode)
+    AppService->>CourseFileParser: parse(courses_path)
+    AppService->>ExamPeriodFileParser: parse(dates_path)
+    AppService->>DataStore: set_courses/merge_courses
+    AppService->>DataStore: set_periods/merge_periods
+    AppService->>DataStore: save()
+
+    User->>InputScreen: selects programs
+    InputScreen->>AppService: select_programs(ids)
+
+    User->>InputScreen: clicks Generate
+    InputScreen->>GenerateWorker: start()
+    GenerateWorker->>AppService: generate_stream()
+    AppService->>SchedulingEngine: _prepare_engine()
+    GenerateWorker->>SchedulingEngine: execute_period_tasks_in_thread_pool(tasks)
+    Note over GenerateWorker,SchedulingEngine: each exam period solved in its own worker thread
+    SchedulingEngine-->>GenerateWorker: period result 1
+    GenerateWorker-->>InputScreen: period_ready(period_id)
+    SchedulingEngine-->>GenerateWorker: period result 2
+    GenerateWorker-->>InputScreen: period_ready(period_id)
+    Note over GenerateWorker,SchedulingEngine: attempt to collect as many results as possible within 0.5s
+    GenerateWorker->>AppService: request_partial_merge(available_results)
+    AppService->>ScheduleCombiner: combineSubResults(available_results)
+    ScheduleCombiner-->>GenerateWorker: partial_schedule_snapshot
+    GenerateWorker-->>InputScreen: finished(combined_count)
+    InputScreen-->>User: switch_to_output
+    Note over SchedulingEngine: continues producing remaining periods in background, results appended to cache
+
+    User->>OutputScreen: requests schedule page
+    OutputScreen->>AppService: get_schedule(index)
+
+    User->>OutputScreen: clicks Export
+    OutputScreen->>AppService: export_schedule(index, path)
+    AppService->>ScheduleReportWriter: write(...)

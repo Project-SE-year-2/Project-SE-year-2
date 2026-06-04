@@ -1,0 +1,167 @@
+classDiagram
+    direction TB
+
+    class MainWindow {
+        -service: AppService
+        -stacked_widget: QStackedWidget
+        +_init_screens()
+        +_show_output_screen()
+        +_show_input_screen()
+    }
+
+    class InputScreen {
+        -service: IAppService
+        -_worker: GenerateWorker
+        +_on_generate_clicked()
+        +_on_generation_finished(count)
+    }
+
+    class OutputScreen {
+        -service: IAppService
+        +show_schedule()
+        +export_schedule(index, path)
+    }
+
+    class GenerateWorker {
+        +period_ready: pyqtSignal(str)
+        +finished: pyqtSignal(int)
+        +error: pyqtSignal(str)
+        +run()
+    }
+
+    class IAppService {
+        <<interface>>
+        +load_data(courses_path, dates_path, mode)
+        +get_available_programs()
+        +get_program_name(program_id)
+        +select_programs(ids)
+        +get_courses(program_id)
+        +get_periods()
+        +toggle_day(period_id, day)
+        +shift_period(period_id, start, end)
+        +generate()
+        +generate_stream()
+        +get_period_ids()
+        +get_period_schedules(period_id)
+        +get_schedule_count()
+        +get_schedule(index)
+        +export_schedule(index, path)
+    }
+
+    class AppService {
+        -_datastore: DataStore
+        -_selected_programs: list[str]
+        -_results: list[ExamSchedule]
+        -_results_by_period: dict[str, list[ExamSchedule]]
+        -_last_metadata: dict
+        +getInstance()
+        +load_data(courses_path, dates_path, mode)
+        +get_available_programs()
+        +select_programs(ids)
+        +get_courses(program_id)
+        +get_periods()
+        +toggle_day(period_id, day)
+        +shift_period(period_id, start, end)
+        +generate()
+        +generate_stream()
+        +get_period_ids()
+        +get_period_schedules(period_id)
+        +get_schedule_count()
+        +get_schedule(index)
+        +export_schedule(index, path)
+        +get_program_name(program_id)
+    }
+
+    class DataStore {
+        -_path: Path
+        -_courses: list[Course]
+        -_periods: list[ExamPeriod]
+        -_program_name_map: dict[str, str]
+        +load()
+        +save()
+        +clear()
+        +set_courses(courses)
+        +set_periods(periods)
+        +merge_courses(new_courses)
+        +merge_periods(new_periods)
+        +get_all_courses()
+        +get_courses_for_program(program_id)
+        +get_programs()
+        +get_periods()
+        +get_period_by_id(period_id)
+        +get_program_name(program_id)
+    }
+
+    class ExamPeriod {
+        -semester: Semester
+        -moed: Moed
+        -start_date: date
+        -end_date: date
+        -possible_dates: list[date]
+        -forbidden_days: list[date]
+        +toggle_day(day)
+        +shift_dates(start, end)
+    }
+
+    class ExamPeriodFileParser {
+        +parse(filepath)
+    }
+
+    class CourseFileParser {
+        +parse(filepath)
+    }
+
+    class SchedulingEngine {
+        -iterPeriodResults uses ThreadPoolExecutor
+    }
+
+    class ScheduleCombiner {
+        +combineSubResults(list_of_lists)
+    }
+
+    class ScheduleReportWriter {
+        +write(schedules, metadata, programs, output_path)
+    }
+
+    class ViewNote {
+        View layer: receives events and renders screens
+    }
+
+    class PresenterNote {
+        Presenter layer: handles UI requests, caches schedules,
+        bridges view to model
+    }
+
+    class ModelNote {
+        Model layer: persists parsed courses, periods,
+        and program-name mappings
+    }
+
+    class ExportNote {
+        Export is a supported presenter feature: saves one schedule
+    }
+
+    ViewNote .. InputScreen
+    PresenterNote .. AppService
+    ModelNote .. DataStore
+    ExportNote .. ScheduleReportWriter
+
+    MainWindow --> InputScreen : injects
+    MainWindow --> OutputScreen : injects
+    InputScreen --> GenerateWorker : creates
+    InputScreen --> IAppService : uses
+    OutputScreen --> IAppService : uses
+    GenerateWorker --> IAppService : calls generate_stream()
+    AppService --|> IAppService
+    AppService --> DataStore : owns
+    AppService --> ExamPeriodFileParser : uses
+    AppService --> CourseFileParser : uses
+    AppService --> SchedulingEngine : uses
+    AppService --> ScheduleCombiner : uses
+    AppService --> ScheduleReportWriter : uses
+    DataStore --> ExamPeriod : stores
+    DataStore --> Course : stores
+    ExamPeriodFileParser --> ExamPeriod : creates
+    SchedulingEngine --> ExamPeriod : reads
+    SchedulingEngine --> Course : reads
+

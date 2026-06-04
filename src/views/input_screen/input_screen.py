@@ -42,7 +42,6 @@ class InputScreen(QWidget):
         self.generate_btn = QPushButton("GENERATE CALENDAR")
         self.generate_btn.clicked.connect(self._on_generate_clicked)
         layout.addWidget(self.generate_btn)
-        # שים לב: מחקתי כאן את הקריאה ל-self._setup_error_banner(layout)
 
     def _on_generate_clicked(self):
         """

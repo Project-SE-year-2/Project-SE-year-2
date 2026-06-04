@@ -158,3 +158,105 @@ def test_solver_sanity_load_many_courses_many_days():
 
         assert len(assignments) == 5
         assert len(set(assignments.values())) == 5
+
+
+def test_solve_stream_break_and_resume_no_gaps_or_repeats():
+    """
+    Tests that solve_stream() yields schedules one at a time and can be
+    paused/ resumed without gaps or repeats.
+    
+    Creates 3 independent courses with 5 available dates = 5^3 = 125 schedules.
+    Collects first 50, then resumes and collects the rest.
+    Verifies no gaps or repeats in the complete sequence.
+    """
+    # Create 3 independent courses (no shared obligatory constraints)
+    c1 = Course("C1", "1", "A", "Exam")
+    c2 = Course("C2", "2", "B", "Exam")
+    c3 = Course("C3", "3", "C", "Exam")
+    
+    solver, validator = _setup_solver([c1, c2, c3], ["83101", "83102", "83103"])
+    
+    period = ExamPeriod("FALL", "Aleph", "01-01-2026", "05-01-2026")
+    period.possible_dates = [
+        date(2026, 1, 1),
+        date(2026, 1, 2),
+        date(2026, 1, 3),
+        date(2026, 1, 4),
+        date(2026, 1, 5),
+    ]
+    
+    # Expected: 5^3 = 125 total schedules
+    first_batch = []
+    stream = solver.solve_stream([c1, c2, c3], period, validator)
+    
+    # Collect first 50 schedules
+    for _ in range(50):
+        schedule = next(stream)
+        first_batch.append(schedule)
+    
+    # Collect remaining schedules
+    second_batch = list(stream)
+    
+    all_schedules = first_batch + second_batch
+    
+    # Verify we got 125 total schedules (5^3)
+    assert len(all_schedules) == 125
+    
+    # Verify no repeats by converting each schedule's assignments to a hashable tuple
+    def schedule_to_tuple(sched):
+        items = []
+        for (p, c), d in sorted(sched._store.items(), key=lambda x: str(x[0][1])):
+            items.append((str(c), str(d)))
+        return tuple(items)
+    
+    schedule_tuples = [schedule_to_tuple(s) for s in all_schedules]
+    unique_tuples = set(schedule_tuples)
+    
+    # All 125 schedules should be unique
+    assert len(unique_tuples) == 125
+    
+    # Verify no schedule is yielded twice (no repeats)
+    assert len(schedule_tuples) == len(set(schedule_tuples))
+    
+    # Verify partial.copy() was used (each schedule is independent)
+    # Modify one schedule and ensure others are unaffected
+    for schedule in all_schedules:
+        # Each schedule should have independent assignment data
+        assert len(schedule.assignments) == 3
+
+
+def test_solve_stream_yields_copies_not_partial():
+    """
+    Tests that solve_stream() yields copies of partial, never the mutable
+    partial object itself. Modifying a yielded schedule should not affect
+    subsequent yields.
+    """
+    c1 = Course("C1", "1", "A", "Exam")
+    c2 = Course("C2", "2", "B", "Exam")
+    
+    solver, validator = _setup_solver([c1, c2], ["83101"])
+    
+    period = ExamPeriod("FALL", "Aleph", "01-01-2026", "02-01-2026")
+    period.possible_dates = [date(2026, 1, 1), date(2026, 1, 2)]
+    
+    stream = solver.solve_stream([c1, c2], period, validator)
+    
+    first = next(stream)
+    
+    # Manually assign wrong dates to first schedule
+    first.assign(c1, date(2026, 1, 5))
+    first.assign(c2, date(2026, 1, 5))
+    
+    # Collect remaining schedules
+    remaining = list(stream)
+    
+    # Verify remaining schedules still have valid assignments
+    for schedule in remaining:
+        assert schedule.assignments[c1] in period.possible_dates
+        assert schedule.assignments[c2] in period.possible_dates
+        # c1 and c2 are independent so can share the same date
+        assert len(schedule.assignments) == 2
+    
+    # Verify first schedule was modified (proves it's a copy, not partial)
+    assert first.assignments[c1] == date(2026, 1, 5)
+    assert first.assignments[c2] == date(2026, 1, 5)

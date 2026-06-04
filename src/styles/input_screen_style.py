@@ -133,13 +133,5 @@ QScrollArea > QWidget > QWidget {
     background-color: transparent;
 }
 
-/* Error Banner */
-QLabel#errorBanner {
-    color: #FF5555; 
-    background-color: #2D2D2D; 
-    padding: 10px; 
-    border-radius: 5px;
-    font-weight: bold;
-}
 """
 

@@ -1,12 +1,8 @@
 from PyQt5.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QLabel, QPushButton
 from PyQt5.QtCore import pyqtSignal, Qt
 
-# Import the Singleton service
-from src.presenter.app_service import AppService
-
 # Import the Singleton service and screen modules
 from src.presenter.app_service import AppService
-# Updated import path and PascalCase class name based on PR feedback
 from src.views.input_screen.input_screen import InputScreen
 from src.views.output_screen.output_screen import OutputScreen
 

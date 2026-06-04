@@ -45,39 +45,50 @@ class OutputScreen(QWidget):
         self._load_stylesheet()
         self.setObjectName("mainContainer")
 
+        # Create the main vertical layout for the screen
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(30, 30, 30, 30)
         main_layout.setSpacing(18)
 
+        # Create a horizontal toolbar layout for the back button, title, and download button
         toolbar = QHBoxLayout()
         toolbar.setSpacing(12)
 
+        # Initialize the back button, title label, and download button with appropriate styles and connect signals
         self.back_btn = QPushButton("Back to Input")
         self.back_btn.setObjectName("backBtn")
         self.back_btn.clicked.connect(self._on_back_clicked)
 
+        # Set the title label with a specific object name for styling
         self.title_label = QLabel("Exam Calendar")
         self.title_label.setObjectName("mainTitle")
 
+        # Initialize the download button
         self.download_btn = QPushButton("Download Schedule")
+        # Set the object name for styling and connect the click signal to the download handler
         self.download_btn.setObjectName("primaryBtn")
+        # Connect the download button's clicked signal to the handler method
         self.download_btn.clicked.connect(self._on_download_clicked)
 
+        # Add widgets to the toolbar with spacing and alignment
         toolbar.addWidget(self.back_btn)
         toolbar.addWidget(self.title_label)
         toolbar.addStretch()
         toolbar.addWidget(self.download_btn)
         main_layout.addLayout(toolbar)
 
+        # Card container to hold the calendar widget with a styled frame
         self.card_container = QFrame()
         self.card_container.setObjectName("cardContainer")
         card_layout = QVBoxLayout(self.card_container)
         card_layout.setContentsMargins(0, 0, 0, 0)
 
+        #  Initialize the calendar widget and add it to the card layout
         self.calendar = ScheduleCalendarWidget()
         card_layout.addWidget(self.calendar)
         main_layout.addWidget(self.card_container, stretch=1)
 
+        # Initialize the schedule navigator widget, connect its signals, and add it to the main layout
         self.navigator = ScheduleNavigatorWidget()
         self.navigator.index_changed.connect(self._on_navigator_index_changed)
         self.sched_label = self.navigator.counter_label
@@ -85,6 +96,7 @@ class OutputScreen(QWidget):
         self.next_btn = self.navigator.next_btn
         main_layout.addWidget(self.navigator)
 
+        # Update the navigator label and button states based on the initial schedule count
         self._update_schedule_nav_label()
 
     def _setup_polling(self):
@@ -97,6 +109,7 @@ class OutputScreen(QWidget):
         """Override the showEvent to load the initial batch of schedules and start polling when the screen is shown."""
         super().showEvent(event)
         self.current_index = 0
+        # Load the initial batch of schedules to display immediately when the screen is shown, then start polling for updates.
         self._load_initial_batch()
         self._poll_schedule_count()
         self.poll_timer.start(self.POLL_INTERVAL_MS)
@@ -116,7 +129,7 @@ class OutputScreen(QWidget):
             return
 
         if self.current_schedules:
-            """Load the first schedule into the calendar widget."""
+            # Load the first schedule into the calendar widget.
             self.calendar.update_schedule(self.current_schedules[0])
 
     def _load_schedule(self, index):

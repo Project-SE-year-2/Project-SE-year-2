@@ -1,3 +1,4 @@
+from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox
 from PyQt5.QtCore import pyqtSignal, Qt
 
@@ -25,17 +26,24 @@ class InputScreen(QWidget):
         self.generate_btn.clicked.connect(self._on_generate_clicked)
         layout.addWidget(self.generate_btn)
 
+        # Delegate the error banner creation to its own dedicated method
+        self._setup_error_banner(layout)
+
+    def _setup_error_banner(self, layout):
+        """
+        Initializes the error banner UI component, applies Dark Mode styling,
+        and adds it to the parent layout in a hidden state.
+        """
+        self.error_banner = QLabel("")
+        self.error_banner.setStyleSheet("color: #FF5555; background-color: #2D2D2D; padding: 10px; border-radius: 5px;")
+        self.error_banner.setAlignment(Qt.AlignCenter)
+        self.error_banner.hide() 
+        layout.addWidget(self.error_banner)
+
     def _on_generate_clicked(self):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
         """
-        # ---TEMP FOR OUTPUT SCREEN UI ---
-        try:
-            self.service.select_programs(["dummy_program_1"]) 
-        except Exception:
-            self.service._selected_programs = ["dummy_program_1"]
-        # -----------------------------
-
         self._worker = GenerateWorker(self.service)
         self._worker.period_ready.connect(self._on_period_ready)
         self._worker.finished.connect(self._on_generation_finished)
@@ -59,7 +67,8 @@ class InputScreen(QWidget):
         """
         Callback executed if the background processing encounters an exception.
         """
-        print(f"ALGORITHM ERROR: {message}") #PRINTS TO CONSOLE FOR DEBUGGING, BUT
+        self.error_banner.setText(message)
+        self.error_banner.show()
         
-        # pop up an error dialog to inform the user of the failure
-        QMessageBox.critical(self, "Generation Error", f"Failed to generate schedules:\n{message}")
+        # Hide the banner automatically after 2000 milliseconds (2 seconds)
+        QTimer.singleShot(2000, self.error_banner.hide)

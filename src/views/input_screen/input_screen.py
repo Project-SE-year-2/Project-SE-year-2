@@ -69,6 +69,7 @@ class InputScreen(QWidget):
         pass
 
     def _on_error(self, message):
+        """Handles errors emitted from the background worker, updating the UI accordingly."""
         self.spinner.stop()
         self.generate_btn.setEnabled(True)
         self.error_banner.show_error(message)

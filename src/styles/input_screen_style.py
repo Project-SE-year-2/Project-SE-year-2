@@ -132,6 +132,5 @@ QScrollArea {
 QScrollArea > QWidget > QWidget {
     background-color: transparent;
 }
-
 """
 

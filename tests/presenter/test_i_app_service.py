@@ -45,6 +45,7 @@ class _FullImpl(IAppService):
     def get_period_schedules(self, period_id): return []
     def get_schedule_count(self): return 0
     def get_schedule(self, index): return {}
+    def get_schedule_batch(self, start, limit): return []
     def export_schedule(self, index, path): pass
 
 

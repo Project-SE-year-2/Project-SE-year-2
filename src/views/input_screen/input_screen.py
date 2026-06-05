@@ -69,8 +69,8 @@ class InputScreen(QWidget):
         self.program_list.programs_selected.connect(
             self._on_programs_selected
         )
-        self.period_list.period_selected.connect(
-            self._on_period_selected
+        self.period_list.periods_selected.connect(
+            self._on_periods_selected
         )
 
     def _on_files_loaded(self):
@@ -89,8 +89,8 @@ class InputScreen(QWidget):
             self.period_list.clear_selection()
 
     # When a period is selected, show the generate button
-    def _on_period_selected(self, period_id):
-        self.generate_btn.setVisible(True)
+    def _on_periods_selected(self, period_ids):
+        self.generate_btn.setVisible(len(period_ids) > 0)
 
     def _on_generate_clicked(self):
         """

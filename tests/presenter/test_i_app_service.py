@@ -43,9 +43,13 @@ class _FullImpl(IAppService):
     def generate_stream(self): return iter([])
     def get_period_ids(self): return []
     def get_period_schedules(self, period_id): return []
-    def get_schedule_count(self): return 0
+    def get_schedule_count(self, period_id=None): return 0
+    def get_schedule_batch(self, start, limit): return []
     def get_schedule(self, index): return {}
     def export_schedule(self, index, path): pass
+    def navigate(self, period_id, direction): return {}
+    def navigate_global(self, direction): return {}
+    def export_current(self, path): pass
 
 
 # ------------------------------------------------------------------ #

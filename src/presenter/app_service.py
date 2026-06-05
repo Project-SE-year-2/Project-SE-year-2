@@ -186,7 +186,7 @@ class AppService(IAppService):
         """Generator that yields (period_id, schedules) one period at a time.
 
         Two modes:
-        - File-based mode  (_results_writer set): writes each period's
+        - File-based mode (_results_writer set): writes each period's
           results to disk in batches of 50, initialises _current_indices
           for per-period navigation, and skips the ScheduleCombiner.
         - Legacy mode (_results_writer is None): same behaviour as before —
@@ -197,15 +197,14 @@ class AppService(IAppService):
         self._results_by_period = {}
 
         if self._results_writer is not None:
-            # File-based flow - write batches to disk, no combiner
+            # File-based flow: solve_to_disk() keeps at most BATCH_SIZE (50)
+            # schedules in RAM at once - no full-period list ever built
             self._current_indices = {}
-            for period_result in engine.iterPeriodResults(scheduling_tasks):
-                pid = _period_id(period_result.period)
-                self._results_by_period[pid] = period_result.schedules
-                self._last_metadata[period_result.period] = period_result.metadata
-                self._results_writer.write_batch(pid, period_result.schedules)
+            for period, courses_dict in scheduling_tasks.items():
+                pid = _period_id(period)
+                engine.solve_to_disk(period, courses_dict, self._results_writer)
                 self._current_indices.setdefault(pid, 0)
-                yield pid, period_result.schedules
+                yield pid, []
             return
 
         # Legacy flow - collect all, combine, sort

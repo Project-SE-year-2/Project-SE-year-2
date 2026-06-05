@@ -414,20 +414,15 @@ def test_generate_stream_file_mode_skips_combiner(tmp_path, monkeypatch):
     sched = ExamSchedule(fall)
     sched.assign(course, date(2026, 1, 1))
 
+    # solve_to_disk is called per period — simulate it writing one schedule
+    def fake_solve_to_disk(period, courses_dict, w):
+        pid = f"{period.semester.value}_{period.moed.value}"
+        w.write_batch(pid, [sched])
+
     mock_engine = MagicMock()
-    mock_engine.iterPeriodResults.return_value = iter([
-        PeriodGenerationResult(
-            period=fall,
-            schedules=[sched],
-            metadata={
-                "valid_count": 1,
-                "theoretical_count": 1,
-                "courses": [],
-                "available_days": 2,
-            },
-        )
-    ])
-    monkeypatch.setattr(app, "_prepare_engine", lambda: (mock_engine, {}))
+    mock_engine.solve_to_disk.side_effect = fake_solve_to_disk
+    # scheduling_tasks must contain the period so the loop body runs
+    monkeypatch.setattr(app, "_prepare_engine", lambda: (mock_engine, {fall: {}}))
 
     list(app.generate_stream())
 

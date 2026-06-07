@@ -95,3 +95,14 @@ class ExamPeriod:
                 all_dates.append(current)
             current += timedelta(days=1)
         self.possible_dates = all_dates
+
+    @property
+    def period_id(self) -> str:
+        """Stable string identifier: '<SEMESTER>_<MOED>' (e.g. 'FALL_Aleph').
+
+        Single source of truth — used by SchedulingEngine, EngineProcess,
+        and DataStore so the format never drifts across layers.
+        """
+        sem  = self.semester.value if hasattr(self.semester, "value") else str(self.semester)
+        moed = self.moed.value     if hasattr(self.moed,     "value") else str(self.moed)
+        return f"{sem}_{moed}"

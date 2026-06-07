@@ -17,6 +17,7 @@ from src.presenter.data_store import DataStore, _period_id
 from src.parsers.course_parser import CourseFileParser, filter_courses_for_scheduling
 from src.parsers.exam_period_file_parser import ExamPeriodFileParser
 from src.parsers.programs_name_parser import ProgramsParser
+from src.presenter.results_reader import ResultsReader
 from src.algorithm.scheduling_algoritem import match_courses_to_periods
 from src.algorithm.constraint_index import ConstraintIndex
 from src.algorithm.exam_period_catalog import ExamPeriodCatalog
@@ -61,10 +62,12 @@ class AppService(IAppService):
         # keyed by period_id ("FALL_Aleph", …), values are raw ExamSchedule lists
         self._results_by_period: dict[str, list[ExamSchedule]] = {}
         # EP-82 — file-based per-period navigation
-        # Set externally (or via generate_stream) before calling navigate/export_current
         self._results_writer = None
-        self._results_reader = None
+        self._results_reader = ResultsReader()   # always available for reading from disk
         self._current_indices: dict[str, int] = {}
+        # EP-83 — multiprocessing: set to EngineProcess() in main.py to enable
+        # two-process architecture. None = legacy single-process mode (used by tests).
+        self._engine_process = None
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
     # ------------------------------------------------------------------ #
@@ -215,9 +218,30 @@ class AppService(IAppService):
         engine, scheduling_tasks = self._prepare_engine()
         self._results_by_period = {}
 
+        # ── EP-83: Multiprocessing mode ───────────────────────────────────
+        # Engine Process runs solve_to_disk() in a separate OS process.
+        # Only lightweight period_id strings cross the process boundary.
+        if self._engine_process is not None:
+            self._current_indices = {}
+            self._engine_process.submit(engine, scheduling_tasks)
+
+            while True:
+                msg = self._engine_process.get_notification()
+
+                if msg["type"] == "error":
+                    raise RuntimeError(msg["message"])
+
+                if msg["type"] == "all_done":
+                    break
+
+                if msg["type"] == "period_done":
+                    pid = msg["period_id"]
+                    self._current_indices.setdefault(pid, 0)
+                    yield pid, []
+            return
+
+        # ── EP-82: File-based single-process mode ─────────────────────────
         if self._results_writer is not None:
-            # File-based flow: solve_to_disk() keeps at most BATCH_SIZE (50)
-            # schedules in RAM at once - no full-period list ever built
             self._current_indices = {}
             for period, courses_dict in scheduling_tasks.items():
                 pid = _period_id(period)
@@ -226,7 +250,8 @@ class AppService(IAppService):
                 yield pid, []
             return
 
-        # Legacy flow - collect all, combine, sort
+        # ── Legacy mode ───────────────────────────────────────────────────
+        # In-memory collection + ScheduleCombiner (used by all existing tests)
         from src.algorithm.schedule_combiner import ScheduleCombiner
 
         for period_result in engine.iterPeriodResults(scheduling_tasks):

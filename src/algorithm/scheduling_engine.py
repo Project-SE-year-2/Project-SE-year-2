@@ -123,7 +123,7 @@ class SchedulingEngine:
 
         Returns the total number of valid schedules found.
         """
-        pid = f"{period.semester.value}_{period.moed.value}"
+        pid = period.period_id
         courses = list(courses_dict.keys())
         # Handle the edge case where no courses exist for this period
         if not courses:

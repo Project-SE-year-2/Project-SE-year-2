@@ -46,7 +46,7 @@ def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue) -> None:
 
             try:
                 for period, courses_dict in tasks.items():
-                    pid = f"{period.semester.value}_{period.moed.value}"
+                    pid = period.period_id
                     engine.solve_to_disk(period, courses_dict, writer)
                     # Send only the period_id — no heavy objects through the queue
                     notify_queue.put({"type": "period_done", "period_id": pid})

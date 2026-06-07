@@ -9,12 +9,14 @@ Rules enforced here:
 """
 
 import os
+from pathlib import Path
 from datetime import date
 
 from src.presenter.i_app_service import IAppService
 from src.presenter.data_store import DataStore, _period_id
 from src.parsers.course_parser import CourseFileParser, filter_courses_for_scheduling
 from src.parsers.exam_period_file_parser import ExamPeriodFileParser
+from src.parsers.programs_name_parser import ProgramsParser
 from src.algorithm.scheduling_algoritem import match_courses_to_periods
 from src.algorithm.constraint_index import ConstraintIndex
 from src.algorithm.exam_period_catalog import ExamPeriodCatalog
@@ -23,6 +25,10 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
 from src.output.schedule_report_writer import ScheduleReportWriter
 from src.models.exam_schedule import ExamSchedule
+
+
+_PROJECT_ROOT = Path(__file__).parents[2]
+_DEFAULT_PROGRAM_NAMES_PATH = _PROJECT_ROOT / "data" / "programsName.txt"
 
 
 class AppService(IAppService):
@@ -47,6 +53,7 @@ class AppService(IAppService):
     def __init__(self) -> None:
         self._datastore = DataStore()
         self._datastore.load()          # reload persisted data if it exists
+        self._load_default_program_names()
         self._selected_programs: list[str] = []
         self._results: list[ExamSchedule] = []
         self._last_metadata: dict = {}
@@ -58,13 +65,21 @@ class AppService(IAppService):
         self._results_writer = None
         self._results_reader = None
         self._current_indices: dict[str, int] = {}
-
     # ------------------------------------------------------------------ #
-    # EP-39 / TASK4 — File loading                                        #
+    # EP-39 / TASK4 — File loading                                       #
     # ------------------------------------------------------------------ #
 
-    def load_data(self, courses_path: str, dates_path: str, mode: str) -> None:
+    def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
+
+        # Validate mandatory paths
         self._validate_paths(courses_path, dates_path)
+        
+        parsed_programs = None
+        programs_path = programs_path or self._default_program_names_path()
+        # Validate optional programs path
+        if programs_path is not None:
+            self._validate_paths(programs_path)
+            parsed_programs = ProgramsParser.parse(programs_path)
 
         courses = CourseFileParser().parse(courses_path)
         periods = ExamPeriodFileParser().parse(dates_path)
@@ -74,14 +89,18 @@ class AppService(IAppService):
             # No need to delete the file; pickle.dump replaces its contents.
             self._datastore.set_courses(courses)
             self._datastore.set_periods(periods)
+            if parsed_programs is not None:
+                self._datastore.set_program_names(parsed_programs)
 
         elif mode == "append":
             self._datastore.merge_courses(courses)
             self._datastore.merge_periods(periods)
+            if parsed_programs is not None:
+                self._datastore.set_program_names(parsed_programs)
 
         else:
             raise ValueError(f"Unknown mode '{mode}'. Expected 'replace' or 'append'.")
-
+        
         self._datastore.save()
 
     # ------------------------------------------------------------------ #
@@ -315,6 +334,7 @@ class AppService(IAppService):
         return result
 
     def _format_schedule_rows(self, schedule: ExamSchedule) -> list[dict]:
+        """Helper to format a single schedule's courses into a flat list of dicts for table display."""
         result = []
         for (semester, moed), course_date_map in schedule.groupBySemesterAndMoed().items():
             sem_key = semester.value if hasattr(semester, "value") else str(semester)
@@ -463,11 +483,28 @@ class AppService(IAppService):
     # ------------------------------------------------------------------ #
 
     def _validate_paths(self, *paths: str) -> None:
+        """Check that each path exists and is not empty. Raises FileNotFoundError or ValueError."""
         for path in paths:
             if not os.path.exists(path):
                 raise FileNotFoundError(f"File not found: {path}")
             if os.path.getsize(path) == 0:
                 raise ValueError(f"File is empty: {path}")
+
+    def _default_program_names_path(self) -> str | None:
+        """Return the bundled program-names file path when it exists."""
+        if _DEFAULT_PROGRAM_NAMES_PATH.exists():
+            return str(_DEFAULT_PROGRAM_NAMES_PATH)
+        return None
+
+    def _load_default_program_names(self) -> None:
+        """Load bundled program display names so users do not upload them manually."""
+        programs_path = self._default_program_names_path()
+        if programs_path is None:
+            return
+
+        program_names = ProgramsParser.parse(programs_path)
+        if program_names:
+            self._datastore.set_program_names(program_names)
 
     def _get_period_or_raise(self, period_id: str):
         period = self._datastore.get_period_by_id(period_id)

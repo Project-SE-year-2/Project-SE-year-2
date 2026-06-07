@@ -4,14 +4,20 @@ Provides a standardized way to display dismissible error alerts.
 """
 
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
-from PyQt5.QtCore import Qt, pyqtSignal
-# Import the theme as 'th' to create a clean, organized namespace for design tokens
+from PyQt5.QtCore import pyqtSignal
+from src.styles.error_banner_style import (
+    BANNER_MESSAGE_STYLE,
+    BANNER_DISMISS_BTN_STYLE,
+    BANNER_CONTAINER_STYLE,
+    banner_error_text,
+)
 import src.styles.theme as th
+
 
 class ErrorBanner(QWidget):
     """
     A dismissible error banner.
-    
+
     Signals:
         dismissed: Emitted when the user closes the banner via the 'X' button.
     """
@@ -26,60 +32,31 @@ class ErrorBanner(QWidget):
         self.hide()
 
     def _setup_ui(self) -> None:
-        """Initialize UI layout and component styling."""
         layout = QHBoxLayout(self)
         layout.setContentsMargins(
-            th.BANNER_PADDING_X, 
-            th.BANNER_PADDING_Y, 
-            th.BANNER_PADDING_RIGHT, 
+            th.BANNER_PADDING_X,
+            th.BANNER_PADDING_Y,
+            th.BANNER_PADDING_RIGHT,
             th.BANNER_PADDING_Y
         )
         layout.setSpacing(th.BANNER_SPACING)
 
-        # Message display
         self.message_label = QLabel()
-        self.message_label.setStyleSheet(
-            f"color: {th.ERROR_TEXT}; "
-            f"font-family: {th.FONT_FAMILY}; "
-            f"font-size: {th.FONT_SIZE_MD}px; "
-            f"font-weight: {th.BANNER_FONT_WEIGHT};"
-        )
+        self.message_label.setStyleSheet(BANNER_MESSAGE_STYLE)
         self.message_label.setWordWrap(True)
         layout.addWidget(self.message_label, 1)
 
-        # Dismiss button
         dismiss_btn = QPushButton("✕")
         dismiss_btn.setFixedSize(th.BANNER_BTN_SIZE, th.BANNER_BTN_SIZE)
-        dismiss_btn.setStyleSheet(f"""
-            QPushButton {{ 
-                background-color: transparent; 
-                color: {th.ERROR_TEXT}; 
-                border: none; 
-                font-family: {th.FONT_FAMILY};
-                font-size: {th.BANNER_BTN_FONT_SIZE}px; 
-                font-weight: {th.BANNER_BTN_FONT_WEIGHT}; 
-            }}
-            QPushButton:hover {{ 
-                background-color: {th.ERROR_BG}; 
-                border-radius: {th.BANNER_BUTTON_RADIUS}px; 
-            }}
-        """)
+        dismiss_btn.setStyleSheet(BANNER_DISMISS_BTN_STYLE)
         dismiss_btn.clicked.connect(self._on_dismiss)
         layout.addWidget(dismiss_btn)
 
-        # Container styling
-        self.setStyleSheet(f"""
-            ErrorBanner {{
-                background-color: {th.ERROR_BG};
-                border: {th.BANNER_BORDER_WIDTH}px solid {th.ERROR_BORDER};
-                border-radius: {th.BANNER_BORDER_RADIUS}px;
-            }}
-        """)
+        self.setStyleSheet(BANNER_CONTAINER_STYLE)
 
     def show_error(self, message: str) -> None:
         """Updates the error message and displays the banner."""
-        formatted_text = f'<span style="color: {th.ICON_ERROR}; font-size: {th.ERROR_ICON_SIZE}px;">●</span>  {message}'
-        self.message_label.setText(formatted_text)
+        self.message_label.setText(banner_error_text(message))
         self.show()
 
     def hide_error(self) -> None:

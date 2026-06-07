@@ -16,7 +16,7 @@ class IAppService(ABC):
     # ------------------------------------------------------------------ #
 
     @abstractmethod
-    def load_data(self, courses_path: str, dates_path: str, mode: str) -> None:
+    def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
         """Parse and store course and period files.
 
         Args:

@@ -23,7 +23,8 @@ class _NoMethods(IAppService):
 
 class _PartialImpl(IAppService):
     """Implements only a few of the abstract methods."""
-    def load_data(self, courses_path, dates_path, mode): pass
+    # EP-74, EP-77: Updated signature to include programs_path
+    def load_data(self, courses_path, dates_path, mode, programs_path=None): pass
     def get_available_programs(self): return []
     def select_programs(self, ids): pass
     # remaining 11 methods intentionally omitted
@@ -32,7 +33,8 @@ class _PartialImpl(IAppService):
 class _FullImpl(IAppService):
     """Implements every abstract method with a no-op body."""
 
-    def load_data(self, courses_path, dates_path, mode): pass
+    # EP-74, EP-77: Updated signature to include programs_path
+    def load_data(self, courses_path, dates_path, mode, programs_path=None): pass
     def get_available_programs(self): return []
     def select_programs(self, ids): pass
     def get_courses(self, program_id): return []
@@ -46,7 +48,6 @@ class _FullImpl(IAppService):
     def get_schedule_count(self, period_id=None): return 0
     def get_schedule_batch(self, start, limit): return []
     def get_schedule(self, index): return {}
-    def get_schedule_batch(self, start, limit): return []
     def export_schedule(self, index, path): pass
     def navigate(self, period_id, direction): return {}
     def navigate_global(self, direction): return {}
@@ -70,7 +71,7 @@ def test_partial_implementation_raises_type_error():
 
 
 def test_complete_implementation_can_be_instantiated():
-    """A class that implements all 14 methods must not raise."""
+    """A class that implements all abstract methods must not raise."""
     service = _FullImpl()
     assert service is not None
 
@@ -79,8 +80,14 @@ def test_all_abstract_methods_are_callable_on_full_implementation():
     """Every method in the interface must be callable on the complete impl."""
     service = _FullImpl()
 
-    # Call every method — if any are missing this will AttributeError / TypeError
+    # Call every method — if any are missing this will throw AttributeError / TypeError
+    
+    # EP-74, EP-77: Test load_data WITHOUT the optional programs_path (Backward compatibility)
     service.load_data("a.txt", "b.txt", "replace")
+    
+    # EP-74, EP-77: Test load_data WITH the optional programs_path
+    service.load_data("a.txt", "b.txt", "replace", programs_path="p.txt")
+
     service.get_available_programs()
     service.select_programs(["12345"])
     service.get_courses("12345")

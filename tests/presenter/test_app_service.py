@@ -589,3 +589,111 @@ def test_export_schedule_passes_correct_index(monkeypatch, tmp_path):
         call_kwargs = MockWriter.return_value.write.call_args
         # The "schedules" arg must contain exactly s1
         assert call_kwargs.kwargs["schedules"] == [s1]
+
+# ------------------------------------------------------------------ #
+# EP-74 & EP-77 — Program Names Auto-Loading                         #
+# ------------------------------------------------------------------ #
+
+def test_init_auto_loads_default_program_names(monkeypatch, tmp_path):
+    """Test that __init__ attempts to load the default programs file if it exists."""
+    default_file = tmp_path / "programsName.txt"
+    default_file.write_text("83101 Test Program", encoding="utf-8")
+
+    # Mock the default path to point to our temp file
+    monkeypatch.setattr(AppService, "_default_program_names_path", lambda self: str(default_file))
+    
+    # Prevent actual DataStore load/save from doing I/O
+    monkeypatch.setattr(DataStore, "load", lambda self: False)
+    monkeypatch.setattr(DataStore, "save", lambda self: None)
+
+    with patch.object(DataStore, "set_program_names") as mock_set:
+        service = AppService()  # init triggers _load_default_program_names
+        mock_set.assert_called_once()
+        args, _ = mock_set.call_args
+        # The argument to set_program_names should be the dict parsed from our default file
+        assert args[0] == {"83101": "Test Program"}
+
+
+def test_load_data_uses_explicit_programs_path(monkeypatch, tmp_path):
+    """Test that load_data prefers an explicitly provided programs_path."""
+    service = _make_service(monkeypatch)
+    
+    courses_file = tmp_path / "c.txt"
+    courses_file.write_text("c")
+    dates_file = tmp_path / "d.txt"
+    dates_file.write_text("d")
+    explicit_p_file = tmp_path / "explicit_p.txt"
+    explicit_p_file.write_text("11111 Explicit Program", encoding="utf-8")
+
+    # Mock parsers so they don't do actual work or crash
+    with patch("src.presenter.app_service.CourseFileParser"), \
+         patch("src.presenter.app_service.ExamPeriodFileParser"):
+         
+        with patch.object(service._datastore, "set_program_names") as mock_set:
+            service.load_data(str(courses_file), str(dates_file), "replace", programs_path=str(explicit_p_file))
+            
+            mock_set.assert_called_once()
+            args, _ = mock_set.call_args
+            assert args[0] == {"11111": "Explicit Program"}
+
+
+def test_load_data_falls_back_to_default_programs_path(monkeypatch, tmp_path):
+    """Test that load_data uses the default path if no explicit path is given."""
+    service = _make_service(monkeypatch)
+    
+    courses_file = tmp_path / "c.txt"
+    courses_file.write_text("c")
+    dates_file = tmp_path / "d.txt"
+    dates_file.write_text("d")
+    default_p_file = tmp_path / "default_p.txt"
+    default_p_file.write_text("22222 Default Program", encoding="utf-8")
+
+    # Force the fallback path
+    monkeypatch.setattr(service, "_default_program_names_path", lambda: str(default_p_file))
+
+    with patch("src.presenter.app_service.CourseFileParser"), \
+         patch("src.presenter.app_service.ExamPeriodFileParser"):
+         
+        with patch.object(service._datastore, "set_program_names") as mock_set:
+            # programs_path is omitted/None
+            service.load_data(str(courses_file), str(dates_file), "append")
+            
+            mock_set.assert_called_once()
+            args, _ = mock_set.call_args
+            assert args[0] == {"22222": "Default Program"}
+            
+
+def test_load_data_skips_programs_if_none_provided_and_no_default(monkeypatch, tmp_path):
+    """Test that load_data doesn't crash if no explicit and no default path exist."""
+    service = _make_service(monkeypatch)
+    
+    courses_file = tmp_path / "c.txt"
+    courses_file.write_text("c")
+    dates_file = tmp_path / "d.txt"
+    dates_file.write_text("d")
+
+    # Force default path to return None (simulating file missing)
+    monkeypatch.setattr(service, "_default_program_names_path", lambda: None)
+
+    with patch("src.presenter.app_service.CourseFileParser"), \
+         patch("src.presenter.app_service.ExamPeriodFileParser"):
+         
+        with patch.object(service._datastore, "set_program_names") as mock_set:
+            service.load_data(str(courses_file), str(dates_file), "replace")
+            # Should not be called because there's no programs path at all
+            mock_set.assert_not_called()
+
+
+def test_load_data_raises_file_not_found_for_missing_programs_path(monkeypatch, tmp_path):
+    """Test that providing an invalid programs_path raises an error."""
+    service = _make_service(monkeypatch)
+    courses_file = tmp_path / "c.txt"
+    courses_file.write_text("c")
+    dates_file = tmp_path / "d.txt"
+    dates_file.write_text("d")
+    
+    missing_p_file = tmp_path / "missing_p.txt"
+    
+    with pytest.raises(FileNotFoundError):
+        # We explicitly pass a path that does not exist
+        service.load_data(str(courses_file), str(dates_file), "replace", programs_path=str(missing_p_file))

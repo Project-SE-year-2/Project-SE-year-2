@@ -1,23 +1,37 @@
+import multiprocessing
 import sys
+
 from PyQt5.QtWidgets import QApplication
 
-# Import the main scaffold window
 from src.main_window import MainWindow
+
 
 def main():
     """
     Main entry point for the PyQt5 desktop application.
-    Initializes the application loop and displays the MainWindow.
+
+    Starts two processes:
+      UI Process     — this process; runs PyQt5 and AppService (reader-only).
+      Engine Process — spawned by EngineProcess(); runs solve_to_disk() with
+                       its own GIL so the UI is never blocked by computation.
     """
-    # Initialize the core application event loop
+    # Required on Windows: prevents recursive subprocess spawning when the
+    # executable is frozen (PyInstaller / cx_Freeze). Safe no-op on macOS/Linux.
+    multiprocessing.freeze_support()
+
+    # ── Start the Engine Process before the UI ────────────────────────────
+    from src.presenter.app_service import AppService
+    from src.presenter.engine_process import EngineProcess
+
+    service = AppService.getInstance()
+    service._engine_process = EngineProcess()   # spawns the Engine Process now
+
+    # ── Start the UI Process (this process) ──────────────────────────────
     app = QApplication(sys.argv)
-    
-    # Instantiate and display the main interface
     window = MainWindow()
     window.showMaximized()
-    
-    # Execute the application and wait for the user to close the window
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     main()

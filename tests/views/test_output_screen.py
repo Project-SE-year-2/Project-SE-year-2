@@ -115,10 +115,12 @@ class TestOutputScreen(unittest.TestCase):
 
         self.screen._on_exam_clicked(exam_data)
 
-        # Verify the dialog was instantiated with the correct exam data
+        # Verify the dialog was instantiated and displayed
         MockDialog.assert_called_once()
         call_kwargs = MockDialog.call_args
-        self.assertEqual(call_kwargs[0][0], exam_data)   # first positional arg
+        # Dialog is now called with keyword args; exams is a list containing the exam
+        passed_exams = call_kwargs.kwargs.get("exams", [])
+        self.assertIn(exam_data, passed_exams)
 
         # Verify the dialog was displayed modally
         MockDialog.return_value.exec_.assert_called_once()

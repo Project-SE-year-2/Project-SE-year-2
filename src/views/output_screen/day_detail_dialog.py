@@ -1,29 +1,51 @@
 """
-DayDetailDialog — shown when the user clicks an exam badge on the calendar.
-Displays: course number, course name, type badge, affected programs chips,
-exam date, semester, and moed.
+DayDetailDialog — popup shown when the user clicks an exam badge.
+
+Each exam is a collapsible card row:
+  ┌────────────────────────────────────────────────────┐
+  │ [CODE]  Course Name                    [Type badge] │
+  │ Programs Affected (N)                           ▲/▼ │
+  │   • Full Program Name (AB)                       AB  │
+  │   • …                                                │
+  └────────────────────────────────────────────────────┘
+
+Left border colour: indigo for Required, green for Elective.
+Programs section is expanded by default; the arrow toggles it.
 """
+
+from __future__ import annotations
 
 from datetime import date as date_type
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QPoint, Qt
 from PyQt5.QtWidgets import (
     QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from src.views.shared_components.type_badge import TypeBadge
-from src.styles.day_detail_dialog_style import CARD_STYLE, CLOSE_BTN_STYLE, TITLE_STYLE
-from src.styles.shared_styles import (
-    get_section_label_style,
-    get_value_label_style,
-    get_divider_style,
-    get_program_chip_style,
+from src.styles.day_detail_dialog_style import (
+    CARD_STYLE,
+    CLOSE_BTN_STYLE,
+    COURSE_CODE_ELECTIVE_STYLE,
+    COURSE_CODE_REQUIRED_STYLE,
+    COURSE_NAME_INLINE_STYLE,
+    EXAM_ROW_ELECTIVE_BORDER,
+    EXAM_ROW_REQUIRED_BORDER,
+    FOOTER_STYLE,
+    MINI_BADGE_ELECTIVE_STYLE,
+    MINI_BADGE_REQUIRED_STYLE,
+    PROGRAM_ABBR_RIGHT_STYLE,
+    PROGRAM_BULLET_STYLE,
+    PROGRAMS_COUNT_STYLE,
+    TITLE_STYLE,
+    exam_row_style,
 )
 
 
@@ -31,73 +53,155 @@ from src.styles.shared_styles import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _section_label(text: str) -> QLabel:
-    """Muted label used as a field caption."""
-    lbl = QLabel(text)
-    lbl.setStyleSheet(get_section_label_style())
-    return lbl
+def _format_date(value) -> str:
+    """Format an exam date as DD/MM/YYYY; passes strings through unchanged."""
+    if isinstance(value, date_type):
+        return value.strftime("%d/%m/%Y")
+    return str(value) if value else "—"
 
 
-def _value_label(text: str) -> QLabel:
-    """Bright label used to display a field value."""
-    lbl = QLabel(text)
-    lbl.setStyleSheet(get_value_label_style())
-    lbl.setWordWrap(True)
-    return lbl
+def _abbrev(name: str) -> str:
+    """
+    Build a short abbreviation from a program name.
+    Multi-word names → initials ('Computer Science' → 'CS').
+    Single-word / numeric IDs → first 2 chars ('83101' → '83').
+    """
+    words = name.split()
+    if len(words) >= 2:
+        return "".join(w[0].upper() for w in words if w)
+    return name[:2].upper() if name else "?"
 
 
-def _divider() -> QFrame:
-    """Thin horizontal line used as a separator."""
-    line = QFrame()
-    line.setFrameShape(QFrame.HLine)
-    line.setFixedHeight(1)
-    line.setStyleSheet(get_divider_style())
-    return line
-
-
-def _program_chip(display_name: str) -> QLabel:
-    """Small chip showing a program display name."""
-    chip = QLabel(display_name)
-    chip.setAlignment(Qt.AlignCenter)
-    chip.setFixedHeight(28)
-    chip.setStyleSheet(get_program_chip_style())
-    return chip
+def _is_elective(exam: dict) -> bool:
+    t = str(exam.get("type", "Obligatory")).strip().lower()
+    return "elective" in t or "elect" in t
 
 
 # ---------------------------------------------------------------------------
-# Dialog
+# _ExamRow — one collapsible card per exam
+# ---------------------------------------------------------------------------
+
+class _ExamRow(QFrame):
+    """
+    Card row for a single exam.
+
+    Layout:
+      top row : [CODE]  Name                    [Type badge]
+      prog row: Programs Affected (N)
+      list    : • Full Name (AB)                          AB
+                  …
+    """
+
+    def __init__(self, exam: dict, program_names: dict[str, str], parent=None):
+        super().__init__(parent)
+        elective   = _is_elective(exam)
+        border_clr = EXAM_ROW_ELECTIVE_BORDER if elective else EXAM_ROW_REQUIRED_BORDER
+        self.setStyleSheet(exam_row_style(border_clr))
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(14, 10, 14, 10)
+        outer.setSpacing(6)
+
+        # ── Top row: code  name  |  badge ────────────────────────────
+        top = QHBoxLayout()
+        top.setSpacing(6)
+        top.setContentsMargins(0, 0, 0, 0)
+
+        code_lbl = QLabel(str(exam.get("course_number", "—")))
+        code_lbl.setStyleSheet(
+            COURSE_CODE_ELECTIVE_STYLE if elective else COURSE_CODE_REQUIRED_STYLE
+        )
+
+        name_lbl = QLabel(str(exam.get("course_name", "—")))
+        name_lbl.setStyleSheet(COURSE_NAME_INLINE_STYLE)
+
+        badge_lbl = QLabel("Elective" if elective else "Required")
+        badge_lbl.setAlignment(Qt.AlignCenter)
+        badge_lbl.setStyleSheet(
+            MINI_BADGE_ELECTIVE_STYLE if elective else MINI_BADGE_REQUIRED_STYLE
+        )
+
+        top.addWidget(code_lbl)
+        top.addSpacing(4)
+        top.addWidget(name_lbl)
+        top.addStretch()
+        top.addWidget(badge_lbl)
+        outer.addLayout(top)
+
+        # ── "Programs Affected (N)" label ────────────────────────────
+        programs = list(exam.get("programs") or [])
+        n = len(programs)
+
+        count_lbl = QLabel(f"Programs Affected ({n})")
+        count_lbl.setStyleSheet(PROGRAMS_COUNT_STYLE)
+        outer.addWidget(count_lbl)
+
+        # ── Program bullet list (always visible) ──────────────────────
+        for pid in programs:
+            display_full = program_names.get(str(pid), str(pid))
+            abbr         = _abbrev(display_full)
+
+            item_row = QHBoxLayout()
+            item_row.setContentsMargins(0, 0, 0, 0)
+            item_row.setSpacing(4)
+
+            bullet = QLabel(f"• {display_full} ({abbr})")
+            bullet.setStyleSheet(PROGRAM_BULLET_STYLE)
+
+            right = QLabel(abbr)
+            right.setStyleSheet(PROGRAM_ABBR_RIGHT_STYLE)
+            right.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+            item_row.addWidget(bullet)
+            item_row.addStretch()
+            item_row.addWidget(right)
+            outer.addLayout(item_row)
+
+
+# ---------------------------------------------------------------------------
+# DayDetailDialog
 # ---------------------------------------------------------------------------
 
 class DayDetailDialog(QDialog):
     """
-    Modal dialog that shows full details for one exam entry.
+    Frameless modal dialog listing all exams for a given day.
 
     Args:
-        exam_data: dict emitted by ScheduleCalendarWidget.exam_clicked
-                   Keys: course_number, course_name, type, programs (list[str]),
-                         exam_date, semester, moed
-        program_names: optional mapping {program_id: display_name}; falls back
-                       to the raw ID when a name is not found.
-        parent: optional parent widget
+        exams:         list of exam dicts for the clicked day.
+        exam_date:     the date shown in the title.
+        program_names: optional {program_id: display_name} mapping.
+        anchor_pos:    global QPoint to position the dialog (bottom of clicked cell).
+        parent:        optional parent widget.
     """
 
-    def __init__(self, exam_data: dict, program_names: dict[str, str] | None = None, parent=None):
-        """program_names is a mapping from program ID to display name, used to show nicer labels in the chips."""
+    def __init__(
+        self,
+        exams: list[dict],
+        exam_date=None,
+        program_names: dict[str, str] | None = None,
+        anchor_pos: QPoint | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
-        self._data = exam_data
+        self._exams         = exams or []
+        self._exam_date     = exam_date
         self._program_names = program_names or {}
         self._build_ui()
 
+        if anchor_pos is not None:
+            self.move(anchor_pos)
+
     # ------------------------------------------------------------------
-    # UI construction
+    # Build
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        """Builds the dialog's UI based on the exam data."""
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setModal(True)
         self.setMinimumWidth(340)
+        self.setMaximumWidth(440)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -108,114 +212,62 @@ class DayDetailDialog(QDialog):
         card.setStyleSheet(CARD_STYLE)
 
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(24, 20, 24, 24)
-        card_layout.setSpacing(14)
+        card_layout.setContentsMargins(20, 16, 20, 16)
+        card_layout.setSpacing(10)
 
-        # ── Header row ────────────────────────────────────────────────
-        header_row = QHBoxLayout()
-        header_row.setContentsMargins(0, 0, 0, 0)
+        # ── Header: "Exams on DD/MM/YYYY"  [✕] ───────────────────────
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
 
-        title = QLabel("Exam Details")
-        title.setStyleSheet(TITLE_STYLE)
+        title_lbl = QLabel(f"Exams on {_format_date(self._exam_date)}")
+        title_lbl.setStyleSheet(TITLE_STYLE)
 
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(28, 28)
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet(CLOSE_BTN_STYLE)
-        close_btn.clicked.connect(self.accept)
+        close_btn.clicked.connect(self.close)
 
-        header_row.addWidget(title)
-        header_row.addStretch()
-        header_row.addWidget(close_btn)
-        card_layout.addLayout(header_row)
+        header.addWidget(title_lbl)
+        header.addStretch()
+        header.addWidget(close_btn)
+        card_layout.addLayout(header)
 
-        # ── Divider ───────────────────────────────────────────────────
-        card_layout.addWidget(_divider())
+        # ── Scrollable exam rows ──────────────────────────────────────
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("background: transparent;")
+        scroll.setMaximumHeight(420)
 
-        # ── Fields ───────────────────────────────────────────────────
-        course_number = self._data.get("course_number", "—")
-        course_name   = self._data.get("course_name",   "—")
-        type_str      = self._data.get("type",          "Obligatory")
-        programs      = self._data.get("programs",      [])
-        exam_date     = self._data.get("exam_date")
-        semester      = self._data.get("semester",      "—")
-        moed          = self._data.get("moed",          "—")
+        rows_widget = QWidget()
+        rows_widget.setStyleSheet("background: transparent;")
+        rows_layout = QVBoxLayout(rows_widget)
+        rows_layout.setContentsMargins(0, 0, 0, 0)
+        rows_layout.setSpacing(8)
 
-        card_layout.addLayout(self._field_row(_section_label("Course Number"),
-                                               _value_label(str(course_number))))
-        card_layout.addLayout(self._field_row(_section_label("Course Name"),
-                                               _value_label(str(course_name))))
-        card_layout.addLayout(self._type_row(type_str))
-        card_layout.addLayout(self._programs_row(programs, self._program_names))
-        card_layout.addLayout(self._field_row(_section_label("Exam Date"),
-                                               _value_label(self._format_date(exam_date))))
-        card_layout.addLayout(self._field_row(_section_label("Semester"),
-                                               _value_label(str(semester))))
-        card_layout.addLayout(self._field_row(_section_label("Moed"),
-                                               _value_label(str(moed))))
+        for exam in self._exams:
+            rows_layout.addWidget(_ExamRow(exam, self._program_names))
+
+        rows_layout.addStretch()
+        scroll.setWidget(rows_widget)
+        card_layout.addWidget(scroll)
+
+        # ── Footer: "🔗  N exams on this day" ────────────────────────
+        n     = len(self._exams)
+        noun  = "exam" if n == 1 else "exams"
+        footer = QLabel(f"🔗  {n} {noun} on this day")
+        footer.setStyleSheet(FOOTER_STYLE)
+        card_layout.addWidget(footer)
 
         outer.addWidget(card)
 
     # ------------------------------------------------------------------
-    # Row builders
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _field_row(caption: QLabel, value: QLabel) -> QHBoxLayout:
-        """Two-column row: muted caption on the left, bright value on the right."""
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
-        caption.setFixedWidth(130)
-        row.addWidget(caption, 0, Qt.AlignTop)
-        row.addWidget(value, 1)
-        return row
-
-    @staticmethod
-    def _type_row(type_str: str) -> QHBoxLayout:
-        """Row with the TypeBadge widget."""
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
-
-        caption = _section_label("Type")
-        caption.setFixedWidth(130)
-
-        row.addWidget(caption, 0, Qt.AlignVCenter)
-        row.addWidget(TypeBadge(type_str), 0, Qt.AlignVCenter)
-        row.addStretch()
-        return row
-
-    @staticmethod
-    def _programs_row(programs: list, program_names: dict) -> QHBoxLayout:
-        """Row with one chip per affected program, showing display name when available."""
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
-
-        caption = _section_label("Affected Programs")
-        caption.setFixedWidth(130)
-        row.addWidget(caption, 0, Qt.AlignVCenter)
-
-        chips_widget = QWidget()
-        chips_layout = QHBoxLayout(chips_widget)
-        chips_layout.setContentsMargins(0, 0, 0, 0)
-        chips_layout.setSpacing(6)
-
-        for pid in programs:
-            display = program_names.get(str(pid), str(pid))
-            chips_layout.addWidget(_program_chip(display))
-        chips_layout.addStretch()
-
-        row.addWidget(chips_widget, 1)
-        return row
-
-    # ------------------------------------------------------------------
-    # Helpers
+    # Helpers (static so tests can call DayDetailDialog._format_date)
     # ------------------------------------------------------------------
 
     @staticmethod
     def _format_date(value) -> str:
-        if isinstance(value, date_type):
-            return value.strftime("%d/%m/%Y")
-        return str(value) if value else "—"
+        """Format an exam date as DD/MM/YYYY; passes strings through unchanged."""
+        return _format_date(value)

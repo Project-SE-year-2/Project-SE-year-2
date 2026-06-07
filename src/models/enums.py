@@ -1,4 +1,5 @@
 from enum import Enum
+from enum import StrEnum
 
 class Semester(Enum):
     FALL = "FALL"
@@ -18,3 +19,7 @@ class Evaluation(Enum):
     Exam = "Exam"
     Project = "Project"
     Attendance = "Attendance"
+
+class CalendarMode(StrEnum):
+    INPUT = "input"
+    OUTPUT = "output"

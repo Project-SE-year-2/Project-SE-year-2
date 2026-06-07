@@ -1,14 +1,21 @@
+"""
+Tests for DayDetailDialog (multi-exam day popup).
+
+The dialog now accepts a *list* of exam dicts and renders each one as
+a card row with a coloured left border, course code, course name,
+mini type-badge chip, and abbreviated program names.
+"""
+
 import sys
 import unittest
 from datetime import date
 
-from PyQt5.QtWidgets import QApplication, QLabel, QFrame
+from PyQt5.QtCore import QPoint
+from PyQt5.QtWidgets import QApplication, QFrame, QLabel, QPushButton
 
-# Ensure a QApplication instance exists before creating any widget
 app = QApplication.instance() or QApplication(sys.argv)
 
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
-from src.views.shared_components.type_badge import TypeBadge
 
 
 # ---------------------------------------------------------------------------
@@ -16,7 +23,7 @@ from src.views.shared_components.type_badge import TypeBadge
 # ---------------------------------------------------------------------------
 
 def _make_exam(overrides: dict = None) -> dict:
-    """Return a minimal valid exam_data dict, with optional field overrides."""
+    """Return a minimal valid exam dict, with optional field overrides."""
     base = {
         "course_number": "83111",
         "course_name":   "Data Structures",
@@ -31,25 +38,34 @@ def _make_exam(overrides: dict = None) -> dict:
     return base
 
 
-def _make_dialog(exam_data=None, program_names=None) -> DayDetailDialog:
-    """Construct a DayDetailDialog without showing it."""
+def _make_dialog(exams=None, program_names=None, anchor_pos=None) -> DayDetailDialog:
+    """Construct a DayDetailDialog (without showing it)."""
+    exam_list  = exams if exams is not None else [_make_exam()]
+    first_date = exam_list[0].get("exam_date") if exam_list else None
     return DayDetailDialog(
-        exam_data    = exam_data    or _make_exam(),
-        program_names= program_names,
+        exams         = exam_list,
+        exam_date     = first_date,
+        program_names = program_names,
+        anchor_pos    = anchor_pos,
     )
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+def _all_label_texts(dlg: DayDetailDialog) -> list[str]:
+    """Collect every non-empty QLabel text inside the dialog."""
+    return [lbl.text() for lbl in dlg.findChildren(QLabel) if lbl.text()]
+
+
+# ===========================================================================
+# Construction
+# ===========================================================================
 
 class TestDayDetailDialogCreation(unittest.TestCase):
     """Verify that the dialog builds without errors under various inputs."""
 
     def test_dialog_creates_without_crash(self):
-        """Dialog must instantiate successfully with a fully populated exam_data dict."""
+        """Dialog must instantiate successfully with a fully populated exam dict."""
         try:
-            dlg = _make_dialog()
+            _make_dialog()
             created = True
         except Exception as exc:
             created = False
@@ -57,11 +73,11 @@ class TestDayDetailDialogCreation(unittest.TestCase):
         self.assertTrue(created)
 
     def test_dialog_creates_with_missing_optional_fields(self):
-        """Dialog must not crash when optional fields (semester, moed) are absent."""
+        """Dialog must not crash when optional fields are absent."""
         exam = {"course_number": "111", "course_name": "Math", "type": "Elective",
                 "programs": [], "exam_date": date(2026, 1, 1)}
         try:
-            _make_dialog(exam_data=exam)
+            _make_dialog(exams=[exam])
             created = True
         except Exception as exc:
             created = False
@@ -69,7 +85,7 @@ class TestDayDetailDialogCreation(unittest.TestCase):
         self.assertTrue(created)
 
     def test_dialog_creates_with_no_program_names(self):
-        """Dialog must work when program_names is None (falls back to raw IDs)."""
+        """Dialog must work when program_names is None (falls back to abbreviated IDs)."""
         dlg = _make_dialog(program_names=None)
         self.assertIsNotNone(dlg)
 
@@ -77,153 +93,217 @@ class TestDayDetailDialogCreation(unittest.TestCase):
         """Dialog must not crash when the programs list is empty."""
         exam = _make_exam({"programs": []})
         try:
-            _make_dialog(exam_data=exam)
+            _make_dialog(exams=[exam])
             created = True
         except Exception as exc:
             created = False
             self.fail(f"Dialog crashed with empty programs list: {exc}")
         self.assertTrue(created)
 
+    def test_dialog_creates_with_multiple_exams(self):
+        """Dialog must render all exams without crashing."""
+        exams = [
+            _make_exam({"course_number": "CS201"}),
+            _make_exam({"course_number": "IS202"}),
+            _make_exam({"course_number": "MA101"}),
+        ]
+        try:
+            _make_dialog(exams=exams)
+            created = True
+        except Exception as exc:
+            created = False
+            self.fail(f"Dialog crashed with multiple exams: {exc}")
+        self.assertTrue(created)
+
+    def test_dialog_creates_with_anchor_pos(self):
+        """Dialog must accept an anchor QPoint without crashing."""
+        try:
+            _make_dialog(anchor_pos=QPoint(100, 200))
+            created = True
+        except Exception as exc:
+            created = False
+            self.fail(f"Dialog crashed with anchor_pos: {exc}")
+        self.assertTrue(created)
+
+
+# ===========================================================================
+# Field values
+# ===========================================================================
 
 class TestDayDetailDialogFieldValues(unittest.TestCase):
     """Verify that the correct text is rendered for each field."""
 
-    def _find_labels(self, dlg: DayDetailDialog) -> list[str]:
-        """Collect all QLabel texts inside the dialog (ignores empty strings)."""
-        return [lbl.text() for lbl in dlg.findChildren(QLabel) if lbl.text()]
-
     def test_course_number_is_displayed(self):
         """The dialog must show the course number string somewhere in its labels."""
         dlg = _make_dialog()
-        self.assertIn("83111", self._find_labels(dlg))
+        self.assertIn("83111", _all_label_texts(dlg))
 
     def test_course_name_is_displayed(self):
         """The dialog must show the course name string somewhere in its labels."""
         dlg = _make_dialog()
-        self.assertIn("Data Structures", self._find_labels(dlg))
+        self.assertIn("Data Structures", _all_label_texts(dlg))
 
-    def test_semester_is_displayed(self):
-        """The dialog must show the semester value somewhere in its labels."""
+    def test_exam_date_appears_in_title(self):
+        """The formatted date (DD/MM/YYYY) must appear in the title label."""
+        dlg   = _make_dialog()
+        texts = _all_label_texts(dlg)
+        self.assertTrue(any("10/06/2026" in t for t in texts),
+                        "'10/06/2026' not found in any dialog label")
+
+    def test_type_badge_required_shown(self):
+        """An Obligatory exam must produce a 'Required' mini-badge label."""
         dlg = _make_dialog()
-        self.assertIn("FALL", self._find_labels(dlg))
+        self.assertIn("Required", _all_label_texts(dlg))
 
-    def test_moed_is_displayed(self):
-        """The dialog must show the moed value somewhere in its labels."""
-        dlg = _make_dialog()
-        self.assertIn("Aleph", self._find_labels(dlg))
+    def test_type_badge_elective_shown(self):
+        """An Elective exam must produce an 'Elective' mini-badge label."""
+        dlg = _make_dialog(exams=[_make_exam({"type": "Elective"})])
+        self.assertIn("Elective", _all_label_texts(dlg))
 
-    def test_exam_date_is_formatted_correctly(self):
-        """Exam date must be displayed in DD/MM/YYYY format."""
-        dlg = _make_dialog()
-        self.assertIn("10/06/2026", self._find_labels(dlg))
 
-    def test_type_badge_is_present(self):
-        """A TypeBadge widget must exist inside the dialog for the 'type' field."""
-        dlg = _make_dialog()
-        badges = dlg.findChildren(TypeBadge)
-        self.assertGreater(len(badges), 0, "No TypeBadge found in DayDetailDialog")
+# ===========================================================================
+# Multiple exams
+# ===========================================================================
 
-    def test_type_badge_shows_correct_text(self):
-        """The TypeBadge must display the same type string that was passed in exam_data."""
-        dlg = _make_dialog(_make_exam({"type": "Elective"}))
-        badges = dlg.findChildren(TypeBadge)
-        self.assertTrue(
-            any(b.text() == "Elective" for b in badges),
-            "TypeBadge does not show 'Elective'"
-        )
+class TestDayDetailDialogMultipleExams(unittest.TestCase):
+    """Verify correct rendering when multiple exams share the same day."""
 
+    def test_all_course_numbers_shown(self):
+        """Every course number in the exams list must appear in the dialog."""
+        exams = [
+            _make_exam({"course_number": "CS201"}),
+            _make_exam({"course_number": "IS202"}),
+            _make_exam({"course_number": "MA101"}),
+        ]
+        dlg   = _make_dialog(exams=exams)
+        texts = _all_label_texts(dlg)
+        for code in ["CS201", "IS202", "MA101"]:
+            self.assertIn(code, texts, f"Course code '{code}' not found in dialog labels")
+
+    def test_footer_shows_correct_count(self):
+        """The footer must say '4 exams on this day' for four exams."""
+        exams = [_make_exam({"course_number": f"C{i}"}) for i in range(4)]
+        dlg   = _make_dialog(exams=exams)
+        texts = _all_label_texts(dlg)
+        self.assertTrue(any("4" in t and "exam" in t for t in texts),
+                        "Footer count '4 exams' not found")
+
+    def test_footer_singular_for_one_exam(self):
+        """Footer must use the singular form '1 exam on this day'."""
+        dlg   = _make_dialog()
+        texts = _all_label_texts(dlg)
+        self.assertTrue(any("1 exam" in t for t in texts),
+                        "Singular '1 exam' not found in footer")
+
+
+# ===========================================================================
+# Program abbreviations
+# ===========================================================================
 
 class TestDayDetailDialogProgramNames(unittest.TestCase):
-    """Verify program chip display with and without a program_names mapping."""
+    """Verify program abbreviation display with and without a program_names mapping."""
 
-    def _chip_texts(self, dlg: DayDetailDialog) -> list[str]:
-        """Return the text of every QLabel that looks like a program chip (inside the programs row)."""
-        # All QLabel texts that are not field captions or values
-        # (chips are short — typically program IDs or short names)
-        return [lbl.text() for lbl in dlg.findChildren(QLabel) if lbl.text()]
+    def _prog_labels(self, dlg: DayDetailDialog) -> list[str]:
+        """Return all label texts that contain 'Programs Affected'."""
+        return [t for t in _all_label_texts(dlg) if "Programs Affected" in t]
 
-    def test_programs_show_raw_id_when_no_mapping(self):
-        """Without program_names, the chip must display the raw program ID."""
-        dlg = _make_dialog(
-            exam_data     = _make_exam({"programs": ["83101"]}),
-            program_names = None,
+    def test_programs_show_abbreviated_id_when_no_mapping(self):
+        """Without program_names the bullet must show 2-char abbreviation of the raw ID."""
+        dlg   = _make_dialog(exams=[_make_exam({"programs": ["83101"]})],
+                             program_names=None)
+        texts = _all_label_texts(dlg)
+        # _abbrev("83101") == "83"
+        self.assertTrue(any("83" in t for t in texts), "'83' abbreviation not found")
+
+    def test_programs_show_abbreviated_display_name_when_mapping_provided(self):
+        """When a mapping is given, the label must show initials of the display name."""
+        mapping = {"83101": "Computer Science", "83104": "Software Engineering"}
+        dlg  = _make_dialog(
+            exams=[_make_exam({"programs": ["83101", "83104"]})],
+            program_names=mapping,
         )
-        texts = self._chip_texts(dlg)
-        self.assertIn("83101", texts, "Raw program ID should appear when no mapping is given")
+        texts = _all_label_texts(dlg)
+        # _abbrev("Computer Science") == "CS", _abbrev("Software Engineering") == "SE"
+        self.assertTrue(any("CS" in t for t in texts), "'CS' abbreviation not found")
+        self.assertTrue(any("SE" in t for t in texts), "'SE' abbreviation not found")
 
-    def test_programs_show_display_name_when_mapping_provided(self):
-        """When program_names contains the ID, the chip must show the display name."""
-        mapping = {"83101": "Computer Engineering", "83104": "Industrial Engineering"}
-        dlg = _make_dialog(
-            exam_data     = _make_exam({"programs": ["83101", "83104"]}),
-            program_names = mapping,
+    def test_programs_fall_back_to_id_abbreviation_for_unmapped_entry(self):
+        """An unmapped program ID must fall back to 2-char abbreviation of the raw ID."""
+        mapping = {"83101": "Computer Science"}
+        dlg   = _make_dialog(
+            exams=[_make_exam({"programs": ["83101", "99999"]})],
+            program_names=mapping,
         )
-        texts = self._chip_texts(dlg)
-        self.assertIn("Computer Engineering",  texts)
-        self.assertIn("Industrial Engineering", texts)
+        texts = _all_label_texts(dlg)
+        # "99999" → "99"
+        self.assertTrue(any("99" in t for t in texts), "'99' abbreviation not found")
 
-    def test_programs_fall_back_to_id_for_unmapped_entry(self):
-        """If a program ID is not in the mapping, the chip must fall back to the raw ID."""
-        mapping = {"83101": "Computer Engineering"}
-        dlg = _make_dialog(
-            exam_data     = _make_exam({"programs": ["83101", "99999"]}),
-            program_names = mapping,
+    def test_multiple_programs_appear_in_bullets(self):
+        """Each program must produce a bullet row visible as a QLabel."""
+        mapping = {"83101": "Computer Science", "83102": "Electrical Engineering",
+                   "83104": "Industrial Engineering"}
+        dlg   = _make_dialog(
+            exams=[_make_exam({"programs": ["83101", "83102", "83104"]})],
+            program_names=mapping,
         )
-        texts = self._chip_texts(dlg)
-        # 99999 has no entry in mapping → must appear as-is
-        self.assertIn("99999", texts, "Unmapped ID should fall back to the raw ID string")
+        texts = _all_label_texts(dlg)
+        # initials: CS, EE, IE
+        for abbr in ["CS", "EE", "IE"]:
+            self.assertTrue(any(abbr in t for t in texts),
+                            f"Abbreviation '{abbr}' not found in dialog labels")
 
-    def test_multiple_programs_all_appear(self):
-        """Every program in the list must produce exactly one chip label."""
-        programs = ["83101", "83102", "83104"]
-        mapping  = {
-            "83101": "CS",
-            "83102": "EE",
-            "83104": "IE",
-        }
-        dlg = _make_dialog(
-            exam_data     = _make_exam({"programs": programs}),
-            program_names = mapping,
-        )
-        texts = self._chip_texts(dlg)
-        for name in ["CS", "EE", "IE"]:
-            self.assertIn(name, texts, f"Program chip '{name}' not found in dialog labels")
+    def test_empty_programs_shows_count_zero(self):
+        """An empty programs list must show 'Programs Affected (0)' without crashing."""
+        dlg  = _make_dialog(exams=[_make_exam({"programs": []})])
+        prog = self._prog_labels(dlg)
+        self.assertTrue(prog, "No 'Programs Affected' label found")
+        self.assertIn("0", prog[0])
 
+
+# ===========================================================================
+# Structure
+# ===========================================================================
 
 class TestDayDetailDialogStructure(unittest.TestCase):
     """Verify structural / UI properties of the dialog."""
 
-    def test_dialog_is_modal(self):
-        """The dialog must be modal so it blocks the parent window."""
-        dlg = _make_dialog()
-        self.assertTrue(dlg.isModal())
-
     def test_dialog_has_minimum_width(self):
-        """The dialog must have a minimum width set (ensures it is not too narrow)."""
+        """The dialog must have a minimum width ≥ 300 px."""
         dlg = _make_dialog()
         self.assertGreaterEqual(dlg.minimumWidth(), 300)
 
-    def test_dialog_contains_divider_frame(self):
-        """A QFrame used as a visual divider must exist inside the dialog."""
-        dlg = _make_dialog()
+    def test_dialog_has_close_button(self):
+        """A ✕ close button must exist inside the dialog."""
+        dlg  = _make_dialog()
+        btns = dlg.findChildren(QPushButton)
+        self.assertTrue(any("✕" in b.text() for b in btns),
+                        "No ✕ close button found in dialog")
+
+    def test_dialog_title_contains_exams_on(self):
+        """The title label must start with 'Exams on'."""
+        dlg   = _make_dialog()
+        texts = _all_label_texts(dlg)
+        self.assertTrue(any(t.startswith("Exams on") for t in texts),
+                        "'Exams on …' title not found in dialog labels")
+
+    def test_dialog_has_card_frame(self):
+        """A QFrame named 'dialogCard' must exist as the card surface."""
+        dlg    = _make_dialog()
         frames = [f for f in dlg.findChildren(QFrame)
-                  if f.frameShape() == QFrame.HLine]
-        self.assertGreater(len(frames), 0, "No horizontal divider QFrame found")
+                  if f.objectName() == "dialogCard"]
+        self.assertGreater(len(frames), 0, "No QFrame#dialogCard found")
 
     def test_format_date_with_date_object(self):
         """_format_date must return DD/MM/YYYY for a datetime.date input."""
-        result = DayDetailDialog._format_date(date(2026, 3, 5))
-        self.assertEqual(result, "05/03/2026")
+        self.assertEqual(DayDetailDialog._format_date(date(2026, 3, 5)), "05/03/2026")
 
     def test_format_date_with_none_returns_placeholder(self):
-        """_format_date must return the '—' placeholder when passed None."""
-        result = DayDetailDialog._format_date(None)
-        self.assertEqual(result, "—")
+        """_format_date must return '—' when passed None."""
+        self.assertEqual(DayDetailDialog._format_date(None), "—")
 
     def test_format_date_with_string_passthrough(self):
-        """_format_date must convert non-date values to their str() representation."""
-        result = DayDetailDialog._format_date("2026-06-10")
-        self.assertEqual(result, "2026-06-10")
+        """_format_date must pass non-date values through as str()."""
+        self.assertEqual(DayDetailDialog._format_date("2026-06-10"), "2026-06-10")
 
 
 if __name__ == "__main__":

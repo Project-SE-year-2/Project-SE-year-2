@@ -1,4 +1,5 @@
 from PyQt5.QtCore import QTimer, pyqtSignal
+from PyQt5.QtCore import QPoint
 from PyQt5.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -10,7 +11,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from src.views.output_screen.calendar_table_widget import ScheduleCalendarWidget
+from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
 from src.views.output_screen.schedule_navigator_widget import ScheduleNavigatorWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
@@ -85,7 +86,7 @@ class OutputScreen(QWidget):
         card_layout.setContentsMargins(0, 0, 0, 0)
 
         #  Initialize the calendar widget and add it to the card layout
-        self.calendar = ScheduleCalendarWidget()
+        self.calendar = CalendarTableWidget()
         self.calendar.exam_clicked.connect(self._on_exam_clicked)
         card_layout.addWidget(self.calendar)
         main_layout.addWidget(self.card_container, stretch=1)
@@ -185,9 +186,24 @@ class OutputScreen(QWidget):
         self._update_schedule_nav_label()
 
     def _on_exam_clicked(self, exam_data: dict) -> None:
-        """Open a DayDetailDialog for the clicked exam badge."""
+        """Open a DayDetailDialog showing ALL exams for the clicked day."""
         program_names = self._get_program_names()
-        dialog = DayDetailDialog(exam_data, program_names=program_names, parent=self)
+
+        # Collect every exam scheduled on the same date (not just the one emitted)
+        exam_date = exam_data.get("exam_date")
+        qdate     = self.calendar._to_qdate(exam_date)
+        all_exams = self.calendar.exams_by_date.get(qdate, [exam_data])
+
+        # Use the stored click position as the popup anchor (bottom of the clicked cell)
+        anchor = getattr(self.calendar, "_last_click_global", None)
+
+        dialog = DayDetailDialog(
+            exams         = all_exams,
+            exam_date     = exam_date,
+            program_names = program_names,
+            anchor_pos    = anchor,
+            parent        = self,
+        )
         dialog.exec_()
 
     def _get_program_names(self) -> dict:

@@ -1,26 +1,32 @@
-from PyQt5.QtWidgets import QCalendarWidget
+from PyQt5.QtWidgets import QCalendarWidget, QAbstractItemView
 from datetime import date
 
-from PyQt5.QtCore import Qt, QDate, QRect, QRectF, pyqtSignal, QLocale
+from PyQt5.QtCore import Qt, QDate, QRect, QRectF, QEvent, pyqtSignal, QLocale
 from PyQt5.QtGui import QPainter, QColor, QFont, QPen, QBrush, QTextCharFormat
 
 class ScheduleCalendarWidget(QCalendarWidget):
     exam_clicked = pyqtSignal(dict)
 
     def __init__(self, parent=None):
-        """Initialize the calendar widget with custom styles, disable unwanted features, 
+        """Initialize the calendar widget with custom styles, disable unwanted features,
             and set up the color palette for exam badges."""
         super().__init__(parent)
-        
+
         self.setLocale(QLocale(QLocale.English, QLocale.UnitedStates))
         self.setGridVisible(True)
         self.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
         self.setNavigationBarVisible(False)
         self.setSelectionMode(QCalendarWidget.NoSelection)
         self.setFocusPolicy(Qt.NoFocus)
-        
-        self.exams_by_date = {} 
-        self.clicked.connect(self._on_date_clicked)
+
+        self.exams_by_date = {}
+
+        # NoSelection mode blocks the built-in clicked() signal, so we install
+        # an event filter directly on the internal table-view's viewport instead.
+        for view in self.findChildren(QAbstractItemView):
+            view.viewport().installEventFilter(self)
+            self._calendar_view = view   # keep a reference for hit-testing
+            break
 
         header_format = QTextCharFormat()
         header_format.setForeground(QColor("#9CA3AF"))
@@ -113,9 +119,36 @@ class ScheduleCalendarWidget(QCalendarWidget):
                 
         painter.restore()
 
-    def _on_date_clicked(self, date: QDate):
-        """Handle clicks on calendar cells by checking if the clicked date has associated exams and 
-            emitting the exam data if present."""
-        if date in self.exams_by_date:
-            exam_data = self.exams_by_date[date][0]
-            self.exam_clicked.emit(exam_data)
+    # ------------------------------------------------------------------
+    # Click detection via event filter (works even with NoSelection mode)
+    # ------------------------------------------------------------------
+
+    def eventFilter(self, source, event):
+        """Intercept mouse-press events on the calendar viewport to detect
+        which date was clicked and emit exam_clicked when an exam exists."""
+        if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            index = self._calendar_view.indexAt(event.pos())
+            if index.isValid():
+                clicked_date = self.dateForIndex(index)
+                if clicked_date.isValid() and clicked_date in self.exams_by_date:
+                    self.exam_clicked.emit(self.exams_by_date[clicked_date][0])
+        return super().eventFilter(source, event)
+
+    def dateForIndex(self, index):
+        """Convert a QModelIndex from the internal table view into a QDate."""
+        # QCalendarWidget's model stores the date as Qt.DisplayRole text
+        # but we can reconstruct the date from year/month + cell position.
+        # Row 0 is the header (day names), rows 1-6 are weeks; col 0-6 are days.
+        row = index.row()       # 1–6 (row 0 = day-name header)
+        col = index.column()    # 0=Sun … 6=Sat  (depends on firstDayOfWeek)
+
+        if row < 1:             # clicked on the day-name header row
+            return QDate()
+
+        # Walk from the first cell of the shown month-page
+        first_day_of_month = QDate(self.yearShown(), self.monthShown(), 1)
+        # The calendar grid starts on the column matching the first day's weekday
+        first_col = (first_day_of_month.dayOfWeek() % 7)   # Sun=0 … Sat=6
+        cell_index = (row - 1) * 7 + col
+        day_offset  = cell_index - first_col
+        return first_day_of_month.addDays(day_offset)

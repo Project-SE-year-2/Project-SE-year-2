@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.views.output_screen.calendar_table_widget import ScheduleCalendarWidget
+from src.views.output_screen.day_detail_dialog import DayDetailDialog
 from src.views.output_screen.schedule_navigator_widget import ScheduleNavigatorWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
 
@@ -85,6 +86,7 @@ class OutputScreen(QWidget):
 
         #  Initialize the calendar widget and add it to the card layout
         self.calendar = ScheduleCalendarWidget()
+        self.calendar.exam_clicked.connect(self._on_exam_clicked)
         card_layout.addWidget(self.calendar)
         main_layout.addWidget(self.card_container, stretch=1)
 
@@ -181,6 +183,19 @@ class OutputScreen(QWidget):
             self.current_index = self.total_schedules - 1
 
         self._update_schedule_nav_label()
+
+    def _on_exam_clicked(self, exam_data: dict) -> None:
+        """Open a DayDetailDialog for the clicked exam badge."""
+        program_names = self._get_program_names()
+        dialog = DayDetailDialog(exam_data, program_names=program_names, parent=self)
+        dialog.exec_()
+
+    def _get_program_names(self) -> dict:
+        """Build an id → display-name mapping from the service."""
+        try:
+            return {p["id"]: p["name"] for p in self.service.get_available_programs()}
+        except Exception:
+            return {}
 
     def _on_back_clicked(self):
         """Handle the back button click by emitting the signal to switch back to the input screen."""

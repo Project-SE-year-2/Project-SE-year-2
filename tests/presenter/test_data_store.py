@@ -53,7 +53,7 @@ def test_is_not_empty_after_adding_period(tmp_path):
 
 
 # ------------------------------------------------------------------ #
-# save / load roundtrip                                               #
+# save / load roundtrip                                                #
 # ------------------------------------------------------------------ #
 
 def test_save_and_load_roundtrip(tmp_path):
@@ -61,6 +61,7 @@ def test_save_and_load_roundtrip(tmp_path):
     store = DataStore(path)
     store.set_courses([_make_course("11111")])
     store.set_periods([_make_period()])
+    store.set_program_names({"83101": "Computer Engineering"}) # EP-74
     store.save()
 
     store2 = DataStore(path)
@@ -71,6 +72,7 @@ def test_save_and_load_roundtrip(tmp_path):
     assert store2.get_all_courses()[0].course_id == "11111"
     assert len(store2.get_periods()) == 1
     assert store2.get_periods()[0].semester == Semester.FALL
+    assert store2._program_names == {"83101": "Computer Engineering"} # EP-74
 
 
 def test_load_returns_false_when_no_file(tmp_path):
@@ -83,6 +85,7 @@ def test_load_returns_empty_lists_when_no_file(tmp_path):
     store.load()
     assert store.get_all_courses() == []
     assert store.get_periods() == []
+    assert store._program_names == {}
 
 
 # ------------------------------------------------------------------ #
@@ -94,10 +97,12 @@ def test_clear_wipes_memory(tmp_path):
     store = DataStore(path)
     store.set_courses([_make_course("11111")])
     store.set_periods([_make_period()])
+    store.set_program_names({"83101": "Computer Engineering"}) # EP-74
     store.clear()
 
     assert store.get_all_courses() == []
     assert store.get_periods() == []
+    assert store._program_names == {} # EP-74
 
 
 def test_clear_deletes_file(tmp_path):
@@ -236,20 +241,46 @@ def test_get_programs_returns_unique_ids(tmp_path):
     assert sorted(ids) == ["83101", "83102"]
 
 
-def test_get_programs_returns_id_and_name_fields(tmp_path):
-    store = DataStore(tmp_path / "ds.pkl")
-    store.set_courses([_make_course("11111", "83101")])
-
-    programs = store.get_programs()
-    assert len(programs) == 1
-    assert "id" in programs[0]
-    assert "name" in programs[0]
-    assert programs[0]["id"] == "83101"
-
-
 def test_get_programs_empty_when_no_courses(tmp_path):
     store = DataStore(tmp_path / "ds.pkl")
     assert store.get_programs() == []
+
+
+# ------------------------------------------------------------------ #
+# EP-74 Program Names Mapping                                        #
+# ------------------------------------------------------------------ #
+
+def test_set_program_names_updates_dict(tmp_path):
+    """Test that setting program names correctly updates the internal dictionary."""
+    store = DataStore(tmp_path / "ds.pkl")
+    mapping = {"83101": "Computer Engineering", "83102": "Electrical Engineering"}
+    store.set_program_names(mapping)
+    assert store._program_names == mapping
+
+
+def test_get_programs_uses_display_name_when_available(tmp_path):
+    """Test that get_programs uses the mapped name instead of the ID if it exists."""
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_courses([_make_course("11111", "83101")])
+    store.set_program_names({"83101": "Computer Engineering"})
+    
+    programs = store.get_programs()
+    assert len(programs) == 1
+    assert programs[0]["id"] == "83101"
+    assert programs[0]["name"] == "Computer Engineering"
+
+
+def test_get_programs_falls_back_to_id_when_name_missing(tmp_path):
+    """Test that get_programs falls back to the program ID if no name mapping is found."""
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_courses([_make_course("11111", "99999")])
+    # Mapping exists, but not for "99999"
+    store.set_program_names({"83101": "Computer Engineering"})
+    
+    programs = store.get_programs()
+    assert len(programs) == 1
+    assert programs[0]["id"] == "99999"
+    assert programs[0]["name"] == "99999"
 
 
 # ------------------------------------------------------------------ #

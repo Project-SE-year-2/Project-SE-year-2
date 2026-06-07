@@ -103,6 +103,9 @@ class SelectedProgramCard(QFrame):
         self._apply_table_style()
         self._populate_table()
 
+        self._table.resizeRowsToContents()
+        self._table.setMinimumHeight(120)
+
         layout.addWidget(self._table)
 
     # The table is styled to match the application's dark theme, 
@@ -193,7 +196,6 @@ class SelectedProgramsPanel(QWidget):
             self._cards_layout.addWidget(card)
 
         self._cards_layout.addStretch()
-        self._empty_label.setVisible(False)
 
     # The clear method removes all program cards from the display but keeps the cached courses intact,
     # allowing for quick refresh if the same programs are selected again.

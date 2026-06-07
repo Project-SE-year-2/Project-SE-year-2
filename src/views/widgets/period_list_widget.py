@@ -121,7 +121,7 @@ class PeriodListWidget(QWidget):
     parser, or model classes directly.
     """
 
-    periods_selected = pyqtSignal(list)
+    period_selected = pyqtSignal(str)
 
     def __init__(
         self,
@@ -133,7 +133,7 @@ class PeriodListWidget(QWidget):
 
         self._service = service
         self._formatter = formatter or PeriodFormatter()
-        self._selected_period_ids: set[str] = set()
+        self._selected_period_id: str | None = None
         self._rows_by_id: dict[str, PeriodRowWidget] = {}
 
         # The period list should stay hidden until at least one program is selected.
@@ -148,17 +148,12 @@ class PeriodListWidget(QWidget):
         items = self._to_period_items(periods)
         self._render_periods(items)
 
-    def selected_periods(self) -> list[str]:
-        return [
-            period_id
-            for period_id in self._rows_by_id
-            if period_id in self._selected_period_ids
-        ]
+    def selected_period_id(self) -> str | None:
+        return self._selected_period_id
 
     def clear_selection(self) -> None:
-        self._selected_period_ids.clear()
+        self._selected_period_id = None
         self._update_row_states()
-        self.periods_selected.emit([])
  
     def _build_ui(self) -> None:
         self._title_label = QLabel("Exam Periods")
@@ -217,7 +212,7 @@ class PeriodListWidget(QWidget):
         self._rows_by_id.clear()
 
         if not periods:
-            self._selected_period_ids.clear()
+            self._selected_period_id = None
             self._empty_label = QLabel("No exam periods available.")
             self._empty_label.setAlignment(Qt.AlignCenter)
             self._empty_label.setStyleSheet(
@@ -230,7 +225,8 @@ class PeriodListWidget(QWidget):
             return
 
         valid_ids = {period.period_id for period in periods}
-        self._selected_period_ids.intersection_update(valid_ids)
+        if self._selected_period_id not in valid_ids:
+            self._selected_period_id = None
 
         for period in periods:
             row = PeriodRowWidget(period)
@@ -254,17 +250,12 @@ class PeriodListWidget(QWidget):
     # The _on_period_clicked method is called when a period row is clicked. 
     # It updates the selected period id, updates the visual state of the rows, and emits the period_selected signal with the new selection.
     def _on_period_clicked(self, period_id: str) -> None:
-        if period_id in self._selected_period_ids:
-            self._selected_period_ids.remove(period_id)
-        else:
-            self._selected_period_ids.add(period_id)
-
-        selected = self.selected_periods()
+        self._selected_period_id = period_id
         self._update_row_states()
-        self.periods_selected.emit(selected)
+        self.period_selected.emit(period_id)
 
     # The _update_row_states method iterates through all the period rows 
     # and updates their selected state based on whether their period id matches the currently selected period id.
     def _update_row_states(self) -> None:
         for period_id, row in self._rows_by_id.items():
-           row.set_selected(period_id in self._selected_period_ids)
+           row.set_selected(period_id == self._selected_period_id)

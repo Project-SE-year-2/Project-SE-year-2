@@ -51,10 +51,10 @@ def test_period_list_emits_period_selected_signal(qtbot):
     qtbot.addWidget(widget)
     widget.refresh()
 
-    with qtbot.waitSignal(widget.periods_selected, timeout=1000) as blocker:
+    with qtbot.waitSignal(widget.period_selected, timeout=1000) as blocker:
         widget._rows_by_id["FALL_Aleph"].click()
 
-    assert blocker.args == [["FALL_Aleph"]]
+    assert blocker.args == ["FALL_Aleph"]
 
 
 # Tests that clicking a period updates the selected period state.
@@ -67,7 +67,7 @@ def test_period_list_click_updates_selected_period(qtbot):
 
     widget._rows_by_id["SPRI_Aleph"].click()
 
-    assert widget.selected_periods() == ["SPRI_Aleph"]
+    assert widget.selected_period_id() == "SPRI_Aleph"
 
 
 # Tests that clear_selection resets the selected period state.
@@ -81,7 +81,7 @@ def test_period_list_clear_selection_resets_state(qtbot):
     widget._rows_by_id["FALL_Aleph"].click()
     widget.clear_selection()
 
-    assert widget.selected_periods() == []
+    assert widget.selected_period_id() is None
 
 
 # Tests that refresh handles an empty period list without crashing.
@@ -94,5 +94,5 @@ def test_period_list_refresh_with_empty_period_list(qtbot):
     qtbot.addWidget(widget)
     widget.refresh()
 
-    assert widget.selected_periods() == []
+    assert widget.selected_period_id() is None
     assert widget._rows_by_id == {}

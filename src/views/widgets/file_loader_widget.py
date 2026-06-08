@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.presenter.i_app_service import IAppService
+from src.views.shared_components.buttons import PrimaryButton, SecondaryButton
 
 
 class FilePathValidator:
@@ -55,9 +56,9 @@ class FileLoaderWidget(QWidget):
         self._message_label = QLabel("")
 
         # Buttons: Courses, Dates, Load
-        self._select_courses_button = QPushButton("Select Courses File")
-        self._select_dates_button = QPushButton("Select Dates File")
-        self._load_button = QPushButton("Load Files")
+        self._select_courses_button = SecondaryButton("Select Courses File")
+        self._select_dates_button = SecondaryButton("Select Dates File")
+        self._load_button = PrimaryButton("Load Files")
 
         # Mode selection: Replace or Append
         self._replace_radio = QRadioButton("Replace")

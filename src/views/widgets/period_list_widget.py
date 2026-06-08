@@ -148,14 +148,10 @@ class PeriodListWidget(QWidget):
         items = self._to_period_items(periods)
         self._render_periods(items)
 
-    # For testing purposes, we expose the selected period id and a method to clear selection.
     def selected_period_id(self) -> str | None:
-        """Return the currently selected period id, if any."""
         return self._selected_period_id
 
-    # This method is not strictly necessary for the widget's functionality, but it allows tests to reset state between cases.
     def clear_selection(self) -> None:
-        """Clear the current period selection."""
         self._selected_period_id = None
         self._update_row_states()
  
@@ -262,4 +258,4 @@ class PeriodListWidget(QWidget):
     # and updates their selected state based on whether their period id matches the currently selected period id.
     def _update_row_states(self) -> None:
         for period_id, row in self._rows_by_id.items():
-            row.set_selected(period_id == self._selected_period_id)
+           row.set_selected(period_id == self._selected_period_id)

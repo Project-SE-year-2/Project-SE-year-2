@@ -15,3 +15,5 @@ docs/UML/.DS_Store
 
 # Test file
 tester_main.py
+
+*.pkl

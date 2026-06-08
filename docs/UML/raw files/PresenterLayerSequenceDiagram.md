@@ -1,3 +1,8 @@
+# Presenter Layer Sequence Diagram
+
+The primary use-case flows through the Presenter layer: loading data, selecting programs, streaming generation, and exporting a schedule.
+
+```mermaid
 sequenceDiagram
     participant User
     participant MainWindow
@@ -53,3 +58,11 @@ sequenceDiagram
     User->>OutputScreen: clicks Export
     OutputScreen->>AppService: export_schedule(index, path)
     AppService->>ScheduleReportWriter: write(schedules, metadata, programs, path)
+```
+
+## Flow Summary
+1. **Load Data** — `InputScreen` calls `AppService.load_data()`. The service delegates to the file parsers, then writes results to `DataStore`.
+2. **Select Programs** — `InputScreen` calls `AppService.select_programs(ids)` to record the user's selection.
+3. **Generate (streaming)** — `InputScreen` creates a `GenerateWorker` and starts it on a background thread. The worker iterates the `AppService.generate_stream()` generator: for each period that finishes, `AppService` yields `(period_id, schedules)` and the worker emits `period_ready`. When all periods are done, `AppService` runs `ScheduleCombiner` internally, then the generator is exhausted, and the worker emits `finished(total_count)`.
+4. **Navigate** — `InputScreen` emits `switch_to_output`; `MainWindow` switches the stacked widget to `OutputScreen`.
+5. **Browse & Export** — `OutputScreen` calls `get_schedule(index)` to paginate results and `export_schedule(index, path)` to write a report file via `ScheduleReportWriter`.

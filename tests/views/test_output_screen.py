@@ -147,19 +147,19 @@ class TestOutputScreen(unittest.TestCase):
         })
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
-    def test_calendar_exam_clicked_signal_is_connected(self, MockDialog):
-        """The calendar's exam_clicked signal must be wired to _on_exam_clicked
-        during OutputScreen initialisation.
-        We verify this by emitting the signal directly and checking that
-        _on_exam_clicked reacts (i.e. the dialog constructor is called)."""
+    def test_calendar_exam_clicked_signal_is_NOT_connected(self, MockDialog):
+        """calendar.exam_clicked must NOT be connected to any slot in OutputScreen.
+
+        CalendarTableWidget always emits both exam_clicked AND exams_day_clicked
+        when a badge is pressed.  Connecting both would cause _on_exam_day_clicked
+        to fire twice, opening the detail dialog two times in a row.
+        Only exams_day_clicked is wired; exam_clicked must remain silent."""
         self.mock_service.get_available_programs.return_value = []
-        exam_data = _make_minimal_exam()
 
-        # Emit the signal as if a user clicked an exam cell on the calendar
-        self.screen.calendar.exam_clicked.emit(exam_data)
+        # Emit the single-exam signal directly — no dialog should appear.
+        self.screen.calendar.exam_clicked.emit(_make_minimal_exam())
 
-        # If the signal is properly connected, the dialog should have been created
-        MockDialog.assert_called_once()
+        MockDialog.assert_not_called()
 
     # ------------------------------------------------------------------
     # exams_day_clicked (list[dict], QPoint) new API

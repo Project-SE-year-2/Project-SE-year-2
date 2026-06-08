@@ -89,9 +89,10 @@ class OutputScreen(QWidget):
         self.calendar = CalendarTableWidget()
         # EP-65: connect to the day-level signal so the full list of exams
         # for the clicked day arrives directly — no secondary lookup required.
+        # EP-65: exams_day_clicked carries the full list for the clicked day.
+        # exam_clicked is intentionally NOT connected here — CalendarTableWidget
+        # always emits both signals, so connecting both would open the dialog twice.
         self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
-        # Backward-compat shim for code that still emits the multiple-exam signal.
-        self.calendar.exam_clicked.connect(self._on_exam_clicked)
         card_layout.addWidget(self.calendar)
         main_layout.addWidget(self.card_container, stretch=1)
 

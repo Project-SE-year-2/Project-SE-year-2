@@ -9,7 +9,9 @@ from src.views.shared_components.loading_spinner import LoadingSpinner
 from src.views.widgets.file_loader_widget import FileLoaderWidget
 from src.views.widgets.program_list_widget import ProgramListWidget
 from src.views.widgets.period_list_widget import PeriodListWidget
+from src.views.widgets.period_editor_widget import PeriodEditorWidget
 from src.views.widgets.selected_programs_panel import SelectedProgramsPanel
+
 
 class InputScreen(QWidget):
     """
@@ -18,6 +20,7 @@ class InputScreen(QWidget):
     """
     switch_to_output = pyqtSignal()
 
+    # Initializes the screen, stores the service dependency, and builds the UI.
     def __init__(self, service, parent=None):
         super().__init__(parent)
         self.service = service
@@ -25,6 +28,7 @@ class InputScreen(QWidget):
         self.setStyleSheet(INPUT_SCREEN_STYLE)
         self._setup_ui()
 
+    # Builds all input-screen widgets and connects their signals.
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
 
@@ -53,6 +57,10 @@ class InputScreen(QWidget):
         self.period_list.setVisible(False)
         content_layout.addWidget(self.period_list)
 
+        self.period_editor = PeriodEditorWidget(self.service)
+        self.period_editor.setVisible(False)
+        content_layout.addWidget(self.period_editor)
+
         self.spinner = LoadingSpinner()
         content_layout.addWidget(self.spinner, alignment=Qt.AlignCenter)
 
@@ -71,6 +79,7 @@ class InputScreen(QWidget):
         self.program_list.programs_selected.connect(self._on_programs_selected)
         self.period_list.period_selected.connect(self._on_period_selected)
 
+    # Handles successful file loading by clearing old UI state and showing the program list.
     def _on_files_loaded(self):
         # Clear any state from previous file loads
         self.selected_panel.clear_cache()
@@ -80,14 +89,17 @@ class InputScreen(QWidget):
         self.period_list.clear_selection()
         self.period_list.setVisible(False)
 
+        self.period_editor.clear()
+        self.period_editor.setVisible(False)
+
         self.generate_btn.setVisible(False)
 
         # Refresh programs from the newly loaded files
         self.program_list.refresh()
         self.program_list.setVisible(True)
 
+    # Handles program selection changes and shows dependent widgets only when needed.
     def _on_programs_selected(self, selected_programs):
-        # Show the period list only if there are selected programs
         has_selection = len(selected_programs) > 0
         self.selected_panel.setVisible(has_selection)
         self.period_list.setVisible(has_selection)
@@ -98,12 +110,17 @@ class InputScreen(QWidget):
         else:
             self.selected_panel.clear()
             self.period_list.clear_selection()
+            self.period_editor.clear()
+            self.period_editor.setVisible(False)
             self.generate_btn.setVisible(False)
 
-    # When a period is selected, show the generate button
+    # Loads the selected period into the period editor and enables generation.
     def _on_period_selected(self, period_id):
+        self.period_editor.load_period(period_id)
+        self.period_editor.setVisible(True)
         self.generate_btn.setVisible(True)
 
+    # Starts schedule generation in the background worker.
     def _on_generate_clicked(self):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
@@ -111,7 +128,7 @@ class InputScreen(QWidget):
         # Reset UI state for new generation attempt
         self.error_banner.hide_error()
         self.spinner.start()
-        
+
         self.generate_btn.setEnabled(False)
 
         self._worker = GenerateWorker(self.service)
@@ -120,16 +137,18 @@ class InputScreen(QWidget):
         self._worker.error.connect(self._on_error)
         self._worker.start()
 
+    # Handles successful generation completion and switches to the output screen.
     def _on_generation_finished(self, count):
         self.spinner.stop()
         self.generate_btn.setEnabled(True)
         self.switch_to_output.emit()
 
+    # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
         pass
 
+    # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):
-        """Handles errors emitted from the background worker, updating the UI accordingly."""
         self.spinner.stop()
         self.generate_btn.setEnabled(True)
         self.error_banner.show_error(message)

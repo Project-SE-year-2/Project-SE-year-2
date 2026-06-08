@@ -297,6 +297,24 @@ class IAppService(ABC):
         """Export the current schedule from each period into one combined file."""
 
     @abstractmethod
+    def export_by_period_indices(self, period_indices: dict, path: str) -> None:
+        """Export the schedule currently shown on screen into one combined file.
+
+        Reads each period at its stored local index (the index the UI is
+        currently displaying) and merges all periods via ScheduleCombiner
+        before writing to ``path``.
+
+        Args:
+            period_indices: mapping of period_id → local_index, e.g.
+                            {"FALL_Aleph": 2, "FALL_Bet": 0, ...}
+            path:           Output file path chosen by the user.
+
+        Raises:
+            ValueError: if no period has any schedule data.
+            IOError:    if the file cannot be written.
+        """
+
+    @abstractmethod
     def get_current_combination(self) -> list[dict]:
         """Return the currently selected schedule combination across all periods.
 

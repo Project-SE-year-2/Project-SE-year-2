@@ -14,9 +14,10 @@ QVBoxLayout (inside QScrollArea)
 
 Navigation model — per-period
 ------------------------------
-Each period stores its own position in _period_indices.
-NEXT/PREV call service.navigate(period_id, direction) — ONLY the active
-period advances; all others remain unchanged.
+Each period stores its own position in _period_indices (UI-owned state).
+NEXT/PREV update _period_indices[active_period_id] locally and then call
+service.get_period_schedule(period_id, new_index) to fetch the new data.
+Only the active period advances; all others remain unchanged.
 
 The navigator counter shows the active period's position ("N of M") using
 service.get_schedule_count(period_id=pid) for the accurate per-period total.

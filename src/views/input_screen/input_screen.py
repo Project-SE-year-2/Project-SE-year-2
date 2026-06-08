@@ -226,6 +226,7 @@ class InputScreen(QWidget):
         self.program_list.refresh()
         self.program_list.setVisible(True)
 
+        self.file_loader.update_validation(programs=False, period=False)
         self._sync_generate_button_state()
 
     # Handles program selection changes and shows dependent widgets only when needed.
@@ -234,6 +235,7 @@ class InputScreen(QWidget):
         self._generate_state.set_program_selection(has_selection)
         self.selected_panel.setVisible(has_selection)
         self.period_list.setVisible(has_selection)
+        self.file_loader.update_validation(programs=has_selection, period=self._generate_state.has_viewed_period)
 
         if has_selection:
             self.selected_panel.refresh(selected_programs)

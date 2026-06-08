@@ -52,6 +52,9 @@ class _FullImpl(IAppService):
     def navigate(self, period_id, direction): return {}
     def navigate_global(self, direction): return {}
     def export_current(self, path): pass
+    def get_current_combination(self): return []
+    def get_period_schedule(self, period_id, index): return []
+    def export_by_period_indices(self, period_indices, path): pass
 
 
 # ------------------------------------------------------------------ #

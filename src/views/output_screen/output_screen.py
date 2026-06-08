@@ -1,207 +1,423 @@
-from PyQt5.QtCore import QTimer, pyqtSignal
-from PyQt5.QtCore import QPoint
+"""
+OutputScreen
+============
+
+Layout
+------
+QVBoxLayout (inside QScrollArea)
+├── Toolbar: [← Back]  ·····  [⬇ Download Schedule]
+├── SemesterTabsWidget: [🍃 FALL]  [🌸 SPRING]
+└── FourMonthOutputWidget (white card)
+      ├── Header: icon + title | [מועד א] [מועד ב] | ‹ N of M ›
+      ├── Dynamic horizontal months (rebuilt per period date range)
+      └── Legend
+
+Navigation model — per-period
+------------------------------
+Each period stores its own position in _period_indices.
+NEXT/PREV call service.navigate(period_id, direction) — ONLY the active
+period advances; all others remain unchanged.
+
+The navigator counter shows the active period's position ("N of M") using
+service.get_schedule_count(period_id=pid) for the accurate per-period total.
+Switching tabs loads the stored index for the new period.
+
+Period ID mapping
+-----------------
+UI semester names → backend Semester enum values via _SEMESTER_TO_ID:
+    "FALL"   → "FALL"
+    "SPRING" → "SPRI"
+
+Exam filtering — two-layer
+--------------------------
+Primary:  exam_date in the period's date range from get_periods().
+Fallback: if date-range filter yields nothing, filter by the "semester"
+          and "moed" metadata fields embedded by _format_schedule_rows.
+
+"No period" banner
+------------------
+When get_periods() has no entry for the active period_id,
+FourMonthOutputWidget.show_no_period() shows a styled warning.
+
+Isolated fetching
+-----------------
+service.get_period_schedule(period_id, local_index) fetches from disk
+(disk mode via ResultsReader) or from _results_by_period (legacy mode).
+No Cartesian-product mixing: NEXT on one period never affects another.
+
+Export
+------
+service.export_current(path) uses ScheduleCombiner to merge all periods
+into one unified ExamSchedule and writes it to disk.
+"""
+
+from __future__ import annotations
+
+from datetime import date as _date
+
+from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
+    QApplication,
     QFileDialog,
-    QFrame,
     QHBoxLayout,
-    QLabel,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
-from src.views.shared_components.calendar_table_widget import CalendarTableWidget
+from src.models.enums import Semester, Moed
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
-from src.views.output_screen.schedule_navigator_widget import ScheduleNavigatorWidget
+from src.views.output_screen.four_month_output_widget import FourMonthOutputWidget
+from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
+from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
 
 
+# ── Semester-name → backend period-id prefix mapping ─────────────────────────
+_SEMESTER_TO_ID: dict[str, str] = {
+    "FALL":   "FALL",
+    "SPRING": "SPRI",
+    "SUMMER": "SUMM",
+}
+
+
+def _to_date(val) -> _date | None:
+    """Normalise to datetime.date (handles date, QDate, str)."""
+    if isinstance(val, _date):
+        return val
+    if hasattr(val, "toPyDate"):
+        return val.toPyDate()
+    if isinstance(val, str):
+        try:
+            from datetime import datetime
+            return datetime.strptime(val, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    return None
+
+
 class OutputScreen(QWidget):
-    """Screen that displays generated schedules and export/navigation controls."""
+    """Screen that displays generated exam schedules."""
 
     switch_to_input = pyqtSignal()
 
-    BATCH_SIZE = 10
-    POLL_INTERVAL_MS = 1000
+    BATCH_SIZE       = 10
+    POLL_INTERVAL_MS = 3_000
 
     def __init__(self, service, parent=None):
-        """Initialize the output screen with references to the service, default schedule data, 
-                and set up the UI and polling mechanism."""
         super().__init__(parent)
         self.service = service
 
-        self.current_schedules = []
-        self.current_index = 0
-        self.total_schedules = 0
+        # ── Shared global counter (for legacy compat properties) ──────────────
+        self._global_index: int = 0
+        self._global_total: int = 0
+
+        # ── Per-period navigation indices ─────────────────────────────────────
+        # Keys match backend period_id: "FALL_Aleph", "SPRI_Aleph", etc.
+        # Each period tracks its OWN local page so NEXT on one period never
+        # touches another period's position.
+        self._period_indices: dict[str, int] = {
+            f"{sem.value}_{moed.value}": 0
+            for sem in [Semester.FALL, Semester.SPRI]
+            for moed in [Moed.Aleph, Moed.Bet]
+        }
+
+        # ── Active view ───────────────────────────────────────────────────────
+        self._current_semester: str = "FALL"
+        self._current_moed:     str = "Aleph"
 
         self._setup_ui()
         self._setup_polling()
 
-    def _load_stylesheet(self):
-        """Load and apply the stylesheet for the output screen."""
+    # ── Active period ID ──────────────────────────────────────────────────────
+
+    def _active_period_id(self) -> str:
+        """Backend period_id for current semester + moed (e.g. "SPRI_Aleph")."""
+        sem_code = _SEMESTER_TO_ID.get(self._current_semester, self._current_semester)
+        return f"{sem_code}_{self._current_moed}"
+
+    # ── Backward-compat properties ────────────────────────────────────────────
+
+    @property
+    def current_index(self) -> int:
+        return self._global_index
+
+    @current_index.setter
+    def current_index(self, value: int) -> None:
+        self._global_index = value
+
+    @property
+    def current_schedules(self) -> list:
+        # Backward-compat stub — isolated architecture no longer uses a buffer.
+        return []
+
+    @current_schedules.setter
+    def current_schedules(self, value: list) -> None:
+        pass  # no-op
+
+    @property
+    def total_schedules(self) -> int:
+        return self._global_total
+
+    @total_schedules.setter
+    def total_schedules(self, value: int) -> None:
+        self._global_total = value
+
+    # ── UI construction ───────────────────────────────────────────────────────
+
+    def _setup_ui(self) -> None:
+        self.setObjectName("outputScreen")
         self.setStyleSheet(OUTPUT_SCREEN_STYLE)
 
-    def _setup_ui(self):
-        """Set up the user interface components, including buttons, labels, calendar widget, and navigator."""
-        self._load_stylesheet()
-        self.setObjectName("mainContainer")
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # Create the main vertical layout for the screen
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(30, 30, 30, 30)
-        main_layout.setSpacing(18)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QScrollArea.NoFrame)
 
-        # Create a horizontal toolbar layout for the back button, title, and download button
+        content = QWidget()
+        content.setObjectName("outputScreen")
+        main_layout = QVBoxLayout(content)
+        main_layout.setContentsMargins(24, 20, 24, 20)
+        main_layout.setSpacing(16)
+
+        # Toolbar
         toolbar = QHBoxLayout()
-        toolbar.setSpacing(12)
-
-        # Initialize the back button, title label, and download button with appropriate styles and connect signals
-        self.back_btn = QPushButton("Back to Input")
+        self.back_btn = QPushButton("← Back")
         self.back_btn.setObjectName("backBtn")
         self.back_btn.clicked.connect(self._on_back_clicked)
 
-        # Set the title label with a specific object name for styling
-        self.title_label = QLabel("Exam Calendar")
-        self.title_label.setObjectName("mainTitle")
-
-        # Initialize the download button
-        self.download_btn = QPushButton("Download Schedule")
-        # Set the object name for styling and connect the click signal to the download handler
-        self.download_btn.setObjectName("primaryBtn")
-        # Connect the download button's clicked signal to the handler method
+        self.download_btn = QPushButton("⬇  Download Schedule")
+        self.download_btn.setObjectName("downloadBtn")
         self.download_btn.clicked.connect(self._on_download_clicked)
 
-        # Add widgets to the toolbar with spacing and alignment
         toolbar.addWidget(self.back_btn)
-        toolbar.addWidget(self.title_label)
         toolbar.addStretch()
         toolbar.addWidget(self.download_btn)
         main_layout.addLayout(toolbar)
 
-        # Card container to hold the calendar widget with a styled frame
-        self.card_container = QFrame()
-        self.card_container.setObjectName("cardContainer")
-        card_layout = QVBoxLayout(self.card_container)
-        card_layout.setContentsMargins(0, 0, 0, 0)
+        # Semester tabs
+        self.semester_tabs = SemesterTabsWidget()
+        self.semester_tabs.semester_changed.connect(self._on_semester_changed)
+        main_layout.addWidget(self.semester_tabs)
 
-        #  Initialize the calendar widget and add it to the card layout
+        # FourMonthOutputWidget
+        self.four_month = FourMonthOutputWidget()
+        self.four_month.exam_day_clicked.connect(self._on_exam_day_clicked)
+        self.four_month.moed_changed.connect(self._on_moed_changed)
+        main_layout.addWidget(self.four_month, stretch=1)
+
+        self.navigator   = self.four_month.navigator
+        self.navigator.navigate_to.connect(self._on_navigator_index_changed)
+        self.navigator.prefetch_needed.connect(self._on_prefetch_needed)
+        self.sched_label = self.navigator._counter_lbl
+
+        self._scroll.setWidget(content)
+        root.addWidget(self._scroll)
+
+        # Hidden CalendarTableWidget — backward-compat for EP-65 tests
         self.calendar = CalendarTableWidget()
-        # EP-65: connect to the day-level signal so the full list of exams
-        # for the clicked day arrives directly — no secondary lookup required.
-        # EP-65: exams_day_clicked carries the full list for the clicked day.
-        # exam_clicked is intentionally NOT connected here — CalendarTableWidget
-        # always emits both signals, so connecting both would open the dialog twice.
         self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
-        card_layout.addWidget(self.calendar)
-        main_layout.addWidget(self.card_container, stretch=1)
+        # exam_clicked intentionally NOT connected (would open dialog twice)
 
-        # Initialize the schedule navigator widget, connect its signals, and add it to the main layout
-        self.navigator = ScheduleNavigatorWidget()
-        self.navigator.index_changed.connect(self._on_navigator_index_changed)
-        self.sched_label = self.navigator.counter_label
-        self.prev_btn = self.navigator.prev_btn
-        self.next_btn = self.navigator.next_btn
-        main_layout.addWidget(self.navigator)
-
-        # Update the navigator label and button states based on the initial schedule count
-        self._update_schedule_nav_label()
-
-    def _setup_polling(self):
-        """Set up a QTimer to poll the service for schedule count updates at regular intervals."""
+    def _setup_polling(self) -> None:
         self.poll_timer = QTimer(self)
         self.poll_timer.timeout.connect(self._poll_schedule_count)
         self.destroyed.connect(self.poll_timer.stop)
 
-    def showEvent(self, event):
-        """Override the showEvent to load the initial batch of schedules and start polling when the screen is shown."""
+    # ── Qt events ─────────────────────────────────────────────────────────────
+
+    def showEvent(self, event) -> None:
         super().showEvent(event)
-        self.current_index = 0
-        # Load the initial batch of schedules to display immediately when the screen is shown, then start polling for updates.
-        self._load_initial_batch()
-        self._poll_schedule_count()
+
+        # Guard: on Windows a modal QMessageBox (e.g. the "download success"
+        # popup) re-fires showEvent on the active QStackedWidget page when it
+        # closes.  We must NOT reset _period_indices in that case or the user
+        # would silently jump back to schedule 0.
+        #
+        # Rule:
+        #   _global_total == 0  → first show before any generation (or after a
+        #                         fresh generation reset in _on_generation_finished).
+        #                         Reset all state and show a loading indicator.
+        #   _global_total  > 0  → data is already loaded; just refresh the
+        #                         display at the stored positions and return.
+        if self._global_total > 0:
+            self._refresh_screen_display()
+            self.poll_timer.start(self.POLL_INTERVAL_MS)
+            return
+
+        # ── First show / no data yet ──────────────────────────────────────────
+        self._global_index = 0
+        for key in self._period_indices:
+            self._period_indices[key] = 0
+        self.semester_tabs.set_enabled_all(False)
+        self.four_month.show_loading(self._current_semester)
+        self._refresh_screen_display()
+        # Re-enable tabs immediately if data already exists (generation finished
+        # before the user navigated here — _on_generation_finished won't fire again).
+        has_data = any(
+            self.service.get_schedule_count(period_id=pid) > 0
+            for pid in self._period_indices
+        )
+        if has_data:
+            self.semester_tabs.set_enabled_all(True)
         self.poll_timer.start(self.POLL_INTERVAL_MS)
 
-    def hideEvent(self, event):
-        """Override the hideEvent to stop polling when the screen is hidden."""
+    def hideEvent(self, event) -> None:
         super().hideEvent(event)
         self.poll_timer.stop()
 
-    def _load_initial_batch(self):
-        """Load the initial batch of schedules to display when the screen is first shown."""
+    # ── Semester / moed switching ─────────────────────────────────────────────
+
+    def _on_semester_changed(self, semester: str) -> None:
+        """Switch semester tab — restore the stored index for the new period."""
+        self._current_semester = semester
+        self._global_index = self._period_indices.get(self._active_period_id(), 0)
+        self._refresh_screen_display()
+
+    def _on_moed_changed(self, moed: str) -> None:
+        """Switch moed — restore the stored index for the new period."""
+        self._current_moed = moed
+        self._global_index = self._period_indices.get(self._active_period_id(), 0)
+        self._refresh_screen_display()
+
+    # ── Central display refresh ───────────────────────────────────────────────
+
+    def _refresh_screen_display(self) -> None:
+        """Fetch and render the isolated schedule for the active (semester, moed).
+
+        Uses service.get_period_schedule(period_id, local_index) which reads
+        directly from the period's own file (disk mode) or from the in-memory
+        per-period cache (legacy mode).  No Cartesian-product mixing occurs.
+        """
+        sem  = self._current_semester
+        moed = self._current_moed
+        pid  = self._active_period_id()
+        idx  = self._period_indices.get(pid, 0)
+
+        # ── Fetch isolated period schedule ────────────────────────────────────
         try:
-            self.current_schedules = self.service.get_schedule_batch(0, self.BATCH_SIZE)
+            exams = self.service.get_period_schedule(pid, idx)
         except Exception as exc:
-            self.current_schedules = []
-            print(f"DEBUG: Could not load initial batch: {exc}")
+            print(f"OutputScreen: get_period_schedule({pid}, {idx}) failed: {exc}")
+            exams = []
+
+        # ── Resolve period date range ─────────────────────────────────────────
+        start_date: _date | None = None
+        end_date:   _date | None = None
+        period_found = False
+        try:
+            for p in self.service.get_periods():
+                if p.get("id") == pid:
+                    period_found = True
+                    start_date = _to_date(p.get("start_date"))
+                    end_date   = _to_date(p.get("end_date"))
+                    break
+        except Exception:
+            period_found = True   # service failed → assume period exists
+
+        # ── Period not configured → styled warning ────────────────────────────
+        if not period_found:
+            self.four_month.show_no_period(sem, moed)
+            self._update_navigator()
             return
 
-        if self.current_schedules:
-            # Load the first schedule into the calendar widget.
-            self.calendar.update_schedule(self.current_schedules[0])
+        # ── Update calendar card ──────────────────────────────────────────────
+        if exams:
+            self._global_total = max(self._global_total, 1)
+            self.four_month.update_schedule(
+                exams,
+                semester=sem,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        else:
+            self.four_month.show_empty(sem)
 
-    def _load_schedule(self, index):
-        """Load a specific schedule by index and update the calendar widget accordingly."""
+        self._update_navigator()
+
+    # ── Per-period navigator ──────────────────────────────────────────────────
+
+    def _on_navigator_index_changed(self, index: int) -> None:
+        """Advance ONLY the active period — other periods stay unchanged.
+
+        The new isolated architecture stores a local index per period and
+        fetches that period's schedule directly via get_period_schedule().
+        No Cartesian-product scanning or cross-period interference.
+        """
+        pid = self._active_period_id()
+        self._period_indices[pid] = index
+        self._global_index = index
+        self._refresh_screen_display()
+
+    def _on_prefetch_needed(self, loaded_so_far: int) -> None:
+        # No-op in isolated mode — each NEXT fetches on demand.
+        pass
+
+    def _update_navigator(self) -> None:
+        """Push the active period's local index and exact per-period total.
+
+        When the period has no schedules (total == 0) the navigator shows
+        "— of —" and both NEXT and PREV are disabled automatically by
+        ScheduleNavigatorWidget.set_state(total=0).
+        """
+        pid         = self._active_period_id()
+        current_idx = self._period_indices.get(pid, 0)
+
+        # get_schedule_count(period_id) is authoritative: 0 = no schedules.
+        # Do NOT fall back to _global_total here — a period may genuinely have
+        # zero schedules while another period has many.
         try:
-            schedules = self.service.get_schedule_batch(index, 1)
-        except Exception as exc:
-            print(f"DEBUG: Could not load schedule {index}: {exc}")
-            return
+            total = self.service.get_schedule_count(period_id=pid)
+            if not isinstance(total, int) or total < 0:
+                total = 0
+        except Exception:
+            total = 0
 
-        if schedules:
-            self.calendar.update_schedule(schedules[0])
+        if total > 0:
+            self._global_total = max(self._global_total, total)
 
-    def _on_navigator_index_changed(self, index):
-        """Handle index changes from the navigator, update the current index, load the corresponding schedule,
-                 and refresh the navigator label."""
-        self.current_index = index
-        self._load_schedule(index)
-        self._update_schedule_nav_label()
+        # Hide the entire navigator bar (counter + Prev/Next) when there are
+        # no schedules for this period — show it again as soon as data arrives.
+        self.navigator.setVisible(total > 0)
+        self.navigator.set_state(current=current_idx, total=total, loaded=total)
 
-    def _prev_schedule(self):
-        """Navigate to the previous schedule if possible and update the calendar widget."""
-        if self.current_index > 0:
-            self._on_navigator_index_changed(self.current_index - 1)
+    # ── Polling ───────────────────────────────────────────────────────────────
 
-    def _next_schedule(self):
-        """Navigate to the next schedule if possible and update the calendar widget."""
+    def _poll_schedule_count(self) -> None:
+        """Refresh total/display every POLL_INTERVAL_MS.
+
+        Checks whether per-period data has arrived since the last poll.
+        When data first appears, re-renders so the loading indicator clears.
+        """
+        pid = self._active_period_id()
+
         try:
-            self.total_schedules = self.service.get_schedule_count()
+            count = self.service.get_schedule_count(period_id=pid)
+            if isinstance(count, int) and count > 0:
+                was_empty = self._global_total == 0
+                self._global_total = max(self._global_total, count)
+                if was_empty:
+                    self.semester_tabs.set_enabled_all(True)
+                    self._refresh_screen_display()
+                    return
         except Exception:
             pass
-        if self.current_index < self.total_schedules - 1:
-            self._on_navigator_index_changed(self.current_index + 1)
 
-    def _update_schedule_nav_label(self):
-        """Update the navigator's counter label and button states based on the current index and total 
-                schedule count."""
-        self.navigator.set_data(self.current_index, self.total_schedules)
+        self._update_navigator()
 
-    def _poll_schedule_count(self):
-        """Poll the service for the total schedule count, update the navigator label, 
-                and adjust the current index if necessary."""
-        try:
-            self.total_schedules = self.service.get_schedule_count()
-        except Exception:
-            self.total_schedules = 0
-
-        if self.current_index >= self.total_schedules and self.total_schedules > 0:
-            self.current_index = self.total_schedules - 1
-
-        self._update_schedule_nav_label()
+    # ── Exam cell click → DayDetailDialog ────────────────────────────────────
 
     def _on_exam_day_clicked(self, exams: list, anchor) -> None:
-        """Primary handler for exam-cell clicks (EP-65).
-
-        Receives the *full* list of exams for the clicked day together with the
-        global anchor position — both supplied directly by CalendarTableWidget's
-        ``exams_day_clicked`` signal.  No secondary lookup into ``exams_by_date``
-        is needed here.
-        """
         program_names = self._get_program_names()
+        exam_date     = exams[0].get("exam_date") if exams else None
         dialog = DayDetailDialog(
             exams         = exams,
-            exam_date     = exams[0].get("exam_date") if exams else None,
+            exam_date     = exam_date,
             program_names = program_names,
             anchor_pos    = anchor,
             parent        = self,
@@ -209,45 +425,115 @@ class OutputScreen(QWidget):
         dialog.exec_()
 
     def _on_exam_clicked(self, exam_data: dict) -> None:
-        """Backward-compatibility shim for the single-exam ``exam_clicked`` signal.
-
-        Wraps the single exam dict in a list and delegates to the canonical
-        ``_on_exam_day_clicked`` handler so the dialog always receives a list.
-        """ 
+        """Backward-compat shim."""
         self._on_exam_day_clicked([exam_data], anchor=None)
 
     def _get_program_names(self) -> dict:
-        """Build an id → display-name mapping from the service."""
         try:
             return {p["id"]: p["name"] for p in self.service.get_available_programs()}
         except Exception:
             return {}
 
-    def _on_back_clicked(self):
-        """Handle the back button click by emitting the signal to switch back to the input screen."""
+    # ── EngineListener integration ────────────────────────────────────────────
+
+    _PERIOD_PREFIX_TO_TAB: dict[str, str] = {
+        "FALL": "FALL",
+        "SPRI": "SPRING",
+    }
+
+    def connect_listener(self, listener) -> None:
+        listener.period_ready.connect(self._on_period_ready)
+        listener.finished.connect(self._on_generation_finished)
+        listener.error.connect(self._on_generation_error)
+
+    def _on_period_ready(self, period_id: str) -> None:
+        """Called once per exam period when the engine finishes generating it.
+
+        Disk mode:   data is immediately readable via get_period_schedule().
+        Legacy mode: _results_by_period[period_id] is populated at this point,
+                     so get_period_schedule() can serve it right away.
+        """
+        prefix = period_id.split("_")[0].upper()
+        tab    = self._PERIOD_PREFIX_TO_TAB.get(prefix, "FALL")
+        if tab != self._current_semester:
+            return
+
+        # Check whether this period matches the active tab
+        if period_id != self._active_period_id():
+            return
+
+        # Data just arrived for the currently-visible period — update count and render.
+        try:
+            count = self.service.get_schedule_count(period_id=period_id)
+            if isinstance(count, int) and count > 0:
+                self._global_total = max(self._global_total, count)
+                self._refresh_screen_display()
+        except Exception:
+            pass
+
+    def _on_generation_finished(self, total: int) -> None:
+        """Called when generation is fully complete — all period data available.
+
+        Re-enables tabs, updates the total, resets indices to 0, and renders
+        the first schedule for the currently visible period.
+        """
+        self.semester_tabs.set_enabled_all(True)
+
+        # Update total from the active period's exact count.
+        pid = self._active_period_id()
+        real_total = total if isinstance(total, int) and total > 0 else 0
+        try:
+            count = self.service.get_schedule_count(period_id=pid)
+            if isinstance(count, int) and count > 0:
+                real_total = count
+        except Exception:
+            pass
+        self._global_total = real_total
+
+        # Reset all period indices and render schedule 0 for the active period.
+        for key in self._period_indices:
+            self._period_indices[key] = 0
+        self._global_index = 0
+        self._refresh_screen_display()
+
+    def _on_generation_error(self, message: str) -> None:
+        self.four_month.show_error(message)
+        self.semester_tabs.set_enabled_all(True)
+
+    # ── Toolbar ───────────────────────────────────────────────────────────────
+
+    def _on_back_clicked(self) -> None:
         self.switch_to_input.emit()
 
-    def _on_download_clicked(self):
-        """Handle the download button click by prompting the user to select a save location and 
-                exporting the current schedule."""
-        if self.total_schedules <= 0 and not self.current_schedules:
+    def _on_download_clicked(self) -> None:
+        """Export the currently displayed per-period schedules into one combined file.
+
+        Uses export_by_period_indices() which reads each period at its local
+        index — exactly what is shown on screen — and merges them into a single
+        human-readable report.
+        """
+        # Check that at least one period has data.
+        has_data = any(
+            self.service.get_schedule_count(period_id=pid) > 0
+            for pid in self._period_indices
+        )
+        if not has_data:
             QMessageBox.warning(self, "No Schedule", "No schedule is currently loaded.")
             return
 
         options = QFileDialog.Options()
-        # Ensure the dialog does not use native file dialogs 
         file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Schedule",
-            "",
-            "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)",
+            self, "Save Schedule", "",
+            "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)",
             options=options,
         )
         if not file_path:
             return
 
         try:
-            self.service.export_schedule(self.current_index, file_path)
+            self.service.export_by_period_indices(self._period_indices, file_path)
             QMessageBox.information(self, "Success", "Schedule exported successfully.")
         except Exception as exc:
-            QMessageBox.critical(self, "Export Failed", f"Could not export schedule:\n{exc}")
+            QMessageBox.critical(
+                self, "Export Failed", f"Could not export schedule:\n{exc}"
+            )

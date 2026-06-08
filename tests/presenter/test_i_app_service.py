@@ -52,6 +52,9 @@ class _FullImpl(IAppService):
     def navigate(self, period_id, direction): return {}
     def navigate_global(self, direction): return {}
     def export_current(self, path): pass
+    def get_current_combination(self): return []
+    def get_period_schedule(self, period_id, index): return []
+    def export_by_period_indices(self, period_indices, path): pass
 
 
 # ------------------------------------------------------------------ #
@@ -98,9 +101,17 @@ def test_all_abstract_methods_are_callable_on_full_implementation():
     list(service.generate_stream())
     service.get_period_ids()
     service.get_period_schedules("FALL_Aleph")
+    service.get_period_schedule("FALL_Aleph", 0)
     service.get_schedule_count()
+    service.get_schedule_count(period_id="FALL_Aleph")
+    service.get_schedule_batch(0, 10)
     service.get_schedule(0)
     service.export_schedule(0, "out.txt")
+    service.navigate("FALL_Aleph", 1)
+    service.navigate_global(1)
+    service.export_current("out.txt")
+    service.export_by_period_indices({"FALL_Aleph": 0}, "out.txt")
+    service.get_current_combination()
 
 
 def test_iappservice_is_abstract():

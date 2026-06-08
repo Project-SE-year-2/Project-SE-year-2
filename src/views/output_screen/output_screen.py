@@ -87,6 +87,10 @@ class OutputScreen(QWidget):
 
         #  Initialize the calendar widget and add it to the card layout
         self.calendar = CalendarTableWidget()
+        # EP-65: connect to the day-level signal so the full list of exams
+        # for the clicked day arrives directly — no secondary lookup required.
+        self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
+        # Backward-compat shim for code that still emits the multiple-exam signal.
         self.calendar.exam_clicked.connect(self._on_exam_clicked)
         card_layout.addWidget(self.calendar)
         main_layout.addWidget(self.card_container, stretch=1)
@@ -185,26 +189,31 @@ class OutputScreen(QWidget):
 
         self._update_schedule_nav_label()
 
-    def _on_exam_clicked(self, exam_data: dict) -> None:
-        """Open a DayDetailDialog showing ALL exams for the clicked day."""
+    def _on_exam_day_clicked(self, exams: list, anchor) -> None:
+        """Primary handler for exam-cell clicks (EP-65).
+
+        Receives the *full* list of exams for the clicked day together with the
+        global anchor position — both supplied directly by CalendarTableWidget's
+        ``exams_day_clicked`` signal.  No secondary lookup into ``exams_by_date``
+        is needed here.
+        """
         program_names = self._get_program_names()
-
-        # Collect every exam scheduled on the same date (not just the one emitted)
-        exam_date = exam_data.get("exam_date")
-        qdate     = self.calendar._to_qdate(exam_date)
-        all_exams = self.calendar.exams_by_date.get(qdate, [exam_data])
-
-        # Use the stored click position as the popup anchor (bottom of the clicked cell)
-        anchor = getattr(self.calendar, "_last_click_global", None)
-
         dialog = DayDetailDialog(
-            exams         = all_exams,
-            exam_date     = exam_date,
+            exams         = exams,
+            exam_date     = exams[0].get("exam_date") if exams else None,
             program_names = program_names,
             anchor_pos    = anchor,
             parent        = self,
         )
         dialog.exec_()
+
+    def _on_exam_clicked(self, exam_data: dict) -> None:
+        """Backward-compatibility shim for the single-exam ``exam_clicked`` signal.
+
+        Wraps the single exam dict in a list and delegates to the canonical
+        ``_on_exam_day_clicked`` handler so the dialog always receives a list.
+        """ 
+        self._on_exam_day_clicked([exam_data], anchor=None)
 
     def _get_program_names(self) -> dict:
         """Build an id → display-name mapping from the service."""

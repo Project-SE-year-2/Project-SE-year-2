@@ -4,7 +4,7 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QWidget, QPushButton, QLabel, QFileDialog,
     QVBoxLayout, QHBoxLayout, QRadioButton,
-    QButtonGroup
+    QButtonGroup, QMessageBox
 )
 
 from src.presenter.i_app_service import IAppService
@@ -96,7 +96,7 @@ class FileLoaderWidget(QWidget):
             self,
             "Select Courses File",
             "",
-            "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)"
+            "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
         )
 
         # If a file was selected, update the path and label
@@ -110,7 +110,7 @@ class FileLoaderWidget(QWidget):
             self,
             "Select Dates File",
             "",
-            "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)"
+            "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
         )
 
         # If a file was selected, update the path and label
@@ -161,4 +161,10 @@ class FileLoaderWidget(QWidget):
         self._message_label.setText(message)
 
     def _show_error(self, message: str) -> None:
-        self._message_label.setText(f"Error: {message}")
+        self._message_label.setText("")
+
+        QMessageBox.critical(
+            self,
+            "File Loading Error",
+            message
+    )

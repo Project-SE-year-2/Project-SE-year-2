@@ -165,8 +165,5 @@ class DataStore:
 # ------------------------------------------------------------------ #
 
 def _period_id(period: ExamPeriod) -> str:
-    """Stable string identifier for a period: "<SEMESTER>_<MOED>"."""
-    # Handle both the case where semester/moed are Enums with a 'value' attribute and where they are simple strings.
-    sem = period.semester.value if hasattr(period.semester, "value") else str(period.semester)
-    moed = period.moed.value if hasattr(period.moed, "value") else str(period.moed)
-    return f"{sem}_{moed}"
+    """Stable string identifier for a period — delegates to ExamPeriod.period_id."""
+    return period.period_id

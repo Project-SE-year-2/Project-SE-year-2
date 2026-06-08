@@ -118,11 +118,13 @@ class PeriodEditorWidget(QWidget):
         )
 
         self._hint_label = QLabel(
-            "Edit the selected period range and click days to mark them as unavailable."
+            "Select a period above, then click calendar days to mark them as unavailable."
         )
+        self._hint_label.setWordWrap(True)
         self._hint_label.setStyleSheet(
             f"color: {th.TEXT_TERTIARY}; "
-            f"font-family: {th.FONT_FAMILY};"
+            f"font-family: {th.FONT_FAMILY}; "
+            f"font-size: {th.FONT_SIZE_SM}px;"
         )
 
         self._calendar = CalendarTableWidget(CalendarMode.INPUT)
@@ -130,10 +132,12 @@ class PeriodEditorWidget(QWidget):
         self._status_label = QLabel("")
         self._status_label.setStyleSheet(
             f"color: {th.TEXT_TERTIARY}; "
-            f"font-family: {th.FONT_FAMILY};"
+            f"font-family: {th.FONT_FAMILY}; "
+            f"font-size: {th.FONT_SIZE_SM}px;"
         )
 
         layout = QVBoxLayout(self)
+        layout.setSpacing(th.SPACING_SMALL)
         layout.addWidget(self._title_label)
         layout.addWidget(self._hint_label)
         layout.addWidget(self._calendar)

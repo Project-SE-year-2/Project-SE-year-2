@@ -11,13 +11,14 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QScrollArea,
     QFrame,
+    QHBoxLayout,
+    QLineEdit,
 )
 
 from src.presenter.i_app_service import IAppService
 import src.styles.theme as th
 
 
-# This file contains the ProgramListWidget and related classes.
 @dataclass(frozen=True)
 class ProgramItem:
     """View model for one program row."""
@@ -36,6 +37,7 @@ class ProgramRowWidget(QPushButton):
 
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
+        # Text kept in "ID - Name" format to preserve test compatibility.
         self.setText(f"{program.program_id} - {program.name}")
         self._apply_style()
 
@@ -57,12 +59,13 @@ class ProgramRowWidget(QPushButton):
                 f"""
                 QPushButton {{
                     text-align: left;
-                    padding: {th.SPACING_SMALL}px;
+                    padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
                     border-radius: {th.BADGE_RADIUS}px;
                     background-color: {th.DISABLED_BG};
                     color: {th.DISABLED_TEXT};
                     border: 1px solid {th.DISABLED_BORDER};
                     font-family: {th.FONT_FAMILY};
+                    font-size: {th.FONT_SIZE_SM}px;
                 }}
                 """
             )
@@ -73,12 +76,13 @@ class ProgramRowWidget(QPushButton):
                 f"""
                 QPushButton {{
                     text-align: left;
-                    padding: {th.SPACING_SMALL}px;
+                    padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
                     border-radius: {th.BADGE_RADIUS}px;
-                    background-color: {th.PRIMARY_COLOR};
-                    color: {th.TEXT_PRIMARY};
-                    border: 1px solid {th.SPINNER_COLOR};
+                    background-color: {th.PRIMARY_LIGHT};
+                    color: {th.PRIMARY_COLOR};
+                    border: 1.5px solid {th.PRIMARY_COLOR};
                     font-family: {th.FONT_FAMILY};
+                    font-size: {th.FONT_SIZE_SM}px;
                     font-weight: {th.FONT_WEIGHT_BOLD};
                 }}
                 """
@@ -89,16 +93,18 @@ class ProgramRowWidget(QPushButton):
             f"""
             QPushButton {{
                 text-align: left;
-                padding: {th.SPACING_SMALL}px;
+                padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
                 border-radius: {th.BADGE_RADIUS}px;
-                background-color: {th.BG_DARK_SECONDARY};
+                background-color: {th.BG_CARD};
                 color: {th.TEXT_SECONDARY};
                 border: 1px solid {th.BORDER_LIGHT};
                 font-family: {th.FONT_FAMILY};
+                font-size: {th.FONT_SIZE_SM}px;
             }}
             QPushButton:hover {{
-                background-color: {th.BG_DARK_TERTIARY};
-                border: 1px solid {th.SPINNER_COLOR};
+                background-color: {th.BG_HOVER};
+                border-color: {th.PRIMARY_COLOR};
+                color: {th.PRIMARY_COLOR};
             }}
             """
         )
@@ -134,12 +140,13 @@ class ProgramListWidget(QWidget):
         self._build_ui()
 
     # Public API
+
     def refresh(self) -> None:
         """Reload programs from the service and rebuild the visible rows."""
         programs = self._service.get_available_programs()
         items = self._to_program_items(programs)
         self._render_programs(items)
-    
+
     def selected_programs(self) -> list[str]:
         """Return selected program ids in display order."""
         return [
@@ -155,19 +162,66 @@ class ProgramListWidget(QWidget):
         self._update_row_states()
         self.programs_selected.emit([])
 
+    def remove_selection(self, program_id: str) -> None:
+        """Deselect a single program by id and emit programs_selected."""
+        if program_id in self._selected_ids:
+            self._selected_ids.discard(program_id)
+            selected = self.selected_programs()
+            self._service.select_programs(selected)
+            self._update_row_states()
+            self.programs_selected.emit(selected)
+
     # Private methods
+
     def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(th.SPACING_SMALL)
+
+        # Header row
+        header_row = QHBoxLayout()
         self._title_label = QLabel("Programs")
         self._title_label.setStyleSheet(
             f"font-family: {th.FONT_FAMILY}; "
             f"font-weight: {th.FONT_WEIGHT_BOLD}; "
             f"font-size: {th.FONT_SIZE_LG}px;"
+            f"color: {th.TEXT_PRIMARY};"
         )
-
-        self._hint_label = QLabel(f"Select up to {self._max_selection} programs")
+        self._hint_label = QLabel(f"Select up to {self._max_selection}")
         self._hint_label.setStyleSheet(
             f"color: {th.TEXT_TERTIARY}; font-family: {th.FONT_FAMILY};"
+            f"font-size: {th.FONT_SIZE_SM}px;"
         )
+        header_row.addWidget(self._title_label)
+        header_row.addStretch()
+        header_row.addWidget(self._hint_label)
+        layout.addLayout(header_row)
+
+        # Search bar
+        self._search_input = QLineEdit()
+        self._search_input.setPlaceholderText("Search and select programs")
+        self._search_input.setStyleSheet(
+            f"""
+            QLineEdit {{
+                background-color: {th.BG_CARD};
+                border: 1px solid {th.BORDER_LIGHT};
+                border-radius: {th.BUTTON_BORDER_RADIUS}px;
+                padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
+                font-family: {th.FONT_FAMILY};
+                font-size: {th.FONT_SIZE_SM}px;
+                color: {th.TEXT_PRIMARY};
+                min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
+            }}
+            QLineEdit:focus {{
+                border-color: {th.PRIMARY_COLOR};
+            }}
+            QLineEdit::placeholder {{
+                color: {th.TEXT_MUTED};
+            }}
+            """
+        )
+        self._search_input.textChanged.connect(self._apply_search_filter)
+        layout.addWidget(self._search_input)
 
         self._empty_label = QLabel("No programs loaded yet.")
         self._empty_label.setAlignment(Qt.AlignCenter)
@@ -180,19 +234,20 @@ class ProgramListWidget(QWidget):
         self._rows_container = QWidget()
         self._rows_layout = QVBoxLayout(self._rows_container)
         self._rows_layout.setContentsMargins(0, 0, 0, 0)
-        self._rows_layout.setSpacing(8)
+        self._rows_layout.setSpacing(th.SPACING_SMALL)
         self._rows_layout.addWidget(self._empty_label)
         self._rows_layout.addStretch()
 
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QFrame.NoFrame)
+        self._scroll_area.setStyleSheet(
+            f"background: transparent;"
+            f"QScrollBar:vertical {{ width: 6px; background: {th.BG_HOVER}; }}"
+        )
         self._scroll_area.setWidget(self._rows_container)
 
-        layout = QVBoxLayout(self)
-        layout.addWidget(self._title_label)
-        layout.addWidget(self._hint_label)
-        layout.addWidget(self._scroll_area)
+        layout.addWidget(self._scroll_area, stretch=1)
 
     # Convert raw program dicts from the service into ProgramItem view models
     def _to_program_items(self, programs: Iterable[dict]) -> list[ProgramItem]:
@@ -266,3 +321,16 @@ class ProgramListWidget(QWidget):
             is_selected = program_id in self._selected_ids
             row.set_selected(is_selected)
             row.setDisabled(reached_limit and not is_selected)
+
+    # Show or hide rows based on the current search text.
+    def _apply_search_filter(self, text: str) -> None:
+        text = text.strip().lower()
+        for program_id, row in self._rows_by_id.items():
+            if text:
+                match = (
+                    text in program_id.lower()
+                    or text in row.program.name.lower()
+                )
+                row.setVisible(match)
+            else:
+                row.setVisible(True)

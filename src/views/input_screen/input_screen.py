@@ -148,6 +148,7 @@ class InputScreen(QWidget):
         self.file_loader.files_loaded.connect(self._on_files_loaded)
         self.program_list.programs_selected.connect(self._on_programs_selected)
         self.period_list.period_selected.connect(self._on_period_selected)
+        self.selected_panel.program_removed.connect(self.program_list.remove_selection)
 
     # Builds a numbered section card with a title and optional subtitle.
     def _make_section(self, number: int, title: str, widgets: list,

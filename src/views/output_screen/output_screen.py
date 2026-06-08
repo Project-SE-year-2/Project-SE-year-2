@@ -1,4 +1,5 @@
 from PyQt5.QtCore import QTimer, pyqtSignal
+from PyQt5.QtCore import QPoint
 from PyQt5.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -10,7 +11,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from src.views.output_screen.calendar_table_widget import ScheduleCalendarWidget
+from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
 from src.views.output_screen.schedule_navigator_widget import ScheduleNavigatorWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
@@ -85,8 +86,13 @@ class OutputScreen(QWidget):
         card_layout.setContentsMargins(0, 0, 0, 0)
 
         #  Initialize the calendar widget and add it to the card layout
-        self.calendar = ScheduleCalendarWidget()
-        self.calendar.exam_clicked.connect(self._on_exam_clicked)
+        self.calendar = CalendarTableWidget()
+        # EP-65: connect to the day-level signal so the full list of exams
+        # for the clicked day arrives directly — no secondary lookup required.
+        # EP-65: exams_day_clicked carries the full list for the clicked day.
+        # exam_clicked is intentionally NOT connected here — CalendarTableWidget
+        # always emits both signals, so connecting both would open the dialog twice.
+        self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
         card_layout.addWidget(self.calendar)
         main_layout.addWidget(self.card_container, stretch=1)
 
@@ -184,11 +190,31 @@ class OutputScreen(QWidget):
 
         self._update_schedule_nav_label()
 
-    def _on_exam_clicked(self, exam_data: dict) -> None:
-        """Open a DayDetailDialog for the clicked exam badge."""
+    def _on_exam_day_clicked(self, exams: list, anchor) -> None:
+        """Primary handler for exam-cell clicks (EP-65).
+
+        Receives the *full* list of exams for the clicked day together with the
+        global anchor position — both supplied directly by CalendarTableWidget's
+        ``exams_day_clicked`` signal.  No secondary lookup into ``exams_by_date``
+        is needed here.
+        """
         program_names = self._get_program_names()
-        dialog = DayDetailDialog(exam_data, program_names=program_names, parent=self)
+        dialog = DayDetailDialog(
+            exams         = exams,
+            exam_date     = exams[0].get("exam_date") if exams else None,
+            program_names = program_names,
+            anchor_pos    = anchor,
+            parent        = self,
+        )
         dialog.exec_()
+
+    def _on_exam_clicked(self, exam_data: dict) -> None:
+        """Backward-compatibility shim for the single-exam ``exam_clicked`` signal.
+
+        Wraps the single exam dict in a list and delegates to the canonical
+        ``_on_exam_day_clicked`` handler so the dialog always receives a list.
+        """ 
+        self._on_exam_day_clicked([exam_data], anchor=None)
 
     def _get_program_names(self) -> dict:
         """Build an id → display-name mapping from the service."""

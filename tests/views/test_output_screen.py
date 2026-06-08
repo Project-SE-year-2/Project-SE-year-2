@@ -5,6 +5,7 @@ import sys
 from datetime import date
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QShowEvent, QHideEvent  
+from PyQt5.QtCore import QPoint
 
 # Ensure QApplication exists
 app = QApplication.instance()
@@ -115,10 +116,12 @@ class TestOutputScreen(unittest.TestCase):
 
         self.screen._on_exam_clicked(exam_data)
 
-        # Verify the dialog was instantiated with the correct exam data
+        # Verify the dialog was instantiated and displayed
         MockDialog.assert_called_once()
         call_kwargs = MockDialog.call_args
-        self.assertEqual(call_kwargs[0][0], exam_data)   # first positional arg
+        # Dialog is now called with keyword args; exams is a list containing the exam
+        passed_exams = call_kwargs.kwargs.get("exams", [])
+        self.assertIn(exam_data, passed_exams)
 
         # Verify the dialog was displayed modally
         MockDialog.return_value.exec_.assert_called_once()
@@ -144,23 +147,116 @@ class TestOutputScreen(unittest.TestCase):
         })
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
-    def test_calendar_exam_clicked_signal_is_connected(self, MockDialog):
-        """The calendar's exam_clicked signal must be wired to _on_exam_clicked
-        during OutputScreen initialisation.
-        We verify this by emitting the signal directly and checking that
-        _on_exam_clicked reacts (i.e. the dialog constructor is called)."""
+    def test_calendar_exam_clicked_signal_is_NOT_connected(self, MockDialog):
+        """calendar.exam_clicked must NOT be connected to any slot in OutputScreen.
+
+        CalendarTableWidget always emits both exam_clicked AND exams_day_clicked
+        when a badge is pressed.  Connecting both would cause _on_exam_day_clicked
+        to fire twice, opening the detail dialog two times in a row.
+        Only exams_day_clicked is wired; exam_clicked must remain silent."""
         self.mock_service.get_available_programs.return_value = []
-        exam_data = _make_minimal_exam()
 
-        # Emit the signal as if a user clicked an exam cell on the calendar
-        self.screen.calendar.exam_clicked.emit(exam_data)
+        # Emit the single-exam signal directly — no dialog should appear.
+        self.screen.calendar.exam_clicked.emit(_make_minimal_exam())
 
-        # If the signal is properly connected, the dialog should have been created
+        MockDialog.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # exams_day_clicked (list[dict], QPoint) new API
+    # ------------------------------------------------------------------
+
+    @patch("src.views.output_screen.output_screen.DayDetailDialog")
+    def test_exams_day_clicked_signal_connected(self, MockDialog):
+        """calendar.exams_day_clicked must be wired to _on_exam_day_clicked."""
+        self.mock_service.get_available_programs.return_value = []
+        exams = [_make_minimal_exam(), _make_minimal_exam()]
+
+        self.screen.calendar.exams_day_clicked.emit(exams, QPoint(100, 200))
+
         MockDialog.assert_called_once()
+
+    @patch("src.views.output_screen.output_screen.DayDetailDialog")
+    def test_exams_day_clicked_passes_full_list_to_dialog(self, MockDialog):
+        """_on_exam_day_clicked must forward the complete exam list to DayDetailDialog
+        without any secondary lookup into exams_by_date."""
+        self.mock_service.get_available_programs.return_value = []
+        exam1 = _make_minimal_exam()
+        exam2 = {**_make_minimal_exam(), "course_number": "83222"}
+        exams = [exam1, exam2]
+        # Emit the signal with a dummy anchor point since it's required by the signature
+        self.screen._on_exam_day_clicked(exams, QPoint(50, 50))
+        # Extract the exams kwarg passed to the dialog constructor and verify it matches
+        kw = MockDialog.call_args[1]
+        self.assertEqual(kw["exams"], exams)
+        self.assertIn(exam1, kw["exams"])
+        self.assertIn(exam2, kw["exams"])
+
+    @patch("src.views.output_screen.output_screen.DayDetailDialog")
+    def test_exams_day_clicked_passes_anchor_to_dialog(self, MockDialog):
+        """The QPoint anchor received from the signal must be forwarded to DayDetailDialog."""
+        self.mock_service.get_available_programs.return_value = []
+        # Emit the signal with a specific anchor point
+        anchor = QPoint(123, 456)
+        self.screen._on_exam_day_clicked([_make_minimal_exam()], anchor)
+        # Extract the anchor_pos kwarg passed to the dialog constructor and verify it matches
+        kw = MockDialog.call_args[1]
+        self.assertEqual(kw["anchor_pos"], anchor)
+
+    @patch("src.views.output_screen.output_screen.DayDetailDialog")
+    def test_on_exam_clicked_shim_wraps_single_exam_in_list(self, MockDialog):
+        """The backward-compat _on_exam_clicked shim must wrap the single exam dict
+        in a list so DayDetailDialog always receives a list[dict]."""
+        self.mock_service.get_available_programs.return_value = []
+        exam = _make_minimal_exam()
+
+        self.screen._on_exam_clicked(exam)
+
+        kw = MockDialog.call_args[1]
+        self.assertIsInstance(kw["exams"], list)
+        self.assertIn(exam, kw["exams"])
+
+    @patch("src.views.output_screen.output_screen.DayDetailDialog")
+    def test_on_exam_clicked_shim_passes_no_anchor(self, MockDialog):
+        """When called via the single-exam shim the anchor_pos must be None."""
+        self.mock_service.get_available_programs.return_value = []
+        self.screen._on_exam_clicked(_make_minimal_exam())
+
+        kw = MockDialog.call_args[1]
+        self.assertIsNone(kw["anchor_pos"])
+
+    @patch("src.views.output_screen.output_screen.DayDetailDialog")
+    def test_exams_day_clicked_opens_dialog_modally(self, MockDialog):
+        """DayDetailDialog.exec_() must be called so the dialog is modal."""
+        self.mock_service.get_available_programs.return_value = []
+        # Emit the signal with a dummy exam list and anchor point
+        self.screen._on_exam_day_clicked([_make_minimal_exam()], QPoint(0, 0))
+        # Verify that exec_() was called to display the dialog modally
+        MockDialog.return_value.exec_.assert_called_once()
+
+    @patch("src.views.output_screen.output_screen.DayDetailDialog")
+    def test_exams_day_clicked_opens_dialog_with_list(self, MockDialog):
+        """Verify the new multi-exam workflow triggered by exams_day_clicked."""
+        self.mock_service.get_available_programs.return_value = [
+            {"id": "83101", "name": "Computer Engineering"},
+        ]
+
+        exam_list = [
+            {"course_number": "101", "exam_date": date(2026, 6, 10)},
+            {"course_number": "102", "exam_date": date(2026, 6, 10)},
+        ]
+        anchor_point = QPoint(100, 100)
+        # Emit the signal as if the user clicked on a day cell with multiple exams
+        self.screen.calendar.exams_day_clicked.emit(exam_list, anchor_point)
+        # Verify the dialog was constructed with the full exam list and correct anchor
+        MockDialog.assert_called_once()
+        _, kwargs = MockDialog.call_args
+        self.assertEqual(kwargs["exams"], exam_list)
+        self.assertEqual(kwargs["anchor_pos"], anchor_point)
+        self.assertEqual(kwargs["program_names"], {"83101": "Computer Engineering"})
 
 
 # ---------------------------------------------------------------------------
-# Module-level helper used by output_screen tests
+# Module-level helper
 # ---------------------------------------------------------------------------
 
 def _make_minimal_exam() -> dict:

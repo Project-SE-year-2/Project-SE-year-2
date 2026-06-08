@@ -68,6 +68,18 @@ class MockAppService:
     def export_current(self, path):
         self.exported_current = path
 
+    # Updated IAppService compatibility: exports what is currently on screen using per-period indices.
+    def export_by_period_indices(self, period_indices, path):
+        self.exported_by_period = (period_indices, path)
+
+    # Updated IAppService compatibility: returns the isolated schedule for one period at a local index.
+    def get_period_schedule(self, period_id, index):
+        return []
+
+    # Updated IAppService compatibility: returns the current cross-period combination from disk.
+    def get_current_combination(self):
+        return []
+
 
 class FakeGenerateWorker(QObject):
     period_ready = pyqtSignal(str)

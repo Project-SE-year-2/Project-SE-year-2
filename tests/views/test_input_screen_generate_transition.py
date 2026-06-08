@@ -92,15 +92,15 @@ def test_generate_button_hidden_initially(qtbot):
 
     assert screen.generate_btn.isHidden()
 
-
-# Tests that the Generate button stays hidden after selecting programs but before selecting a period.
-def test_generate_button_hidden_after_program_only(qtbot):
+# Tests that selecting only programs is enough to show the Generate button.
+def test_generate_button_visible_after_program_only(qtbot):
     screen = InputScreen(MockAppService())
     qtbot.addWidget(screen)
 
     screen._on_programs_selected(["83101"])
 
-    assert screen.generate_btn.isHidden()
+    assert not screen.generate_btn.isHidden()
+    assert screen.generate_btn.isEnabled()
 
 
 # Tests that the Generate button becomes visible after selecting programs and a period.

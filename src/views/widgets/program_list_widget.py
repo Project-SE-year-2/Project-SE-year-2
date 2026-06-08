@@ -55,54 +55,70 @@ class ProgramRowWidget(QPushButton):
     # Apply styles based on selected and disabled state
     def _apply_style(self) -> None:
         if not self.isEnabled():
+            self.setLayoutDirection(Qt.LeftToRight)
             self.setStyleSheet(
                 f"""
                 QPushButton {{
                     text-align: left;
                     padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
+                    min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
                     border-radius: {th.BADGE_RADIUS}px;
                     background-color: {th.DISABLED_BG};
                     color: {th.DISABLED_TEXT};
                     border: 1px solid {th.DISABLED_BORDER};
                     font-family: {th.FONT_FAMILY};
-                    font-size: {th.FONT_SIZE_SM}px;
+                    font-size: {th.FONT_SIZE_MD}px;
                 }}
                 """
             )
             return
 
         if self._selected:
+            # RTL so Hebrew name reads naturally right-to-left when selected
+            self.setLayoutDirection(Qt.RightToLeft)
             self.setStyleSheet(
                 f"""
                 QPushButton {{
-                    text-align: left;
+                    text-align: right;
                     padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
+                    min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
                     border-radius: {th.BADGE_RADIUS}px;
                     background-color: {th.PRIMARY_LIGHT};
                     color: {th.PRIMARY_COLOR};
                     border: 1.5px solid {th.PRIMARY_COLOR};
                     font-family: {th.FONT_FAMILY};
-                    font-size: {th.FONT_SIZE_SM}px;
+                    font-size: {th.FONT_SIZE_MD}px;
                     font-weight: {th.FONT_WEIGHT_BOLD};
+                }}
+                QPushButton:pressed {{
+                    background-color: {th.PRIMARY_COLOR};
+                    color: white;
                 }}
                 """
             )
             return
 
+        self.setLayoutDirection(Qt.LeftToRight)
         self.setStyleSheet(
             f"""
             QPushButton {{
                 text-align: left;
                 padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
+                min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
                 border-radius: {th.BADGE_RADIUS}px;
                 background-color: {th.BG_CARD};
                 color: {th.TEXT_SECONDARY};
                 border: 1px solid {th.BORDER_LIGHT};
                 font-family: {th.FONT_FAMILY};
-                font-size: {th.FONT_SIZE_SM}px;
+                font-size: {th.FONT_SIZE_MD}px;
             }}
             QPushButton:hover {{
                 background-color: {th.BG_HOVER};
+                border-color: {th.PRIMARY_COLOR};
+                color: {th.TEXT_PRIMARY};
+            }}
+            QPushButton:pressed {{
+                background-color: {th.PRIMARY_LIGHT};
                 border-color: {th.PRIMARY_COLOR};
                 color: {th.PRIMARY_COLOR};
             }}
@@ -242,7 +258,7 @@ class ProgramListWidget(QWidget):
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QFrame.NoFrame)
         self._scroll_area.setStyleSheet(
-            f"background: transparent;"
+            f"QScrollArea {{ background: transparent; }}"
             f"QScrollBar:vertical {{ width: 6px; background: {th.BG_HOVER}; }}"
         )
         self._scroll_area.setWidget(self._rows_container)

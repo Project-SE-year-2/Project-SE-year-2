@@ -1,7 +1,8 @@
 from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame, QSizePolicy,
+    QPushButton, QLabel, QFrame, QSizePolicy, QGraphicsDropShadowEffect,
 )
 
 import src.styles.theme as th
@@ -18,6 +19,8 @@ from src.views.input_screen.generate_button_state import GenerateButtonState
 
 _SECTION_BADGE_SIZE = 28       # diameter of the numbered circle badge
 _GENERATE_BAR_HEIGHT = 88      # fixed height of the bottom generate bar
+_PERIOD_LIST_MAX_HEIGHT = 160  # cap so the list doesn't crowd the calendar editor
+_SELECTED_PANEL_MIN_HEIGHT = 120  # minimum height for the selected-programs chips area
 
 
 class InputScreen(QWidget):
@@ -30,6 +33,7 @@ class InputScreen(QWidget):
     # Initializes the screen, stores the service dependency, and builds the UI.
     def __init__(self, service, parent=None):
         super().__init__(parent)
+        self.setObjectName("inputScreen")
         self.service = service
         self._generate_state = GenerateButtonState()
         self.setStyleSheet(INPUT_SCREEN_STYLE)
@@ -51,7 +55,9 @@ class InputScreen(QWidget):
         self.file_loader = FileLoaderWidget(self.service)
         self.program_list = ProgramListWidget(self.service)
         self.selected_panel = SelectedProgramsPanel(self.service)
+        self.selected_panel.setMinimumHeight(_SELECTED_PANEL_MIN_HEIGHT)
         self.period_list = PeriodListWidget(self.service)
+        self.period_list.setMaximumHeight(_PERIOD_LIST_MAX_HEIGHT)  # prevent list from crowding the calendar
         self.period_editor = PeriodEditorWidget(self.service)
 
         col1 = self._make_section(
@@ -65,8 +71,8 @@ class InputScreen(QWidget):
         programs_body_layout = QVBoxLayout(programs_body)
         programs_body_layout.setContentsMargins(0, 0, 0, 0)
         programs_body_layout.setSpacing(th.SPACING_SMALL)
-        programs_body_layout.addWidget(self.program_list, stretch=1)
-        programs_body_layout.addWidget(self.selected_panel)
+        programs_body_layout.addWidget(self.program_list, stretch=2)
+        programs_body_layout.addWidget(self.selected_panel, stretch=1)
         self.selected_panel.setVisible(False)
 
         col2 = self._make_section(
@@ -95,7 +101,7 @@ class InputScreen(QWidget):
 
         columns.addWidget(col1, stretch=1)
         columns.addWidget(col2, stretch=1)
-        columns.addWidget(col3, stretch=1)
+        columns.addWidget(col3, stretch=2)
 
         root.addLayout(columns, stretch=1)
 
@@ -169,13 +175,16 @@ class InputScreen(QWidget):
         header.setSpacing(th.SPACING_SMALL)
 
         num = QLabel(str(number))
-        num.setObjectName("sectionNumber")
+        # No objectName — badge is styled inline only to avoid cascade conflicts.
+        # Qt5 requires a QSS selector (not bare properties) for border-radius to clip correctly.
         num.setFixedSize(_SECTION_BADGE_SIZE, _SECTION_BADGE_SIZE)
         num.setAlignment(Qt.AlignCenter)
         num.setStyleSheet(
-            f"background-color: {th.PRIMARY_COLOR}; color: white;"
+            f"QLabel {{"
+            f" background-color: {th.PRIMARY_COLOR}; color: white;"
             f" border-radius: {_SECTION_BADGE_SIZE // 2}px;"
             f" font-size: {th.FONT_SIZE_SM}px; font-weight: {th.FONT_WEIGHT_BOLD};"
+            f"}}"
         )
 
         title_lbl = QLabel(title)
@@ -200,6 +209,13 @@ class InputScreen(QWidget):
 
         for w in widgets:
             layout.addWidget(w, stretch=1)
+
+        # Subtle elevation shadow so cards lift off the background
+        shadow = QGraphicsDropShadowEffect(card)
+        shadow.setBlurRadius(18)
+        shadow.setOffset(0, 3)
+        shadow.setColor(QColor(0, 0, 0, 18))
+        card.setGraphicsEffect(shadow)
 
         return card
 

@@ -187,12 +187,12 @@ SAVE_BTN_STYLE = """
         background: #4338CA;
         color: #FFFFFF;
         border: none;
-        border-radius: 10px;
-        font-size: 14px;
-        font-weight: 700;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
         font-family: 'Segoe UI';
-        padding: 10px 28px;
-        min-height: 42px;
+        padding: 4px 14px;
+        min-height: 26px;
     }
     QPushButton:hover {
         background: #3730A3;

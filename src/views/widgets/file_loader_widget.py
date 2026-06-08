@@ -8,9 +8,11 @@ from PyQt5.QtWidgets import (
 
 import src.styles.theme as th
 from src.presenter.i_app_service import IAppService
+from src.views.shared_components.buttons import PrimaryButton
 
 _FILE_FILTER = "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)"
-_DROP_ZONE_MIN_HEIGHT = 130
+_DROP_ZONE_MIN_HEIGHT = 155
+_TOGGLE_BTN_MIN_WIDTH = 72
 
 
 class FilePathValidator:
@@ -216,8 +218,8 @@ class ValidationPanel(QFrame):
         self.setStyleSheet(
             f"""
             QFrame {{
-                background-color: {th.DANGER_LIGHT};
-                border: 1px solid {th.ERROR_BORDER};
+                background-color: {th.BG_CARD};
+                border: 1px solid {th.BORDER_LIGHT};
                 border-radius: {th.BUTTON_BORDER_RADIUS}px;
             }}
             """
@@ -230,29 +232,12 @@ class ValidationPanel(QFrame):
         )
         layout.setSpacing(th.SPACING_SMALL)
 
-        header_row = QHBoxLayout()
-        warning_icon = QLabel("⚠")
-        warning_icon.setStyleSheet(
-            f"color: {th.DANGER_COLOR}; font-size: {th.FONT_SIZE_LG}px;"
-            " background: transparent; border: none;"
-        )
-        header_lbl = QLabel("Validation")
+        header_lbl = QLabel("Checklist")
         header_lbl.setStyleSheet(
-            f"color: {th.DANGER_COLOR}; font-size: {th.FONT_SIZE_MD}px;"
+            f"color: {th.TEXT_PRIMARY}; font-size: {th.FONT_SIZE_SM}px;"
             f" font-weight: {th.FONT_WEIGHT_BOLD}; background: transparent; border: none;"
         )
-        header_row.addWidget(warning_icon)
-        header_row.addWidget(header_lbl)
-        header_row.addStretch()
-        layout.addLayout(header_row)
-
-        sub_lbl = QLabel("Please complete the following before generating a schedule:")
-        sub_lbl.setWordWrap(True)
-        sub_lbl.setStyleSheet(
-            f"color: {th.TEXT_SECONDARY}; font-size: {th.FONT_SIZE_SM}px;"
-            " background: transparent; border: none;"
-        )
-        layout.addWidget(sub_lbl)
+        layout.addWidget(header_lbl)
 
         self._item_rows: list[tuple[QLabel, QLabel]] = []
         for text in self._ITEMS:
@@ -350,48 +335,38 @@ class FileLoaderWidget(QWidget):
         layout.addLayout(zones_row)
 
         # ── Replace / Add toggle ───────────────────────────────────────────
-        toggle_row = QHBoxLayout()
-        toggle_row.setSpacing(0)
-
         self._replace_toggle = QPushButton("Replace")
         self._add_toggle = QPushButton("Add")
         self._replace_toggle.setCheckable(True)
         self._add_toggle.setCheckable(True)
         self._replace_toggle.setChecked(True)
+        self._replace_toggle.setObjectName("toggleLeft")
+        self._add_toggle.setObjectName("toggleRight")
 
-        toggle_style = self._toggle_style()
-        self._replace_toggle.setStyleSheet(toggle_style)
-        self._add_toggle.setStyleSheet(toggle_style)
+        # Wrap both buttons in a pill container so each side gets its own radius
+        _toggle_pill = QWidget()
+        _toggle_pill.setObjectName("togglePill")
+        _toggle_pill_layout = QHBoxLayout(_toggle_pill)
+        _toggle_pill_layout.setContentsMargins(2, 2, 2, 2)
+        _toggle_pill_layout.setSpacing(2)
+        _toggle_pill_layout.addWidget(self._replace_toggle)
+        _toggle_pill_layout.addWidget(self._add_toggle)
+        _toggle_pill.setStyleSheet(self._toggle_style())
 
+        toggle_row = QHBoxLayout()
         toggle_row.addStretch()
-        toggle_row.addWidget(self._replace_toggle)
-        toggle_row.addWidget(self._add_toggle)
+        toggle_row.addWidget(_toggle_pill)
         toggle_row.addStretch()
         layout.addLayout(toggle_row)
 
         # ── load button ────────────────────────────────────────────────────
-        self._load_button = QPushButton("Load Files")
-        self._load_button.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: {th.PRIMARY_COLOR};
-                color: white;
-                border: none;
-                border-radius: {th.BUTTON_BORDER_RADIUS}px;
-                padding: {th.BUTTON_PADDING_VERTICAL}px {th.BUTTON_PADDING_HORIZONTAL}px;
-                font-family: {th.FONT_FAMILY};
-                font-weight: {th.FONT_WEIGHT_BOLD};
-                font-size: {th.FONT_SIZE_MD}px;
-                min-height: {th.BUTTON_MIN_HEIGHT}px;
-            }}
-            QPushButton:hover {{ background-color: {th.PRIMARY_DARK}; }}
-            QPushButton:disabled {{
-                background-color: {th.DISABLED_BG};
-                color: {th.DISABLED_TEXT};
-            }}
-            """
-        )
-        layout.addWidget(self._load_button)
+        self._load_button = PrimaryButton("Load Files")
+        self._load_button.setFixedHeight(32)
+        load_row = QHBoxLayout()
+        load_row.addStretch()
+        load_row.addWidget(self._load_button)
+        load_row.addStretch()
+        layout.addLayout(load_row)
 
         # ── status message ─────────────────────────────────────────────────
         self._message_label = QLabel("")
@@ -487,28 +462,32 @@ class FileLoaderWidget(QWidget):
     def update_validation(self, programs: bool, period: bool) -> None:
         self._sync_validation(programs=programs, period=period)
 
-    # Returns a shared QSS string for both toggle buttons.
+    # Returns the stylesheet for the oval pill toggle container and its two buttons.
     def _toggle_style(self) -> str:
         return f"""
-            QPushButton {{
-                background-color: {th.BG_CARD};
-                color: {th.TEXT_SECONDARY};
+            QWidget#togglePill {{
+                background-color: {th.BG_HOVER};
                 border: 1px solid {th.BORDER_LIGHT};
+                border-radius: {th.PILL_BORDER_RADIUS}px;
+            }}
+            QPushButton#toggleLeft, QPushButton#toggleRight {{
+                background-color: transparent;
+                color: {th.TEXT_TERTIARY};
+                border: none;
                 padding: {th.BUTTON_PADDING_VERTICAL_SM}px {th.SPACING_XL}px;
                 font-family: {th.FONT_FAMILY};
                 font-size: {th.FONT_SIZE_SM}px;
                 font-weight: {th.FONT_WEIGHT_MEDIUM};
+                border-radius: {th.PILL_BORDER_RADIUS}px;
+                min-width: {_TOGGLE_BTN_MIN_WIDTH}px;
             }}
-            QPushButton:checked {{
+            QPushButton#toggleLeft:checked, QPushButton#toggleRight:checked {{
                 background-color: {th.PRIMARY_COLOR};
                 color: white;
-                border-color: {th.PRIMARY_COLOR};
                 font-weight: {th.FONT_WEIGHT_BOLD};
             }}
-            QPushButton:first-child {{
-                border-radius: {th.BUTTON_BORDER_RADIUS}px 0 0 {th.BUTTON_BORDER_RADIUS}px;
-            }}
-            QPushButton:last-child {{
-                border-radius: 0 {th.BUTTON_BORDER_RADIUS}px {th.BUTTON_BORDER_RADIUS}px 0;
+            QPushButton#toggleLeft:hover:!checked, QPushButton#toggleRight:hover:!checked {{
+                background-color: {th.BORDER_LIGHT};
+                color: {th.TEXT_SECONDARY};
             }}
         """

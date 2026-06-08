@@ -190,6 +190,7 @@ class PeriodListWidget(QWidget):
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QFrame.NoFrame)
+        self._scroll_area.setMinimumHeight(80)
         self._scroll_area.setWidget(self._rows_container)
 
         layout = QVBoxLayout(self)

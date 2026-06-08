@@ -12,14 +12,13 @@ from PyQt5.QtWidgets import (
     QFrame,
     QPushButton,
     QScrollArea,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
 )
 
 from src.presenter.i_app_service import IAppService
-from src.views.shared_components.type_badge import TypeBadge
 import src.styles.theme as th
+
+# minimum visible height for the selected-programs scroll area
+_CHIPS_SCROLL_MIN_HEIGHT = 100  
 
 
 @dataclass(frozen=True)
@@ -78,25 +77,8 @@ class ProgramChip(QFrame):
         )
         layout.setSpacing(th.SPACING_SMALL)
 
-        # Colored badge showing the program id abbreviation
-        badge = QLabel(_abbreviate(name))
-        badge.setFixedWidth(36)
-        badge.setAlignment(Qt.AlignCenter)
-        badge.setStyleSheet(
-            f"""
-            QLabel {{
-                background-color: {th.PRIMARY_LIGHT};
-                color: {th.PRIMARY_COLOR};
-                border-radius: {th.BADGE_RADIUS}px;
-                font-size: {th.FONT_SIZE_XS}px;
-                font-weight: {th.FONT_WEIGHT_BOLD};
-                font-family: {th.FONT_FAMILY};
-                padding: 2px 4px;
-            }}
-            """
-        )
-
         name_lbl = QLabel(name)
+        name_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         name_lbl.setStyleSheet(
             f"color: {th.TEXT_PRIMARY}; font-size: {th.FONT_SIZE_SM}px;"
             f" font-family: {th.FONT_FAMILY}; background: transparent;"
@@ -119,7 +101,6 @@ class ProgramChip(QFrame):
         )
         remove_btn.clicked.connect(lambda: self.remove_clicked.emit(self.program_id))
 
-        layout.addWidget(badge)
         layout.addWidget(name_lbl, stretch=1)
         layout.addWidget(remove_btn)
 
@@ -226,13 +207,17 @@ class SelectedProgramsPanel(QWidget):
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QFrame.NoFrame)
+        self._scroll_area.setMinimumHeight(_CHIPS_SCROLL_MIN_HEIGHT)
         self._scroll_area.setWidget(self._cards_container)
 
         layout.addWidget(self._scroll_area)
 
-    # Returns the display name for a program id from the courses cache if available
+    # Looks up the human-readable program name from the service; falls back to the id
     def _resolve_name(self, program_id: str) -> str:
-        courses = self._courses_cache.get(program_id, [])
+        for program in self._service.get_available_programs():
+            if str(program.get("id", "")) == program_id:
+                name = str(program.get("name", "")).strip()
+                return name if name else program_id
         return program_id
 
     # The get_courses_for_program method retrieves the list of CourseItem objects for a given program id,

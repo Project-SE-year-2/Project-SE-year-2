@@ -11,6 +11,7 @@ from src.views.widgets.program_list_widget import ProgramListWidget
 from src.views.widgets.period_list_widget import PeriodListWidget
 from src.views.widgets.period_editor_widget import PeriodEditorWidget
 from src.views.widgets.selected_programs_panel import SelectedProgramsPanel
+from src.views.input_screen.generate_button_state import GenerateButtonState
 
 
 class InputScreen(QWidget):
@@ -24,9 +25,11 @@ class InputScreen(QWidget):
     def __init__(self, service, parent=None):
         super().__init__(parent)
         self.service = service
+        self._generate_state = GenerateButtonState()
         # Apply the Dark Mode stylesheet to the entire screen
         self.setStyleSheet(INPUT_SCREEN_STYLE)
         self._setup_ui()
+        self._sync_generate_button_state()
 
     # Builds all input-screen widgets and connects their signals.
     def _setup_ui(self):
@@ -79,8 +82,14 @@ class InputScreen(QWidget):
         self.program_list.programs_selected.connect(self._on_programs_selected)
         self.period_list.period_selected.connect(self._on_period_selected)
 
+    # Syncs the Generate button's visibility and enabled state based on the current GenerateButtonState.
+    def _sync_generate_button_state(self) -> None:
+        self.generate_btn.setVisible(self._generate_state.should_show_button())
+        self.generate_btn.setEnabled(self._generate_state.should_enable_button())
+
     # Handles successful file loading by clearing old UI state and showing the program list.
     def _on_files_loaded(self):
+        self._generate_state.reset_after_file_load()
         # Clear any state from previous file loads
         self.selected_panel.clear_cache()
         self.selected_panel.clear()
@@ -92,15 +101,16 @@ class InputScreen(QWidget):
         self.period_editor.clear()
         self.period_editor.setVisible(False)
 
-        self.generate_btn.setVisible(False)
-
         # Refresh programs from the newly loaded files
         self.program_list.refresh()
         self.program_list.setVisible(True)
 
+        self._sync_generate_button_state()
+
     # Handles program selection changes and shows dependent widgets only when needed.
     def _on_programs_selected(self, selected_programs):
         has_selection = len(selected_programs) > 0
+        self._generate_state.set_program_selection(has_selection)
         self.selected_panel.setVisible(has_selection)
         self.period_list.setVisible(has_selection)
 
@@ -112,13 +122,15 @@ class InputScreen(QWidget):
             self.period_list.clear_selection()
             self.period_editor.clear()
             self.period_editor.setVisible(False)
-            self.generate_btn.setVisible(False)
+
+        self._sync_generate_button_state()
 
     # Loads the selected period into the period editor and enables generation.
     def _on_period_selected(self, period_id):
         self.period_editor.load_period(period_id)
         self.period_editor.setVisible(True)
-        self.generate_btn.setVisible(True)
+        self._generate_state.set_period_viewed(bool(period_id))
+        self._sync_generate_button_state()
 
     # Starts schedule generation in the background worker.
     def _on_generate_clicked(self):
@@ -129,7 +141,8 @@ class InputScreen(QWidget):
         self.error_banner.hide_error()
         self.spinner.start()
 
-        self.generate_btn.setEnabled(False)
+        self._generate_state.start_generation()
+        self._sync_generate_button_state()
 
         self._worker = GenerateWorker(self.service)
         self._worker.period_ready.connect(self._on_period_ready)
@@ -140,7 +153,8 @@ class InputScreen(QWidget):
     # Handles successful generation completion and switches to the output screen.
     def _on_generation_finished(self, count):
         self.spinner.stop()
-        self.generate_btn.setEnabled(True)
+        self._generate_state.finish_generation()
+        self._sync_generate_button_state()
         self.switch_to_output.emit()
 
     # Receives period-ready events from the worker while streaming generation runs.
@@ -150,5 +164,6 @@ class InputScreen(QWidget):
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):
         self.spinner.stop()
-        self.generate_btn.setEnabled(True)
+        self._generate_state.finish_generation()
+        self._sync_generate_button_state()
         self.error_banner.show_error(message)

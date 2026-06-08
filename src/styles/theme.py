@@ -8,6 +8,7 @@ Contains color tokens, typography sizes, and shared spacing/button metrics.
 PRIMARY_COLOR = "#2563EB"
 # Light tints for hover/ selected states
 PRIMARY_LIGHT = "#EFF6FF"
+PRIMARY_SOFT = "#DBEAFE"   # more visible light blue — used for selected row backgrounds
 PRIMARY_DARK = "#1D4ED8"
 PRIMARY_DARKER = "#1E40AF"
 
@@ -91,6 +92,20 @@ CALENDAR_GRID = BORDER_LIGHT
 NEUTRAL_BG = "#F3F4F6"
 NEUTRAL_TEXT = "#374151"
 NEUTRAL_BORDER = "#D1D5DB"
+
+# ===== PROGRAM BADGE COLORS =====
+PROGRAM_BADGE_COLORS = [
+    "#3B82F6",
+    "#10B981",
+    "#F59E0B",
+    "#8B5CF6",
+    "#EF4444",
+    "#06B6D4",
+    "#F97316",
+    "#84CC16",
+    "#EC4899",
+    "#14B8A6",
+]
 
 # ===== TYPOGRAPHY =====
 FONT_FAMILY = "Segoe UI, sans-serif"

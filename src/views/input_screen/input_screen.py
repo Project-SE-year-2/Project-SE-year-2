@@ -18,8 +18,8 @@ from src.views.widgets.selected_programs_panel import SelectedProgramsPanel
 from src.views.input_screen.generate_button_state import GenerateButtonState
 
 _SECTION_BADGE_SIZE = 28       # diameter of the numbered circle badge
-_GENERATE_BAR_HEIGHT = 88      # fixed height of the bottom generate bar
-_PERIOD_LIST_MAX_HEIGHT = 160  # cap so the list doesn't crowd the calendar editor
+_GENERATE_BAR_HEIGHT = 68      # fixed height of the bottom generate bar
+_PERIOD_LIST_MAX_HEIGHT = 220  # cap so the list doesn't crowd the calendar editor
 _SELECTED_PANEL_MIN_HEIGHT = 120  # minimum height for the selected-programs chips area
 
 
@@ -114,26 +114,6 @@ class InputScreen(QWidget):
             th.SPACING_XL, 0, th.SPACING_XL, 0
         )
 
-        icon_label = QLabel("🚀")
-        icon_label.setStyleSheet(
-            f"font-size: {th.FONT_SIZE_XXL}px; background: transparent;"
-        )
-
-        text_block = QVBoxLayout()
-        text_block.setSpacing(2)
-        title_lbl = QLabel("Generate Schedule")
-        title_lbl.setStyleSheet(
-            f"font-size: {th.FONT_SIZE_LG}px; font-weight: {th.FONT_WEIGHT_BOLD};"
-            f" color: {th.TEXT_PRIMARY}; background: transparent;"
-        )
-        sub_lbl = QLabel("Complete all required fields to enable schedule generation.")
-        sub_lbl.setStyleSheet(
-            f"font-size: {th.FONT_SIZE_SM}px; color: {th.TEXT_TERTIARY};"
-            " background: transparent;"
-        )
-        text_block.addWidget(title_lbl)
-        text_block.addWidget(sub_lbl)
-
         self.generate_btn = QPushButton("🚀  Generate Schedule")
         self.generate_btn.setObjectName("generateBtn")
         self.generate_btn.setVisible(False)
@@ -142,10 +122,10 @@ class InputScreen(QWidget):
         self.spinner = LoadingSpinner()
         self.error_banner = ErrorBanner()
 
-        bar_layout.addWidget(icon_label)
-        bar_layout.addLayout(text_block, stretch=1)
+        bar_layout.addStretch()
         bar_layout.addWidget(self.spinner)
         bar_layout.addWidget(self.generate_btn)
+        bar_layout.addStretch()
 
         root.addWidget(self.error_banner)
         root.addWidget(bar)

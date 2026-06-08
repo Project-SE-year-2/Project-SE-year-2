@@ -15,10 +15,15 @@ from PyQt5.QtWidgets import (
 )
 
 from src.presenter.i_app_service import IAppService
+from src.views.widgets.program_list_widget import badge_color_for, abbreviate_name
 import src.styles.theme as th
 
 # minimum visible height for the selected-programs scroll area
-_CHIPS_SCROLL_MIN_HEIGHT = 100  
+_CHIPS_SCROLL_MIN_HEIGHT = 100
+
+# badge metrics — must match ProgramRowWidget for visual consistency
+_BADGE_SIZE = 28
+_BADGE_RADIUS = 4
 
 
 @dataclass(frozen=True)
@@ -49,9 +54,9 @@ class CourseFormatter:
 
 class ProgramChip(QFrame):
     """
-    Compact chip row showing a program badge, name, and a remove button.
-    Replaces the full course-table card from the previous design.
-    Emits remove_clicked(program_id) when the × button is pressed.
+    Card row: [colored badge] [program name] [× remove button].
+    Matches the reference design — white background, gray border, LTR layout.
+    Emits remove_clicked(program_id) when × is pressed.
     """
 
     remove_clicked = pyqtSignal(str)
@@ -67,6 +72,9 @@ class ProgramChip(QFrame):
                 border: 1px solid {th.BORDER_LIGHT};
                 border-radius: {th.BUTTON_BORDER_RADIUS}px;
             }}
+            QFrame:hover {{
+                border-color: #CBD5E1;
+            }}
             """
         )
 
@@ -77,15 +85,31 @@ class ProgramChip(QFrame):
         )
         layout.setSpacing(th.SPACING_SMALL)
 
+        abbrev = abbreviate_name(name) or program_id[:2]
+        badge = QLabel(abbrev)
+        badge.setFixedSize(_BADGE_SIZE, _BADGE_SIZE)
+        badge.setAlignment(Qt.AlignCenter)
+        badge.setStyleSheet(
+            f"QLabel {{"
+            f" background-color: {th.PRIMARY_LIGHT}; color: {th.PRIMARY_COLOR};"
+            f" border-radius: {_BADGE_RADIUS}px;"
+            f" font-size: {th.FONT_SIZE_XS}px; font-weight: {th.FONT_WEIGHT_BOLD};"
+            f" font-family: {th.FONT_FAMILY};"
+            f"}}"
+        )
+
+        # Program name — dark, medium weight
         name_lbl = QLabel(name)
         name_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         name_lbl.setStyleSheet(
-            f"color: {th.TEXT_PRIMARY}; font-size: {th.FONT_SIZE_SM}px;"
-            f" font-family: {th.FONT_FAMILY}; background: transparent;"
+            f"color: {th.TEXT_PRIMARY}; font-size: {th.FONT_SIZE_MD}px;"
+            f" font-weight: {th.FONT_WEIGHT_MEDIUM}; font-family: {th.FONT_FAMILY};"
+            f" background: transparent; border: none;"
         )
 
+        # Remove button — muted ×, turns red on hover
         remove_btn = QPushButton("×")
-        remove_btn.setFixedSize(20, 20)
+        remove_btn.setFixedSize(22, 22)
         remove_btn.setCursor(Qt.PointingHandCursor)
         remove_btn.setStyleSheet(
             f"""
@@ -95,23 +119,21 @@ class ProgramChip(QFrame):
                 border: none;
                 font-size: {th.FONT_SIZE_LG}px;
                 font-weight: {th.FONT_WEIGHT_BOLD};
+                font-family: {th.FONT_FAMILY};
+                padding: 0px;
             }}
             QPushButton:hover {{ color: {th.DANGER_COLOR}; }}
             """
         )
         remove_btn.clicked.connect(lambda: self.remove_clicked.emit(self.program_id))
 
+        layout.addWidget(badge)
         layout.addWidget(name_lbl, stretch=1)
         layout.addWidget(remove_btn)
 
 
-def _abbreviate(name: str) -> str:
-    """Return up-to-3-letter abbreviation from the first letters of each word."""
-    return "".join(w[0].upper() for w in name.split() if w)[:3]
-
-
 class SelectedProgramsPanel(QWidget):
-    """Displays the selected programs as compact chips with a remove button."""
+    """Displays the selected programs as chip cards with a remove button."""
 
     # Emitted when the user clicks × on a chip - carries the removed program id
     program_removed = pyqtSignal(str)
@@ -176,7 +198,7 @@ class SelectedProgramsPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(th.SPACING_SMALL)
 
-        # Header row with count badge
+        # Header
         header_row = QHBoxLayout()
         title = QLabel("Selected Programs")
         title.setStyleSheet(
@@ -208,12 +230,22 @@ class SelectedProgramsPanel(QWidget):
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QFrame.NoFrame)
         self._scroll_area.setMinimumHeight(_CHIPS_SCROLL_MIN_HEIGHT)
+        self._scroll_area.setStyleSheet(
+            f"QScrollArea {{ background: transparent; border: none; }}"
+            f"QScrollBar:vertical {{ width: 6px; background: {th.BG_HOVER}; border-radius: 3px; }}"
+            f"QScrollBar::handle:vertical {{ background: #CBD5E1; border-radius: 3px; min-height: 20px; }}"
+            f"QScrollBar::add-line:vertical {{ height: 0px; }}"
+            f"QScrollBar::sub-line:vertical {{ height: 0px; }}"
+        )
         self._scroll_area.setWidget(self._cards_container)
 
         layout.addWidget(self._scroll_area)
 
-    # Looks up the human-readable program name from the service; falls back to the id
+    # Looks up the human-readable program name from the service; falls back to the id.
+    # Uses hasattr so the panel stays usable when the service mock omits this method.
     def _resolve_name(self, program_id: str) -> str:
+        if not hasattr(self._service, "get_available_programs"):
+            return program_id
         for program in self._service.get_available_programs():
             if str(program.get("id", "")) == program_id:
                 name = str(program.get("name", "")).strip()

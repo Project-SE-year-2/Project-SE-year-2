@@ -18,6 +18,22 @@ from PyQt5.QtWidgets import (
 from src.presenter.i_app_service import IAppService
 import src.styles.theme as th
 
+# ── Badge metrics ───────────────
+_BADGE_SIZE = 28      
+_BADGE_RADIUS = 4
+_ABBREV_MAX_LEN = 2
+_ROW_MIN_HEIGHT = 42
+
+
+def badge_color_for(program_id: str) -> str:
+    """Deterministically pick a badge color from the theme palette."""
+    return th.PROGRAM_BADGE_COLORS[hash(program_id) % len(th.PROGRAM_BADGE_COLORS)]
+
+
+def abbreviate_name(name: str) -> str:
+    """Return up-to-2-letter abbreviation from first letters of each word."""
+    return "".join(w[0].upper() for w in name.split() if w)[:_ABBREV_MAX_LEN]
+
 
 @dataclass(frozen=True)
 class ProgramItem:
@@ -27,102 +43,129 @@ class ProgramItem:
     name: str
 
 
-class ProgramRowWidget(QPushButton):
-    """Clickable row representing a single academic program."""
+class ProgramRowWidget(QWidget):
+    """
+    Clickable row showing a colored badge and program name.
+    Exposes .text() and .click() for test compatibility.
+    """
+
+    clicked = pyqtSignal()
 
     def __init__(self, program: ProgramItem, parent=None):
         super().__init__(parent)
         self.program = program
         self._selected = False
+        # Exact "ID - Name" format preserved for test compatibility
+        self._text = f"{program.program_id} - {program.name}"
 
-        self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
-        # Text kept in "ID - Name" format to preserve test compatibility.
-        self.setText(f"{program.program_id} - {program.name}")
+        self.setMinimumHeight(_ROW_MIN_HEIGHT)
+        # Required so QWidget paints its background-color from the stylesheet
+        self.setAttribute(Qt.WA_StyledBackground, True)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(
+            th.SPACING_SMALL, th.SPACING_SMALL,
+            th.SPACING_MEDIUM, th.SPACING_SMALL,
+        )
+        layout.setSpacing(th.SPACING_SMALL)
+
+        abbrev = abbreviate_name(program.name) or program.program_id[:_ABBREV_MAX_LEN]
+        self._badge = QLabel(abbrev)
+        self._badge.setFixedSize(_BADGE_SIZE, _BADGE_SIZE)
+        self._badge.setAlignment(Qt.AlignCenter)
+        self._badge.setStyleSheet(
+            f"QLabel {{"
+            f" background-color: {th.PRIMARY_LIGHT}; color: {th.PRIMARY_COLOR};"
+            f" border-radius: {_BADGE_RADIUS}px;"
+            f" font-size: {th.FONT_SIZE_XS}px; font-weight: {th.FONT_WEIGHT_BOLD};"
+            f" font-family: {th.FONT_FAMILY};"
+            f"}}"
+        )
+
+        self._name_lbl = QLabel(program.name)
+        self._name_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        layout.addWidget(self._badge)
+        layout.addWidget(self._name_lbl, stretch=1)
+
         self._apply_style()
 
-    # Override setChecked to keep _selected in sync
+    # ── QPushButton-compatible API used by tests ──────────────────────────────
+
+    def text(self) -> str:
+        return self._text
+
+    def click(self) -> None:
+        if self.isEnabled():
+            self.clicked.emit()
+
+    # ── Public state API ──────────────────────────────────────────────────────
+
     def set_selected(self, selected: bool) -> None:
         self._selected = selected
-        self.setChecked(selected)
         self._apply_style()
 
-    # Override setDisabled to update style when disabled
-    def setDisabled(self, disabled: bool) -> None:  # noqa: N802 - Qt naming convention
+    def setDisabled(self, disabled: bool) -> None:  # noqa: N802
         super().setDisabled(disabled)
         self._apply_style()
 
-    # Apply styles based on selected and disabled state
+    # ── Mouse events for hover highlight ─────────────────────────────────────
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton and self.isEnabled():
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def enterEvent(self, event) -> None:
+        if self.isEnabled() and not self._selected:
+            self.setStyleSheet(
+                f"QWidget {{ background-color: {th.BG_HOVER};"
+                f" border-bottom: 1px solid {th.BORDER_LIGHT}; }}"
+            )
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        if self.isEnabled() and not self._selected:
+            self._apply_normal_style()
+        super().leaveEvent(event)
+
+    # ── Styles ────────────────────────────────────────────────────────────────
+
     def _apply_style(self) -> None:
         if not self.isEnabled():
-            self.setLayoutDirection(Qt.LeftToRight)
+            self._name_lbl.setStyleSheet(
+                f"color: {th.DISABLED_TEXT}; font-size: {th.FONT_SIZE_MD}px;"
+                f" font-family: {th.FONT_FAMILY}; background: transparent;"
+            )
             self.setStyleSheet(
-                f"""
-                QPushButton {{
-                    text-align: left;
-                    padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
-                    min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
-                    border-radius: {th.BADGE_RADIUS}px;
-                    background-color: {th.DISABLED_BG};
-                    color: {th.DISABLED_TEXT};
-                    border: 1px solid {th.DISABLED_BORDER};
-                    font-family: {th.FONT_FAMILY};
-                    font-size: {th.FONT_SIZE_MD}px;
-                }}
-                """
+                f"QWidget {{ background-color: {th.DISABLED_BG};"
+                f" border-bottom: 1px solid {th.BORDER_LIGHT}; }}"
             )
             return
 
         if self._selected:
-            # RTL so Hebrew name reads naturally right-to-left when selected
-            self.setLayoutDirection(Qt.RightToLeft)
+            self._name_lbl.setStyleSheet(
+                f"color: {th.TEXT_PRIMARY}; font-size: {th.FONT_SIZE_MD}px;"
+                f" font-weight: {th.FONT_WEIGHT_MEDIUM}; font-family: {th.FONT_FAMILY};"
+                f" background: transparent;"
+            )
             self.setStyleSheet(
-                f"""
-                QPushButton {{
-                    text-align: right;
-                    padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
-                    min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
-                    border-radius: {th.BADGE_RADIUS}px;
-                    background-color: {th.PRIMARY_LIGHT};
-                    color: {th.PRIMARY_COLOR};
-                    border: 1.5px solid {th.PRIMARY_COLOR};
-                    font-family: {th.FONT_FAMILY};
-                    font-size: {th.FONT_SIZE_MD}px;
-                    font-weight: {th.FONT_WEIGHT_BOLD};
-                }}
-                QPushButton:pressed {{
-                    background-color: {th.PRIMARY_COLOR};
-                    color: white;
-                }}
-                """
+                f"QWidget {{ background-color: {th.PRIMARY_SOFT};"
+                f" border-bottom: 1px solid {th.BORDER_LIGHT}; }}"
             )
             return
 
-        self.setLayoutDirection(Qt.LeftToRight)
+        self._apply_normal_style()
+
+    def _apply_normal_style(self) -> None:
+        self._name_lbl.setStyleSheet(
+            f"color: {th.TEXT_SECONDARY}; font-size: {th.FONT_SIZE_MD}px;"
+            f" font-family: {th.FONT_FAMILY}; background: transparent;"
+        )
         self.setStyleSheet(
-            f"""
-            QPushButton {{
-                text-align: left;
-                padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
-                min-height: {th.BUTTON_MIN_HEIGHT_SM}px;
-                border-radius: {th.BADGE_RADIUS}px;
-                background-color: {th.BG_CARD};
-                color: {th.TEXT_SECONDARY};
-                border: 1px solid {th.BORDER_LIGHT};
-                font-family: {th.FONT_FAMILY};
-                font-size: {th.FONT_SIZE_MD}px;
-            }}
-            QPushButton:hover {{
-                background-color: {th.BG_HOVER};
-                border-color: {th.PRIMARY_COLOR};
-                color: {th.TEXT_PRIMARY};
-            }}
-            QPushButton:pressed {{
-                background-color: {th.PRIMARY_LIGHT};
-                border-color: {th.PRIMARY_COLOR};
-                color: {th.PRIMARY_COLOR};
-            }}
-            """
+            f"QWidget {{ background-color: {th.BG_CARD};"
+            f" border-bottom: 1px solid {th.BORDER_LIGHT}; }}"
         )
 
 
@@ -247,10 +290,14 @@ class ProgramListWidget(QWidget):
             f"font-family: {th.FONT_FAMILY};"
         )
 
+        # Rows sit in a white container so the list background is clean
         self._rows_container = QWidget()
+        self._rows_container.setStyleSheet(
+            f"QWidget {{ background-color: {th.BG_CARD}; }}"
+        )
         self._rows_layout = QVBoxLayout(self._rows_container)
         self._rows_layout.setContentsMargins(0, 0, 0, 0)
-        self._rows_layout.setSpacing(th.SPACING_SMALL)
+        self._rows_layout.setSpacing(0)
         self._rows_layout.addWidget(self._empty_label)
         self._rows_layout.addStretch()
 
@@ -258,8 +305,13 @@ class ProgramListWidget(QWidget):
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QFrame.NoFrame)
         self._scroll_area.setStyleSheet(
-            f"QScrollArea {{ background: transparent; }}"
-            f"QScrollBar:vertical {{ width: 6px; background: {th.BG_HOVER}; }}"
+            f"QScrollArea {{ background: transparent;"
+            f" border: 1px solid {th.BORDER_LIGHT};"
+            f" border-radius: {th.BUTTON_BORDER_RADIUS}px; }}"
+            f"QScrollBar:vertical {{ width: 6px; background: {th.BG_HOVER}; border-radius: 3px; }}"
+            f"QScrollBar::handle:vertical {{ background: #CBD5E1; border-radius: 3px; min-height: 20px; }}"
+            f"QScrollBar::add-line:vertical {{ height: 0px; }}"
+            f"QScrollBar::sub-line:vertical {{ height: 0px; }}"
         )
         self._scroll_area.setWidget(self._rows_container)
 

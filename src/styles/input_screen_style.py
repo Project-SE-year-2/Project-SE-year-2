@@ -1,130 +1,130 @@
 # src/styles/input_screen_style.py
 
 INPUT_SCREEN_STYLE = """
-/* Main dark background */
-QWidget#mainContainer {
-    background-color: #050505;
+/* App background */
+QWidget {
+    background-color: #F8FAFC;
+    color: #111827;
+    font-family: "Segoe UI", sans-serif;
 }
 
-/* Header */
-QLabel#mainTitle {
-    color: #F9FAFB;
-    font-size: 24px;
-    font-weight: 900;
-    margin-left: 15px;
+/* White card panels */
+QFrame#sectionCard {
+    background-color: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
 }
-QPushButton#backBtn {
-    background-color: transparent;
-    color: #F9FAFB;
-    border: 1px solid #374151;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 15px;
-    font-weight: bold;
-}
-QPushButton#backBtn:hover { background-color: #1F2937; }
 
-QPushButton#iconBtn {
-    background-color: transparent;
-    border: 1px solid #374151;
-    border-radius: 8px;
-    color: #F9FAFB;
+/* Section header numbers */
+QLabel#sectionNumber {
+    background-color: #2563EB;
+    color: #FFFFFF;
+    border-radius: 12px;
+    font-size: 14px;
     font-weight: bold;
+    min-width: 24px;
+    max-width: 24px;
+    min-height: 24px;
+    max-height: 24px;
+    qproperty-alignment: AlignCenter;
+}
+
+QLabel#sectionTitle {
+    color: #111827;
     font-size: 16px;
-    width: 32px;
-    height: 32px;
+    font-weight: bold;
 }
-QPushButton#iconBtn:hover { background-color: #1F2937; }
 
-/* Programs List (Cards) */
+QLabel#sectionSubtitle {
+    color: #6B7280;
+    font-size: 13px;
+}
+
+/* Programs list rows */
 QListWidget#programsList {
     background-color: transparent;
     border: none;
     outline: none;
 }
 QListWidget#programsList::item {
-    background-color: #0B1121;
-    border: 1px solid #1E293B;
-    border-radius: 12px;
-    color: #9CA3AF;
-    padding: 20px;
-    margin-bottom: 15px;
-    font-size: 16px;
+    background-color: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    color: #374151;
+    padding: 10px 14px;
+    margin-bottom: 4px;
+    font-size: 14px;
 }
 QListWidget#programsList::item:selected {
-    background-color: #1E1B4B; /* Dark purple/blue tint */
-    border: 2px solid #4F46E5;
-    color: #E0E7FF;
+    background-color: #EFF6FF;
+    border: 1.5px solid #2563EB;
+    color: #1D4ED8;
+}
+QListWidget#programsList::item:hover {
+    background-color: #F1F5F9;
 }
 
-/* Confirm Selection Button */
-QPushButton#confirmBtn {
-    background-color: transparent;
-    color: #6366F1;
-    font-size: 16px;
-    font-weight: bold;
-    border: none;
-    padding: 10px;
-}
-QPushButton#confirmBtn:hover { color: #818CF8; }
-
-/* Courses Table Area */
+/* Courses table */
 QLabel#programIdLabel {
-    color: #F9FAFB;
-    font-size: 16px;
+    color: #111827;
+    font-size: 15px;
     font-weight: bold;
-}
-QLabel#programIdLabel span {
-    color: #6366F1;
 }
 
 QTableWidget#coursesTable {
-    background-color: #0B1121;
-    border: 1px solid #1E293B;
-    border-radius: 12px;
-    color: #D1D5DB;
-    font-size: 14px;
+    background-color: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    color: #374151;
+    font-size: 13px;
+    gridline-color: #F3F4F6;
 }
 QTableWidget#coursesTable QHeaderView::section {
-    background-color: #0B1121;
-    color: #9CA3AF;
+    background-color: #F9FAFB;
+    color: #6B7280;
     font-weight: bold;
-    padding: 15px 10px;
+    padding: 12px 10px;
     border: none;
-    border-bottom: 1px solid #1F2937;
+    border-bottom: 1px solid #E5E7EB;
 }
 QTableWidget#coursesTable::item {
     padding: 10px;
-    border-bottom: 1px solid #1F2937;
+    border-bottom: 1px solid #F3F4F6;
 }
 
-/* Generate Schedule Button */
+/* Generate Schedule bottom bar */
+QWidget#generateBar {
+    background-color: #F1F5F9;
+    border-top: 1px solid #E5E7EB;
+}
+
 QPushButton#generateBtn {
-    background-color: #4F46E5;
+    background-color: #2563EB;
     color: white;
-    border-radius: 12px;
-    padding: 18px;
+    border-radius: 10px;
+    padding: 14px 32px;
     font-weight: bold;
-    font-size: 18px;
-    margin-top: 20px;
+    font-size: 16px;
+    border: none;
+    min-width: 220px;
 }
-QPushButton#generateBtn:hover { background-color: #4338CA; }
+QPushButton#generateBtn:hover { background-color: #1D4ED8; }
 QPushButton#generateBtn:disabled {
-    background-color: #1F2937;
-    color: #4B5563;
+    background-color: #9CA3AF;
+    color: #F9FAFB;
 }
 
-/* Pill Label for Table injected via code */
+/* Pill / type badge */
 QLabel#typePill {
-    background-color: #312E81;
-    color: #A5B4FC;
-    border-radius: 12px;
-    padding: 6px 12px;
+    background-color: #EEF2FF;
+    color: #4338CA;
+    border-radius: 10px;
+    padding: 4px 10px;
     font-weight: bold;
     font-size: 12px;
 }
 
-/* Scroll Area Styles */
+/* Scroll area */
 QScrollArea {
     border: none;
     background-color: transparent;
@@ -132,5 +132,19 @@ QScrollArea {
 QScrollArea > QWidget > QWidget {
     background-color: transparent;
 }
-"""
 
+/* Scrollbar */
+QScrollBar:vertical {
+    background: #F1F5F9;
+    width: 6px;
+    border-radius: 3px;
+}
+QScrollBar::handle:vertical {
+    background: #CBD5E1;
+    border-radius: 3px;
+    min-height: 20px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+"""

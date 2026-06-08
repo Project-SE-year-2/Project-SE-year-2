@@ -4,80 +4,91 @@ Contains color tokens, typography sizes, and shared spacing/button metrics.
 """
 
 # ===== COLOR PALETTE =====
-# PRIMARY
-PRIMARY_COLOR = "#120C72"
-# Hover state and pressed state colors
-PRIMARY_DARK = "#010240"   
-PRIMARY_DARKER = "#01001A"
+# PRIMARY - blue accent
+PRIMARY_COLOR = "#2563EB"
+# Light tints for hover/ selected states
+PRIMARY_LIGHT = "#EFF6FF"
+PRIMARY_DARK = "#1D4ED8"
+PRIMARY_DARKER = "#1E40AF"
 
-# DANGER
+# SUCCESS - green for positive actions
+SUCCESS_COLOR = "#16A34A"
+SUCCESS_LIGHT = "#F0FDF4"
+SUCCESS_DARK = "#15803D"
+SUCCESS_DARKER = "#166534"
+
+# DANGER - red for destructive actions and validation errors
 DANGER_COLOR = "#EF4444"
-# Hover state and pressed state colors
+DANGER_LIGHT = "#FEF2F2"
 DANGER_DARK = "#DC2626"
 DANGER_DARKER = "#991B1B"
 
 # COURSE TYPE BADGES
 # Obligatory
-OBLIGATORY_BG = "#1E1B4B"
-OBLIGATORY_TEXT = "#E0E7FF"
-OBLIGATORY_BORDER = "#312E81"
+OBLIGATORY_BG = "#EEF2FF"
+OBLIGATORY_TEXT = "#4338CA"
+OBLIGATORY_BORDER = "#C7D2FE"
 # Elective
-ELECTIVE_BG = "#451A03"
-ELECTIVE_TEXT = "#FEF3C7"
-ELECTIVE_BORDER = "#78350F"
+ELECTIVE_BG = "#FFFBEB"
+ELECTIVE_TEXT = "#92400E"
+ELECTIVE_BORDER = "#FDE68A"
 
 # BACKGROUND & SURFACES
-BG_DARK_PRIMARY = "#121212"
-# Secondary dark background for cards, modals, and surfaces that need to stand out against the primary dark background
-BG_DARK_SECONDARY = "#0F172A"
-# Dark tertiary for hover states and subtle surfaces 
-BG_DARK_TERTIARY = "#1F2937"
-# Base screen surface
-BG_DARK_SURFACE = "#050505"    
+# overall app background
+BG_SURFACE = "#F8FAFC" 
+# card / panel background
+BG_CARD = "#FFFFFF" 
+# hover state on list rows            
+BG_HOVER = "#F1F5F9"  
+# kept for backwards compat          
+BG_DARK_SECONDARY = "#F8FAFC" 
+# kept for backwards compat  
+BG_DARK_TERTIARY = "#F1F5F9"    
+# kept for backwards compat
+BG_DARK_PRIMARY = "#F8FAFC"
+# kept for backwards compat     
+BG_DARK_SURFACE = "#F8FAFC"     
 
 # TYPOGRAPHY COLORS
-TEXT_PRIMARY = "#F9FAFB"       
-TEXT_SECONDARY = "#E5E7EB"     
-TEXT_TERTIARY = "#9CA3AF"  
-# Muted text (disabled states, placeholders, secondary info)
-TEXT_MUTED = "#6B7280"         
+TEXT_PRIMARY = "#111827"
+TEXT_SECONDARY = "#374151"
+TEXT_TERTIARY = "#6B7280"
+TEXT_MUTED = "#9CA3AF"
 
 # BORDERS & DIVIDERS
-# Light borders for inputs/dividers
-BORDER_LIGHT = "#374151"  
-# Lighter borders (subtle grid lines)
-BORDER_LIGHTER = "#1E293B"     
+BORDER_LIGHT = "#E5E7EB"
+BORDER_LIGHTER = "#F3F4F6"
 
 # INLINE ERROR STATES
-ERROR_BG = "#7F1D1D"           
-ERROR_BORDER = "#DC2626"       
-ERROR_TEXT = "#FCA5A5"         
+ERROR_BG = "#FEF2F2"
+ERROR_BORDER = "#FCA5A5"
+ERROR_TEXT = "#DC2626"
 
-# BUTTON VARIANTS - Secondary button uses transparent background with light border and text
-BUTTON_SECONDARY_BG = "transparent"
-BUTTON_SECONDARY_TEXT = TEXT_SECONDARY
-BUTTON_SECONDARY_BORDER = BORDER_LIGHT
-BUTTON_SECONDARY_HOVER_BG = "#1F2937"
-BUTTON_SECONDARY_HOVER_BORDER = "#6B7280"
-BUTTON_SECONDARY_PRESSED_BG = "#111827"
+# BUTTON VARIANTS - Secondary: white background with light border
+BUTTON_SECONDARY_BG = "#FFFFFF"
+BUTTON_SECONDARY_TEXT = "#374151"
+BUTTON_SECONDARY_BORDER = "#E5E7EB"
+BUTTON_SECONDARY_HOVER_BG = "#F9FAFB"
+BUTTON_SECONDARY_HOVER_BORDER = "#D1D5DB"
+BUTTON_SECONDARY_PRESSED_BG = "#F3F4F6"
 BUTTON_SECONDARY_PRESSED_BORDER = "#9CA3AF"
 
-# DISABLED STATES - For buttons and inputs when disabled, using a dark gray background with muted text
-DISABLED_BG = "#1F2937"        
-DISABLED_TEXT = "#4B5563"     
-DISABLED_BORDER = "#1F2937"    
+# DISABLED STATES
+DISABLED_BG = "#F3F4F6"
+DISABLED_TEXT = "#9CA3AF"
+DISABLED_BORDER = "#E5E7EB"
 
 # SPINNER/LOADING INDICATOR
-SPINNER_COLOR = "#6366F1"      
-# Error indicator icon (red dot)
-ICON_ERROR = "#EF4444"       
-# Header/ day names
-HEADER_TEXT = TEXT_MUTED 
+SPINNER_COLOR = "#2563EB"
+# Error indicator icon
+ICON_ERROR = "#EF4444"
+# Header/day names
+HEADER_TEXT = TEXT_MUTED
 # Calendar grid lines
 CALENDAR_GRID = BORDER_LIGHT
 
 # NEUTRAL COLORS
-NEUTRAL_BG = "#E5E7EB"
+NEUTRAL_BG = "#F3F4F6"
 NEUTRAL_TEXT = "#374151"
 NEUTRAL_BORDER = "#D1D5DB"
 
@@ -140,4 +151,3 @@ BADGE_PADDING_X = 12
 BADGE_FONT_SIZE = 12
 BADGE_FONT_WEIGHT = "bold"
 BADGE_BORDER_WIDTH = 1
-

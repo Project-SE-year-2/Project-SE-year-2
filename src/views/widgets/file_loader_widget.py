@@ -210,7 +210,6 @@ class ValidationPanel(QFrame):
         "Upload Courses File",
         "Upload Dates File",
         "Select at least 1 study program",
-        "Set the exam period (start and end date)",
     ]
 
     def __init__(self, parent=None):

@@ -37,22 +37,13 @@ class EditablePeriodFormatter:
         end_date = period["end_date"]
         forbidden_days = tuple(period.get("forbidden_days", []) or [])
 
-        title = (
-            f"{semester} — {moed} | "
-            f"{self._format_date(start_date)} to {self._format_date(end_date)}"
-        )
-
         return EditablePeriod(
             period_id=period_id,
-            title=title,
+            title=f"{semester} — {moed}",
             start_date=start_date,
             end_date=end_date,
             forbidden_days=forbidden_days,
         )
-
-    # Formats a date value for display in the period title.
-    def _format_date(self, value: date) -> str:
-        return value.strftime("%d-%m-%Y") if hasattr(value, "strftime") else str(value)
 
 
 class PeriodEditorWidget(QWidget):

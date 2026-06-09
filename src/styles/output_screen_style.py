@@ -1,102 +1,212 @@
-OUTPUT_SCREEN_STYLE = """
-/* Main dark background for the outer screen */
-QWidget#mainContainer {
-    background-color: #050505; 
-}
+"""
+Styles for the Output Screen (light theme matching the design).
 
-/* The inner card holding the calendar */
-QFrame#cardContainer {
-    background-color: #0F172A; 
-    border: 1px solid #1E293B;
-    border-radius: 16px;
-}
+All colours here are light-theme — the output screen uses a white card on a
+very-light-gray background, intentionally different from the dark input screen.
+"""
 
-/* Titles - INCREASED SIZES */
-QLabel#mainTitle {
-    color: #F9FAFB;
-    font-size: 32px; 
-    font-weight: 900;
-}
+# ── Screen / card backgrounds ────────────────────────────────────────────────
+SCREEN_BG          = "#F5F7FB"   # outer page background (design spec)
+CARD_BG            = "#FFFFFF"   # white card
+CARD_BORDER        = "#E2E8F0"
+CARD_RADIUS        = 16          # px
 
-QLabel#monthTitle {
-    color: #F9FAFB;
-    font-size: 38px; 
-    font-weight: 800;
-}
+# ── Semester header (inside the card) ───────────────────────────────────────
+SEMESTER_TITLE_COLOR    = "#1E293B"   # "FALL 2026"
+SEMESTER_TITLE_SIZE     = 22
+SEMESTER_SUBTITLE_COLOR = "#64748B"   # "September 2026 – December 2026"
+SEMESTER_SUBTITLE_SIZE  = 12
+SEMESTER_ICON_COLOR     = "#4338CA"   # leaf / feather icon colour
 
-/* Back Button */
+# ── Schedule navigator (‹ N of M ›) ─────────────────────────────────────────
+NAV_ARROW_STYLE = """
+QPushButton#navArrowBtn {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    color: #475569;
+    font-size: 16px;
+    font-weight: 600;
+    min-width: 36px;
+    min-height: 36px;
+}
+QPushButton#navArrowBtn:hover  { background: #F1F5F9; }
+QPushButton#navArrowBtn:pressed { background: #E2E8F0; }
+QPushButton#navArrowBtn:disabled { color: #CBD5E1; border-color: #F1F5F9; }
+"""
+
+NAV_COUNTER_STYLE = """
+QLabel#navCounter {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    color: #1E293B;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 14px;
+    min-height: 36px;
+}
+"""
+
+# ── Top toolbar (Back / Download) ────────────────────────────────────────────
+BACK_BTN_STYLE = """
 QPushButton#backBtn {
-    background-color: transparent;
-    color: #F9FAFB;
-    border: 1px solid #374151;
+    background: transparent;
+    color: #475569;
+    border: 1px solid #E2E8F0;
     border-radius: 8px;
-    padding: 10px 18px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+}
+QPushButton#backBtn:hover  { background: #F1F5F9; }
+QPushButton#backBtn:pressed { background: #E2E8F0; }
+"""
+
+DOWNLOAD_BTN_STYLE = """
+QPushButton#downloadBtn {
+    background: #4338CA;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 700;
+}
+QPushButton#downloadBtn:hover  { background: #3730A3; }
+QPushButton#downloadBtn:pressed { background: #312E81; }
+"""
+
+# ── Full stylesheet assembled (applied on the screen widget) ─────────────────
+OUTPUT_SCREEN_STYLE = f"""
+QWidget#outputScreen {{
+    background: {SCREEN_BG};
+}}
+
+QFrame#outputCard {{
+    background: {CARD_BG};
+    border: 1px solid {CARD_BORDER};
+    border-radius: {CARD_RADIUS}px;
+}}
+
+QFrame#monthCard {{
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+}}
+
+/* Semester tab cards (normal state is set inline; only override disabled here) */
+QFrame#semTab[disabled="true"] {{
+    background: #F9FAFB;
+    border: 1.5px solid #E5E7EB;
+    border-radius: 14px;
+}}
+
+QLabel#semesterTitle {{
+    color: {SEMESTER_TITLE_COLOR};
+    font-size: {SEMESTER_TITLE_SIZE}px;
+    font-weight: 800;
+    background: transparent;
+}}
+
+QLabel#semesterSubtitle {{
+    color: {SEMESTER_SUBTITLE_COLOR};
+    font-size: {SEMESTER_SUBTITLE_SIZE}px;
+    font-weight: 400;
+    background: transparent;
+}}
+
+QPushButton#backBtn {{
+    background: transparent;
+    color: #475569;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+}}
+QPushButton#backBtn:hover  {{ background: #F1F5F9; }}
+QPushButton#backBtn:pressed {{ background: #E2E8F0; }}
+
+QPushButton#downloadBtn {{
+    background: #4338CA;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 700;
+}}
+QPushButton#downloadBtn:hover  {{ background: #3730A3; }}
+QPushButton#downloadBtn:pressed {{ background: #312E81; }}
+
+QPushButton#navArrowBtn {{
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    color: #475569;
     font-size: 16px;
-    font-weight: bold;
-}
-QPushButton#backBtn:hover { background-color: #1F2937; }
+    font-weight: 600;
+    min-width: 36px;
+    min-height: 36px;
+}}
+QPushButton#navArrowBtn:hover  {{ background: #F1F5F9; }}
+QPushButton#navArrowBtn:pressed {{ background: #E2E8F0; }}
+QPushButton#navArrowBtn:disabled {{ color: #CBD5E1; border-color: #F1F5F9; }}
 
-/* Primary Button (Download) */
-QPushButton#primaryBtn {
-    background-color: #4F46E5;
-    color: white;
+QLabel#navCounter {{
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
     border-radius: 8px;
-    padding: 12px 24px;
-    font-weight: bold;
-    font-size: 16px;
-}
-QPushButton#primaryBtn:hover { background-color: #4338CA; }
+    color: #1E293B;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 14px;
+    min-height: 36px;
+}}
 
-/* Schedule Navigation Buttons (Text + Icon) */
-QPushButton#navTextBtn {
-    background-color: transparent;
-    border: 1px solid #374151;
-    border-radius: 8px;
-    color: #F9FAFB;
-    font-weight: bold;
-    font-size: 16px;
-    padding: 10px 20px;
-}
-QPushButton#navTextBtn:hover { background-color: #1F2937; }
+/* ── Moed toggle buttons (מועד א / מועד ב) ───────────────────────────── */
+QPushButton#moedBtn {{
+    background: #FFFFFF;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 10px;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 16px;
+    min-height: 36px;
+}}
+QPushButton#moedBtn:hover  {{ background: #F8FAFC; border-color: #94A3B8; }}
 
-/* Small Square Navigation Buttons (Arrows only) */
-QPushButton#iconBtn {
-    background-color: transparent;
-    border: 1px solid #374151;
-    border-radius: 8px;
-    color: #F9FAFB;
-    font-weight: bold;
-    font-size: 20px;
-}
-QPushButton#iconBtn:hover { background-color: #1F2937; }
+QPushButton#moedBtnSelected {{
+    background: #1E3A8A;
+    border: 1.5px solid #1E3A8A;
+    border-radius: 10px;
+    color: #FFFFFF;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 16px;
+    min-height: 36px;
+}}
+QPushButton#moedBtnSelected:hover {{ background: #1E40AF; }}
 
-/* Pagination Text */
-QLabel#paginationText {
-    color: #D1D5DB;
-    font-weight: bold;
-    font-size: 16px;
-}
+/* ── Moed info label ─────────────────────────────────────────────────── */
+QLabel#moedInfoLbl {{
+    color: #64748B;
+    font-size: 11px;
+    font-weight: 400;
+    background: transparent;
+    padding: 4px 10px;
+    border-left: 2px solid #E2E8F0;
+}}
 
-/* Segmented Control (Month / Week / List) */
-QFrame#segmentedControl {
-    background-color: #0B1121;
-    border: 1px solid #1E293B;
-    border-radius: 8px;
-}
-QPushButton#segBtnActive {
-    background-color: #4F46E5;
-    color: white;
-    border-radius: 6px;
-    padding: 10px 24px;
-    font-size: 14px;
-    font-weight: bold;
-}
-QPushButton#segBtnInactive {
-    background-color: transparent;
-    color: #9CA3AF;
-    border-radius: 6px;
-    padding: 10px 24px;
-    font-size: 14px;
-    font-weight: bold;
-}
+/* ── Back to Top button ──────────────────────────────────────────────── */
+QPushButton#backToTopBtn {{
+    background: transparent;
+    border: none;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+}}
+QPushButton#backToTopBtn:hover {{ color: #1E293B; }}
 """

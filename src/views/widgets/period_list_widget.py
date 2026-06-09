@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
 from typing import Iterable
 
 from PyQt5.QtCore import pyqtSignal, Qt
@@ -38,22 +37,12 @@ class PeriodFormatter:
         start_date = period["start_date"]
         end_date = period["end_date"]
 
-        title = (
-            f"{semester} — {moed} | "
-            f"{self._format_date(start_date)} to {self._format_date(end_date)}"
-        )
-
         return PeriodItem(
             period_id=period_id,
-            title=title,
+            title=f"{semester} — {moed}",
             start_date=start_date,
             end_date=end_date,
         )
-
-    # For simplicity, we assume start_date and end_date are date objects. In a real implementation,
-    # we might need to handle strings or other formats and add error handling.
-    def _format_date(self, value: date) -> str:
-        return value.strftime("%d-%m-%Y") if hasattr(value, "strftime") else str(value)
 
 
 class PeriodRowWidget(QPushButton):

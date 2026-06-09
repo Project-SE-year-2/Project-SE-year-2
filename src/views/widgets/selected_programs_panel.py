@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -16,6 +17,7 @@ from PyQt5.QtWidgets import (
 
 from src.presenter.i_app_service import IAppService
 from src.views.widgets.program_list_widget import badge_color_for, abbreviate_name
+from src.views.shared_components.type_badge import TypeBadge
 import src.styles.theme as th
 
 # minimum visible height for the selected-programs scroll area
@@ -24,6 +26,25 @@ _CHIPS_SCROLL_MIN_HEIGHT = 100
 # badge metrics — must match ProgramRowWidget for visual consistency
 _BADGE_SIZE = 28
 _BADGE_RADIUS = 4
+
+# chip header buttons
+_CHEVRON_BTN_SIZE = 20
+_REMOVE_BTN_SIZE = 22
+
+# course body layout
+_COURSE_BODY_SPACING = 4
+_COURSE_GROUP_PADDING_TOP = 4
+_COURSE_ROW_V_MARGIN = 2
+_COURSE_NUM_WIDTH = 56
+_ABBREV_FALLBACK_LEN = 2
+
+# border
+_CHIP_BORDER_WIDTH = 1
+
+# scrollbar
+_SCROLLBAR_WIDTH = 6
+_SCROLLBAR_RADIUS = 3
+_SCROLLBAR_HANDLE_MIN_HEIGHT = 20
 
 
 @dataclass(frozen=True)
@@ -54,38 +75,43 @@ class CourseFormatter:
 
 class ProgramChip(QFrame):
     """
-    Card row: [colored badge] [program name] [× remove button].
-    Matches the reference design — white background, gray border, LTR layout.
-    Emits remove_clicked(program_id) when × is pressed.
+    Expandable card: header shows badge + program ID + name + chevron + ×.
+    Clicking the chevron reveals a course list grouped by year and semester,
+    each row showing the course number, name, mandatory/elective type, and evaluation method.
     """
 
     remove_clicked = pyqtSignal(str)
 
-    def __init__(self, program_id: str, name: str, parent=None):
+    def __init__(self, program_id: str, name: str,
+                 courses: list[CourseItem] | None = None, parent=None):
         super().__init__(parent)
         self.program_id = program_id
+        self._courses = courses or []
+        self._expanded = False
 
         self.setStyleSheet(
             f"""
-            QFrame {{
+            QFrame#programChip {{
                 background-color: {th.BG_CARD};
-                border: 1px solid {th.BORDER_LIGHT};
+                border: {_CHIP_BORDER_WIDTH}px solid {th.BORDER_LIGHT};
                 border-radius: {th.BUTTON_BORDER_RADIUS}px;
-            }}
-            QFrame:hover {{
-                border-color: #CBD5E1;
             }}
             """
         )
+        self.setObjectName("programChip")
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(
             th.SPACING_SMALL, th.SPACING_SMALL,
             th.SPACING_SMALL, th.SPACING_SMALL,
         )
-        layout.setSpacing(th.SPACING_SMALL)
+        outer.setSpacing(0)
 
-        abbrev = abbreviate_name(name) or program_id[:2]
+        # ── header row ─────────────────────────────────────────────────────
+        header = QHBoxLayout()
+        header.setSpacing(th.SPACING_SMALL)
+
+        abbrev = abbreviate_name(name) or program_id[:_ABBREV_FALLBACK_LEN]
         badge = QLabel(abbrev)
         badge.setFixedSize(_BADGE_SIZE, _BADGE_SIZE)
         badge.setAlignment(Qt.AlignCenter)
@@ -98,18 +124,28 @@ class ProgramChip(QFrame):
             f"}}"
         )
 
-        # Program name — dark, medium weight
-        name_lbl = QLabel(name)
-        name_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        name_lbl.setStyleSheet(
+        id_name_lbl = QLabel(f"{program_id}  {name}")
+        id_name_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        id_name_lbl.setStyleSheet(
             f"color: {th.TEXT_PRIMARY}; font-size: {th.FONT_SIZE_MD}px;"
             f" font-weight: {th.FONT_WEIGHT_MEDIUM}; font-family: {th.FONT_FAMILY};"
             f" background: transparent; border: none;"
         )
 
-        # Remove button — muted ×, turns red on hover
+        self._chevron = QPushButton("▼")
+        self._chevron.setFixedSize(_CHEVRON_BTN_SIZE, _CHEVRON_BTN_SIZE)
+        self._chevron.setCursor(Qt.PointingHandCursor)
+        self._chevron.setVisible(bool(self._courses))
+        self._chevron.setStyleSheet(
+            f"QPushButton {{ background: transparent; color: {th.TEXT_MUTED};"
+            f" border: none; font-size: {th.FONT_SIZE_XS}px;"
+            f" font-family: {th.FONT_FAMILY}; padding: 0px; }}"
+            f"QPushButton:hover {{ color: {th.PRIMARY_COLOR}; }}"
+        )
+        self._chevron.clicked.connect(self._toggle_expand)
+
         remove_btn = QPushButton("×")
-        remove_btn.setFixedSize(22, 22)
+        remove_btn.setFixedSize(_REMOVE_BTN_SIZE, _REMOVE_BTN_SIZE)
         remove_btn.setCursor(Qt.PointingHandCursor)
         remove_btn.setStyleSheet(
             f"""
@@ -127,9 +163,97 @@ class ProgramChip(QFrame):
         )
         remove_btn.clicked.connect(lambda: self.remove_clicked.emit(self.program_id))
 
-        layout.addWidget(badge)
-        layout.addWidget(name_lbl, stretch=1)
-        layout.addWidget(remove_btn)
+        header.addWidget(badge)
+        header.addWidget(id_name_lbl, stretch=1)
+        header.addWidget(self._chevron)
+        header.addWidget(remove_btn)
+        outer.addLayout(header)
+
+        # ── expandable course body ─────────────────────────────────────────
+        self._body = self._build_course_body()
+        self._body.setVisible(False)
+        outer.addWidget(self._body)
+
+    def _toggle_expand(self) -> None:
+        self._expanded = not self._expanded
+        self._body.setVisible(self._expanded)
+        self._chevron.setText("▲" if self._expanded else "▼")
+
+    def _build_course_body(self) -> QWidget:
+        body = QWidget()
+        body.setStyleSheet("background: transparent; border: none;")
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(0, th.SPACING_SMALL, 0, 0)
+        layout.setSpacing(_COURSE_BODY_SPACING)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setStyleSheet(f"color: {th.BORDER_LIGHT}; border: none; border-top: {_CHIP_BORDER_WIDTH}px solid {th.BORDER_LIGHT};")
+        layout.addWidget(divider)
+
+        if not self._courses:
+            empty = QLabel("No courses found.")
+            empty.setStyleSheet(
+                f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_SM}px;"
+                f" font-family: {th.FONT_FAMILY}; background: transparent; border: none;"
+            )
+            layout.addWidget(empty)
+            return body
+
+        # Group by (year, semester) and sort
+        groups: dict[tuple, list[CourseItem]] = defaultdict(list)
+        for c in self._courses:
+            groups[(c.year, c.semester)].append(c)
+
+        for (year, semester), courses in sorted(groups.items(), key=lambda x: (str(x[0][0]), str(x[0][1]))):
+            group_lbl = QLabel(f"Year {year}  ·  Semester {semester}")
+            group_lbl.setStyleSheet(
+                f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_SM}px;"
+                f" font-weight: {th.FONT_WEIGHT_BOLD}; font-family: {th.FONT_FAMILY};"
+                f" background: transparent; border: none;"
+                f" padding-top: {_COURSE_GROUP_PADDING_TOP}px;"
+            )
+            layout.addWidget(group_lbl)
+
+            for course in courses:
+                layout.addWidget(self._make_course_row(course))
+
+        return body
+
+    def _make_course_row(self, course: CourseItem) -> QWidget:
+        row = QWidget()
+        row.setStyleSheet("background: transparent; border: none;")
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(th.SPACING_SMALL, _COURSE_ROW_V_MARGIN, 0, _COURSE_ROW_V_MARGIN)
+        rl.setSpacing(th.SPACING_SMALL)
+
+        num_lbl = QLabel(course.number)
+        num_lbl.setFixedWidth(_COURSE_NUM_WIDTH)
+        num_lbl.setStyleSheet(
+            f"color: {th.TEXT_MUTED}; font-size: {th.FONT_SIZE_SM}px;"
+            f" font-family: {th.FONT_FAMILY}; background: transparent; border: none;"
+        )
+
+        name_lbl = QLabel(course.name)
+        name_lbl.setStyleSheet(
+            f"color: {th.TEXT_SECONDARY}; font-size: {th.FONT_SIZE_SM}px;"
+            f" font-family: {th.FONT_FAMILY}; background: transparent; border: none;"
+        )
+
+        type_badge = TypeBadge(course.course_type or "—")
+
+        eval_lbl = QLabel(course.evaluation or "—")
+        eval_lbl.setStyleSheet(
+            f"color: {th.TEXT_MUTED}; font-size: {th.FONT_SIZE_SM}px;"
+            f" font-family: {th.FONT_FAMILY}; background: transparent; border: none;"
+        )
+
+        rl.addWidget(num_lbl)
+        rl.addWidget(name_lbl, stretch=1)
+        rl.addWidget(type_badge)
+        rl.addWidget(eval_lbl)
+
+        return row
 
 
 class SelectedProgramsPanel(QWidget):
@@ -166,11 +290,9 @@ class SelectedProgramsPanel(QWidget):
             return
 
         for program_id in program_ids:
-            # Pre-fetch courses into the cache (keeps service call behaviour identical)
-            self._get_courses_for_program(program_id)
-
+            courses = self._get_courses_for_program(program_id)
             name = self._resolve_name(program_id)
-            chip = ProgramChip(program_id, name)
+            chip = ProgramChip(program_id, name, courses)
             chip.remove_clicked.connect(self.program_removed.emit)
             self._cards_by_program_id[program_id] = chip
             self._cards_layout.addWidget(chip)
@@ -232,8 +354,8 @@ class SelectedProgramsPanel(QWidget):
         self._scroll_area.setMinimumHeight(_CHIPS_SCROLL_MIN_HEIGHT)
         self._scroll_area.setStyleSheet(
             f"QScrollArea {{ background: transparent; border: none; }}"
-            f"QScrollBar:vertical {{ width: 6px; background: {th.BG_HOVER}; border-radius: 3px; }}"
-            f"QScrollBar::handle:vertical {{ background: #CBD5E1; border-radius: 3px; min-height: 20px; }}"
+            f"QScrollBar:vertical {{ width: {_SCROLLBAR_WIDTH}px; background: {th.BG_HOVER}; border-radius: {_SCROLLBAR_RADIUS}px; }}"
+            f"QScrollBar::handle:vertical {{ background: #CBD5E1; border-radius: {_SCROLLBAR_RADIUS}px; min-height: {_SCROLLBAR_HANDLE_MIN_HEIGHT}px; }}"
             f"QScrollBar::add-line:vertical {{ height: 0px; }}"
             f"QScrollBar::sub-line:vertical {{ height: 0px; }}"
         )

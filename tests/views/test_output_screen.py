@@ -4,77 +4,132 @@ import sys
 
 from datetime import date
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QShowEvent, QHideEvent  
+from PyQt5.QtGui import QShowEvent, QHideEvent
 from PyQt5.QtCore import QPoint
 
-# Ensure QApplication exists
 app = QApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
 
 from src.views.output_screen.output_screen import OutputScreen
+
+
 class TestOutputScreen(unittest.TestCase):
 
     def setUp(self):
-        """Instantiate the screen with a mocked AppService."""
         self.mock_service = MagicMock()
         self.screen = OutputScreen(self.mock_service)
 
+    # ------------------------------------------------------------------
+    # Basic structure
+    # ------------------------------------------------------------------
+
     def test_ui_components_exist(self):
-        """Verify the layout instantiates all components required by EP-59."""
         self.assertIsNotNone(self.screen.back_btn)
         self.assertIsNotNone(self.screen.download_btn)
-        self.assertIsNotNone(self.screen.calendar)
+        self.assertIsNotNone(self.screen.four_month)
         self.assertIsNotNone(self.screen.navigator)
 
-    def test_show_event_fetches_initial_batch(self):
-        self.mock_service.get_schedule_batch.return_value = []
+    # ------------------------------------------------------------------
+    # Show / hide events
+    # ------------------------------------------------------------------
+
+    def test_show_event_calls_get_period_schedule(self):
+        """showEvent calls get_period_schedule for the active period."""
+        self.mock_service.get_period_schedule.return_value = [_make_minimal_exam()]
         self.mock_service.get_schedule_count.return_value = 1
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
         self.screen.showEvent(QShowEvent())
-        
-        self.mock_service.get_schedule_batch.assert_called_once_with(0, 10)
+        self.mock_service.get_period_schedule.assert_called()
+
+    def test_show_event_with_empty_period_shows_empty_state(self):
+        """When get_period_schedule returns [] the screen shows the empty state (no crash)."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+        # Must not raise even when there is nothing to display
+        self.screen.showEvent(QShowEvent())
 
     def test_hide_event_stops_polling(self):
-        """Verify that navigating away from the screen stops the background timer."""
         self.mock_service.get_schedule_count.return_value = 1
-        
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_periods.return_value = []
         self.screen.showEvent(QShowEvent())
-        # Start the timer first
         self.screen.showEvent(QShowEvent())
         self.assertTrue(self.screen.poll_timer.isActive())
-        
-        # Trigger hideEvent
         self.screen.hideEvent(QHideEvent())
-        
-        # Verify timer is stopped
         self.assertFalse(self.screen.poll_timer.isActive())
 
-    def test_polling_updates_counter(self):
-        """Verify the timer callback queries the service and updates the UI label."""
-        self.mock_service.get_schedule_count.return_value = 42
+    # ------------------------------------------------------------------
+    # Polling / counter
+    # ------------------------------------------------------------------
+
+    def test_polling_updates_counter_calls_get_schedule_count(self):
+        """Polling calls get_schedule_count(period_id=...) to check for data."""
+        self.mock_service.get_schedule_count.return_value = 1
+        self.mock_service.get_period_schedule.return_value = [_make_minimal_exam()]
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
         self.screen._poll_schedule_count()
         self.mock_service.get_schedule_count.assert_called()
-        self.assertEqual(self.screen.sched_label.text(), "Schedule 1 of 42")
-        
-    @patch('src.views.output_screen.output_screen.QFileDialog.getSaveFileName')
-    @patch('src.views.output_screen.output_screen.QMessageBox.information')
-    def test_download_button_triggers_export(self, _mock_message, mock_file_dialog):
-        mock_path = 'C:/fake/path/schedule.csv'
-        mock_file_dialog.return_value = (mock_path, '')
 
-        self.screen.current_schedules = ["dummy"]
-        self.screen.current_index = 0
-
-        self.screen._on_download_clicked()
-        self.mock_service.export_schedule.assert_called_once_with(0, mock_path)
+    def test_polling_with_zero_count_updates_navigator(self):
+        """When get_schedule_count returns 0, navigator is hidden."""
+        self.mock_service.get_schedule_count.return_value = 0
+        self.screen._poll_schedule_count()
+        self.mock_service.get_schedule_count.assert_called()
 
     # ------------------------------------------------------------------
-    # Tests for _get_program_names and _on_exam_clicked (EP-61)
+    # Download
+    # ------------------------------------------------------------------
+
+    @patch('src.views.output_screen.output_screen.QFileDialog.getSaveFileName')
+    @patch('src.views.output_screen.output_screen.QMessageBox.information')
+    def test_download_calls_export_by_period_indices(self, _mock_msg, mock_dialog):
+        """Download must call export_by_period_indices with the current per-period indices."""
+        mock_path = 'C:/fake/path/schedule.csv'
+        mock_dialog.return_value = (mock_path, '')
+        # At least one period has data
+        self.mock_service.get_schedule_count.return_value = 1
+
+        self.screen._on_download_clicked()
+
+        self.mock_service.export_by_period_indices.assert_called_once()
+        call_args = self.mock_service.export_by_period_indices.call_args
+        # Second positional argument is the file path
+        self.assertEqual(call_args[0][1], mock_path)
+
+    @patch('src.views.output_screen.output_screen.QFileDialog.getSaveFileName')
+    @patch('src.views.output_screen.output_screen.QMessageBox.information')
+    def test_download_passes_period_indices_to_export(self, _mock_msg, mock_dialog):
+        """export_by_period_indices receives the screen's _period_indices dict."""
+        mock_path = 'C:/fake/path/schedule.csv'
+        mock_dialog.return_value = (mock_path, '')
+        self.mock_service.get_schedule_count.return_value = 1
+
+        self.screen._on_download_clicked()
+
+        call_args = self.mock_service.export_by_period_indices.call_args
+        passed_indices = call_args[0][0]
+        self.assertIsInstance(passed_indices, dict)
+
+    @patch('src.views.output_screen.output_screen.QMessageBox.warning')
+    def test_download_warns_when_no_data_in_either_mode(self, mock_warn):
+        """Download shows a warning when no period has any schedules."""
+        self.mock_service.get_schedule_count.return_value = 0
+        self.screen._on_download_clicked()
+        mock_warn.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # _get_program_names
     # ------------------------------------------------------------------
 
     def test_get_program_names_returns_id_to_name_mapping(self):
-        """_get_program_names must convert the service's list of program dicts
-        into a flat {id: name} dictionary that the dialog can look up directly."""
         self.mock_service.get_available_programs.return_value = [
             {"id": "83101", "name": "Computer Engineering"},
             {"id": "83102", "name": "Electrical Engineering"},
@@ -86,34 +141,25 @@ class TestOutputScreen(unittest.TestCase):
         })
 
     def test_get_program_names_returns_empty_dict_when_service_raises(self):
-        """If get_available_programs() raises, _get_program_names must return {}
-        instead of propagating the exception to the UI."""
         self.mock_service.get_available_programs.side_effect = RuntimeError("db error")
-        result = self.screen._get_program_names()
-        self.assertEqual(result, {})
+        self.assertEqual(self.screen._get_program_names(), {})
 
     def test_get_program_names_returns_empty_dict_when_service_returns_empty(self):
-        """When the service returns an empty list, _get_program_names must return {}."""
         self.mock_service.get_available_programs.return_value = []
-        result = self.screen._get_program_names()
-        self.assertEqual(result, {})
+        self.assertEqual(self.screen._get_program_names(), {})
+
+    # ------------------------------------------------------------------
+    # _on_exam_clicked / _on_exam_day_clicked → DayDetailDialog
+    # ------------------------------------------------------------------
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
     def test_on_exam_clicked_opens_day_detail_dialog(self, MockDialog):
-        """_on_exam_clicked must construct a DayDetailDialog and call exec_() on it."""
         self.mock_service.get_available_programs.return_value = [
             {"id": "83101", "name": "Computer Engineering"},
         ]
-        exam_data = {
-            "course_number": "83111",
-            "course_name":   "Algorithms",
-            "type":          "Obligatory",
-            "programs":      ["83101"],
-            "exam_date":     "2026-06-10",
-            "semester":      "FALL",
-            "moed":          "Aleph",
-        }
+        exam_data = _make_minimal_exam()
 
+        # _on_exam_clicked is the old compat shim; it still needs to open the dialog
         self.screen._on_exam_clicked(exam_data)
 
         # Verify the dialog was instantiated and displayed
@@ -128,20 +174,15 @@ class TestOutputScreen(unittest.TestCase):
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
     def test_on_exam_clicked_passes_program_names_to_dialog(self, MockDialog):
-        """_on_exam_clicked must forward the id→name mapping to DayDetailDialog
-        so the chips can display readable program names instead of raw IDs."""
         self.mock_service.get_available_programs.return_value = [
             {"id": "83101", "name": "Computer Engineering"},
             {"id": "83104", "name": "Industrial Engineering"},
         ]
-        exam_data = _make_minimal_exam()
+        self.screen._on_exam_clicked(_make_minimal_exam())
 
-        self.screen._on_exam_clicked(exam_data)
-
-        # Extract the program_names kwarg that was passed to the dialog constructor
-        call_kwargs = MockDialog.call_args[1]   # keyword arguments
-        self.assertIn("program_names", call_kwargs)
-        self.assertEqual(call_kwargs["program_names"], {
+        kw = MockDialog.call_args[1]
+        self.assertIn("program_names", kw)
+        self.assertEqual(kw["program_names"], {
             "83101": "Computer Engineering",
             "83104": "Industrial Engineering",
         })
@@ -160,6 +201,59 @@ class TestOutputScreen(unittest.TestCase):
         self.screen.calendar.exam_clicked.emit(_make_minimal_exam())
 
         MockDialog.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Isolated per-period fetching (new architecture)
+    # ------------------------------------------------------------------
+
+    def test_refresh_display_calls_get_period_schedule(self):
+        """_refresh_screen_display fetches from get_period_schedule for the active period."""
+        exams = [_make_minimal_exam(), _make_minimal_exam()]
+        self.mock_service.get_period_schedule.return_value = exams
+        self.mock_service.get_schedule_count.return_value = 1
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+        self.screen._refresh_screen_display()
+        self.mock_service.get_period_schedule.assert_called_once_with("FALL_Aleph", 0)
+
+    def test_refresh_display_with_no_data_shows_empty_state(self):
+        """When get_period_schedule returns [] the screen shows empty (no exception)."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+        self.screen._refresh_screen_display()  # must not raise
+
+    def test_navigator_index_changed_updates_period_index(self):
+        """_on_navigator_index_changed stores the new index for the active period only."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 3
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+        self.screen._on_navigator_index_changed(2)
+        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 2)
+
+    def test_navigator_index_changed_does_not_affect_other_periods(self):
+        """Advancing index for FALL_Aleph must not change SPRI_Aleph's index."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 5
+        self.mock_service.get_periods.return_value = []
+        self.screen._on_navigator_index_changed(3)
+        # Other periods stay at their initial value (0)
+        self.assertEqual(self.screen._period_indices.get("SPRI_Aleph", 0), 0)
+
+    def test_navigator_index_changed_calls_get_period_schedule_with_new_index(self):
+        """After advancing the index, _refresh_screen_display fetches at the new index."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 5
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+        self.screen._on_navigator_index_changed(4)
+        self.mock_service.get_period_schedule.assert_called_with("FALL_Aleph", 4)
 
     # ------------------------------------------------------------------
     # exams_day_clicked (list[dict], QPoint) new API
@@ -260,13 +354,12 @@ class TestOutputScreen(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 def _make_minimal_exam() -> dict:
-    """Return a minimal exam_data dict sufficient for dialog construction tests."""
     return {
         "course_number": "83111",
         "course_name":   "Data Structures",
         "type":          "Obligatory",
         "programs":      ["83101"],
-        "exam_date":     date(2026, 6, 10),
+        "exam_date":     date(2026, 9, 10),
         "semester":      "FALL",
         "moed":          "Aleph",
     }

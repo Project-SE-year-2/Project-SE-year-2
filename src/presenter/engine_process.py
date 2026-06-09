@@ -22,7 +22,7 @@ from src.algorithm.period_results_writer import PeriodResultsWriter
 # Worker — runs inside the Engine Process                             #
 # ------------------------------------------------------------------ #
 
-def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue) -> None:
+def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue, results_path: str | None = None) -> None:
     """
     Entry point for the Engine Process.
 
@@ -32,7 +32,7 @@ def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue) -> None:
     notification is sent after each period so the UI can start displaying
     partial results immediately.
     """
-    writer = PeriodResultsWriter()          # uses default data/results/ path
+    writer = PeriodResultsWriter(root_path=results_path)
 
     while True:
         msg = task_queue.get()              # blocking wait
@@ -70,12 +70,12 @@ class EngineProcess:
     process it is automatically terminated when the main (UI) process exits.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, results_path: str | None = None) -> None:
         self._task_queue:   mp.Queue = mp.Queue()
         self._notify_queue: mp.Queue = mp.Queue()
         self._process = mp.Process(
             target=_engine_worker,
-            args=(self._task_queue, self._notify_queue),
+            args=(self._task_queue, self._notify_queue, results_path),
             daemon=True,        # dies with the UI process automatically
         )
         self._process.start()

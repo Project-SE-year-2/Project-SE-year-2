@@ -85,3 +85,56 @@ def test_empty_lists():
     # Test 2: Empty periods list
     result_empty_periods = match_courses_to_periods([c4], [])
     assert result_empty_periods == {}
+
+
+def test_course_with_no_requirements_not_matched():
+    """A course with zero requirements should not appear in any period's task dict."""
+    fall_period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 1), date(2026, 1, 31))
+    c = Course("Orphan", "99999", "Dr. No", Evaluation.Exam)
+    # No requirements added
+
+    result = match_courses_to_periods([c], [fall_period])
+    assert c not in result[fall_period]
+
+
+def test_multiple_moeds_same_semester():
+    """A course in FALL should appear in both FALL Aleph and FALL Bet periods."""
+    fall_aleph = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 1), date(2026, 1, 15))
+    fall_bet = ExamPeriod(Semester.FALL, Moed.Bet, date(2026, 2, 1), date(2026, 2, 15))
+    periods = [fall_aleph, fall_bet]
+
+    c = Course("Calculus", "83112", "Dr. Math", Evaluation.Exam)
+    c.add_requirement(ProgramRequirement("SE", 1, Semester.FALL, ReqType.Obligatory))
+
+    result = match_courses_to_periods([c], periods)
+
+    assert c in result[fall_aleph]
+    assert c in result[fall_bet]
+
+
+def test_course_mapped_regardless_of_program_selection():
+    """match_courses_to_periods matches by semester, not by program selection.
+    It receives pre-filtered courses so it should always include them."""
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 1), date(2026, 1, 31))
+    c = Course("Bio", "55555", "Dr. Bio", Evaluation.Exam)
+    c.add_requirement(ProgramRequirement("UNSELECTED", 1, Semester.FALL, ReqType.Obligatory))
+
+    result = match_courses_to_periods([c], [fall])
+    # The course IS in the valid list so it should be matched
+    assert c in result[fall]
+    assert "UNSELECTED" in result[fall][c]
+
+
+def test_duplicate_program_ids_not_repeated():
+    """If the same program appears in two requirements for the same semester,
+    its ID should appear only once in the period task."""
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 1), date(2026, 1, 31))
+
+    c = Course("Shared", "11111", "Dr. X", Evaluation.Exam)
+    c.add_requirement(ProgramRequirement("SE", 1, Semester.FALL, ReqType.Obligatory))
+    c.add_requirement(ProgramRequirement("SE", 2, Semester.FALL, ReqType.Elective))
+
+    result = match_courses_to_periods([c], [fall])
+    programs = result[fall][c]
+    assert programs.count("SE") == 1
+

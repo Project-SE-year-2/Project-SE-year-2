@@ -17,8 +17,9 @@ from __future__ import annotations
 
 from datetime import date as date_type
 
-from PyQt5.QtCore import QPoint, Qt
+from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer
 from PyQt5.QtWidgets import (
+    QApplication,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -192,6 +193,8 @@ class DayDetailDialog(QDialog):
         if anchor_pos is not None:
             self.move(anchor_pos)
 
+        QTimer.singleShot(0, lambda: QApplication.instance().installEventFilter(self))
+
     # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------
@@ -199,7 +202,7 @@ class DayDetailDialog(QDialog):
     def _build_ui(self) -> None:
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setModal(True)
+        self.setModal(False)
         self.setMinimumWidth(340)
         self.setMaximumWidth(440)
 
@@ -262,6 +265,23 @@ class DayDetailDialog(QDialog):
         card_layout.addWidget(footer)
 
         outer.addWidget(card)
+
+    # ------------------------------------------------------------------
+    # Outside-click / close handling
+    # ------------------------------------------------------------------
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.MouseButtonPress:
+            global_pos = event.globalPos()
+            # Close if click is outside this dialog's geometry
+            if not self.geometry().contains(global_pos):
+                self.close()
+                return False
+        return super().eventFilter(obj, event)
+
+    def closeEvent(self, event) -> None:
+        QApplication.instance().removeEventFilter(self)
+        super().closeEvent(event)
 
     # ------------------------------------------------------------------
     # Helpers (static so tests can call DayDetailDialog._format_date)

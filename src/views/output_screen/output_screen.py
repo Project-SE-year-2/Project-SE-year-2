@@ -131,6 +131,7 @@ class OutputScreen(QWidget):
         self._current_semester: str = "FALL"
         self._current_moed:     str = "Aleph"
         self._check_conflicts_next: bool = False
+        self._day_dialog: DayDetailDialog | None = None
 
         self._setup_ui()
         self._setup_polling()
@@ -529,16 +530,22 @@ class OutputScreen(QWidget):
     # ── Exam cell click → DayDetailDialog ────────────────────────────────────
 
     def _on_exam_day_clicked(self, exams: list, anchor) -> None:
+        # Close any previously open detail dialog before opening a new one
+        if self._day_dialog is not None:
+            self._day_dialog.close()
+            self._day_dialog = None
+
         program_names = self._get_program_names()
         exam_date     = exams[0].get("exam_date") if exams else None
-        dialog = DayDetailDialog(
+        self._day_dialog = DayDetailDialog(
             exams         = exams,
             exam_date     = exam_date,
             program_names = program_names,
             anchor_pos    = anchor,
             parent        = self,
         )
-        dialog.exec_()
+        self._day_dialog.finished.connect(lambda: setattr(self, "_day_dialog", None))
+        self._day_dialog.show()
 
     def _on_exam_clicked(self, exam_data: dict) -> None:
         """Backward-compat shim."""
@@ -620,6 +627,9 @@ class OutputScreen(QWidget):
     # ── Toolbar ───────────────────────────────────────────────────────────────
 
     def _on_back_clicked(self) -> None:
+        if self._day_dialog is not None:
+            self._day_dialog.close()
+            self._day_dialog = None
         self.switch_to_input.emit()
 
     def _on_download_clicked(self) -> None:

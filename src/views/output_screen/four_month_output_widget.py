@@ -71,8 +71,9 @@ _SEMESTER_ICONS = {
 }
 
 _MOED_INFO = {
-    "Aleph": "You are viewing the first exam session.\nSwitch to see the second exam session.",
-    "Bet":   "You are viewing the second exam session.\nSwitch to see the first exam session.",
+    "Aleph": "You are viewing the first exam session.\nSwitch to see another exam session.",
+    "Bet":   "You are viewing the second exam session.\nSwitch to see another exam session.",
+    "Gimel": "You are viewing the third exam session.\nSwitch to see another exam session.",
 }
 
 
@@ -136,7 +137,7 @@ class FourMonthOutputWidget(QWidget):
     """White card: semester header + moed toggle + horizontal months + legend."""
 
     exam_day_clicked = pyqtSignal(object, object)   # list[dict], QPoint
-    moed_changed     = pyqtSignal(str)              # "Aleph" | "Bet"
+    moed_changed     = pyqtSignal(str)              # "Aleph" | "Bet" | "Gimel"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -201,7 +202,7 @@ class FourMonthOutputWidget(QWidget):
 
         row.addStretch()
 
-        # Centre-left: מועד א / מועד ב toggle
+        # Centre-left: מועד א / מועד ב / מועד ג toggle
         self._moed_aleph_btn = QPushButton("מועד א  📅")
         self._moed_aleph_btn.setObjectName("moedBtnSelected")
         self._moed_aleph_btn.setCursor(Qt.PointingHandCursor)
@@ -212,9 +213,16 @@ class FourMonthOutputWidget(QWidget):
         self._moed_bet_btn.setCursor(Qt.PointingHandCursor)
         self._moed_bet_btn.clicked.connect(lambda: self._on_moed_btn("Bet"))
 
+        self._moed_gimel_btn = QPushButton("מועד ג  📅")
+        self._moed_gimel_btn.setObjectName("moedBtn")
+        self._moed_gimel_btn.setCursor(Qt.PointingHandCursor)
+        self._moed_gimel_btn.clicked.connect(lambda: self._on_moed_btn("Gimel"))
+
         row.addWidget(self._moed_aleph_btn)
         row.addSpacing(6)
         row.addWidget(self._moed_bet_btn)
+        row.addSpacing(6)
+        row.addWidget(self._moed_gimel_btn)
         row.addSpacing(14)
 
         # Right: navigator
@@ -340,16 +348,11 @@ class FourMonthOutputWidget(QWidget):
         self.moed_changed.emit(moed)
 
     def _apply_moed_style(self) -> None:
-        is_aleph = self._current_moed == "Aleph"
-
-        self._moed_aleph_btn.setObjectName(
-            "moedBtnSelected" if is_aleph else "moedBtn"
-        )
-        self._moed_bet_btn.setObjectName(
-            "moedBtnSelected" if not is_aleph else "moedBtn"
-        )
-        # Force Qt to re-evaluate the stylesheet (object-name changed)
-        for btn in (self._moed_aleph_btn, self._moed_bet_btn):
+        moed = self._current_moed
+        self._moed_aleph_btn.setObjectName("moedBtnSelected" if moed == "Aleph" else "moedBtn")
+        self._moed_bet_btn.setObjectName("moedBtnSelected"   if moed == "Bet"   else "moedBtn")
+        self._moed_gimel_btn.setObjectName("moedBtnSelected" if moed == "Gimel" else "moedBtn")
+        for btn in (self._moed_aleph_btn, self._moed_bet_btn, self._moed_gimel_btn):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
             btn.update()
@@ -446,6 +449,10 @@ class FourMonthOutputWidget(QWidget):
     def show_empty(self, semester: str = "") -> None:
         name = semester or "this semester"
         self._empty_lbl.setText(f"No schedules available for {name}.")
+        icon = _SEMESTER_ICONS.get(semester, "📅")
+        self._icon_lbl.setText(icon)
+        self._semester_title.setText(f"{semester}" if semester else "—")
+        self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_EMPTY)
 
     def show_schedule(self) -> None:
@@ -453,9 +460,12 @@ class FourMonthOutputWidget(QWidget):
 
     def show_no_period(self, semester: str = "", moed: str = "") -> None:
         """Show 'no schedules' state when the period doesn't exist in the data."""
-        # Reuse the same empty-state page so the appearance is consistent.
         name = semester or "this semester"
         self._empty_lbl.setText(f"No schedules available for {name}.")
+        icon = _SEMESTER_ICONS.get(semester, "📅")
+        self._icon_lbl.setText(icon)
+        self._semester_title.setText(f"{semester}" if semester else "—")
+        self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_EMPTY)
 
     # ──────────────────────────────────────────────────────────────────────────

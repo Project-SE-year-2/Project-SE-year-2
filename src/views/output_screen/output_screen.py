@@ -440,6 +440,7 @@ class OutputScreen(QWidget):
     _PERIOD_PREFIX_TO_TAB: dict[str, str] = {
         "FALL": "FALL",
         "SPRI": "SPRING",
+        "SUMM": "SUMMER",
     }
 
     def connect_listener(self, listener) -> None:

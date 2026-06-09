@@ -3,12 +3,10 @@ classDiagram
 
     class OutputScreen {
         -service: IAppService
-        -_nav_widget: ScheduleNavigatorWidget
         -_semester_tabs: SemesterTabsWidget
-        -_calendar: FourMonthOutputWidget
+        -four_month: FourMonthOutputWidget
+        -_period_indices: Dict~str,int~
         -_active_period_id: str
-        -_current_index: int
-        -_total_schedules: int
         +switch_to_input: pyqtSignal
         +current_index: int
         +total_schedules: int

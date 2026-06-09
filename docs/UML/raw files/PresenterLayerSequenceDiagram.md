@@ -66,13 +66,17 @@ sequenceDiagram
     ResultsReader-->>AppService: ExamSchedule (from batch file)
     AppService-->>OutputScreen: formatted schedule rows
 
-    User->>OutputScreen: navigates to next combination
-    OutputScreen->>AppService: navigate_global(+1)
-    AppService->>ResultsReader: get_count / get_schedule_at [per period]
-    AppService-->>OutputScreen: updated period indices
+    User->>OutputScreen: clicks Next/Prev
+    Note over OutputScreen: FourMonthOutputWidget.navigator emits navigate_to(new_index)
+    OutputScreen->>OutputScreen: _on_navigator_index_changed(new_index)
+    Note over OutputScreen: _period_indices[active_period_id] = new_index
+    OutputScreen->>AppService: get_period_schedule(period_id, new_index)
+    AppService->>ResultsReader: get_schedule_at(period_id, new_index)
+    ResultsReader-->>AppService: ExamSchedule (from batch file)
+    AppService-->>OutputScreen: formatted schedule rows
 
     User->>OutputScreen: clicks Export
-    OutputScreen->>AppService: export_current(path)
+    OutputScreen->>AppService: export_by_period_indices(period_indices, path)
     AppService->>ResultsReader: get_schedule_at(period_id, idx) [per period]
     AppService->>ScheduleReportWriter: write(combined_schedules, metadata, programs, path)
 ```
@@ -82,8 +86,8 @@ sequenceDiagram
 2. **Select Programs** — `InputScreen` calls `AppService.select_programs(ids)`.
 3. **Generate (multiprocessing)** — `InputScreen` creates `EngineListener` and starts it. The listener iterates `AppService.generate_stream()`, which submits tasks to the `EngineProcess`. The daemon subprocess calls `SchedulingEngine.solve_to_disk()` for each period, writing batched pickle files. For each finished period it sends a `period_done` notification back through `notify_queue`. The listener translates each yield into a `period_ready` signal.
 4. **Navigate** — `InputScreen` emits `switch_to_output`; `MainWindow` switches the stacked widget.
-5. **Browse** — `OutputScreen` calls `get_period_schedule(period_id, index)` and `navigate_global(±1)` to page through results. All reads go through `ResultsReader` directly from disk — no results are held in RAM.
-6. **Export** — `OutputScreen` calls `export_current(path)`. `AppService` reads one schedule per period from disk, merges them with `ScheduleCombiner`, and writes via `ScheduleReportWriter`.
+5. **Browse** — `FourMonthOutputWidget.navigator` emits `navigate_to(new_index)`. `OutputScreen._on_navigator_index_changed()` stores the index in `_period_indices[active_period_id]` and calls `get_period_schedule(period_id, new_index)`. Navigation is **per-period** — only the active tab advances; other periods keep their stored index. All reads go through `ResultsReader` directly from disk — no results are held in RAM.
+6. **Export** — `OutputScreen` calls `export_by_period_indices(period_indices, path)`. `AppService` reads one schedule per period (at its stored index) from disk, merges them with `ScheduleCombiner`, and writes via `ScheduleReportWriter`.
 
 ## Generation Modes
 | Mode | Trigger | Where schedules live |

@@ -42,19 +42,10 @@ classDiagram
         +get_periods()
         +toggle_day(period_id, day)
         +shift_period(period_id, start, end)
-        +generate()
         +generate_stream()
         +get_period_ids()
-        +get_period_schedules(period_id)
-        +get_period_schedule(period_id, index)
         +get_schedule_count(period_id)
-        +get_schedule_batch(start, limit)
-        +get_schedule(index)
-        +export_schedule(index, path)
-        +navigate(period_id, direction)
-        +navigate_global(direction)
-        +get_current_combination()
-        +export_current(path)
+        +get_period_schedule(period_id, index)
         +export_by_period_indices(period_indices, path)
     }
 
@@ -62,12 +53,9 @@ classDiagram
     class AppService {
         -_datastore: DataStore
         -_selected_programs: list[str]
-        -_results: list[ExamSchedule]
-        -_results_by_period: dict[str, list[ExamSchedule]]
         -_last_metadata: dict
         -_results_writer: PeriodResultsWriter
         -_results_reader: ResultsReader
-        -_current_indices: dict[str, int]
         -_engine_process: EngineProcess
         +getInstance()$
         +load_data(courses_path, dates_path, mode, programs_path)
@@ -77,19 +65,10 @@ classDiagram
         +get_periods()
         +toggle_day(period_id, day)
         +shift_period(period_id, start, end)
-        +generate()
         +generate_stream()
         +get_period_ids()
-        +get_period_schedules(period_id)
-        +get_period_schedule(period_id, index)
         +get_schedule_count(period_id)
-        +get_schedule_batch(start, limit)
-        +get_schedule(index)
-        +export_schedule(index, path)
-        +navigate(period_id, direction)
-        +navigate_global(direction)
-        +get_current_combination()
-        +export_current(path)
+        +get_period_schedule(period_id, index)
         +export_by_period_indices(period_indices, path)
         -_prepare_engine()
         -_validate_paths(paths)
@@ -97,7 +76,6 @@ classDiagram
         -_format_schedule_rows(schedule)
         -_default_program_names_path()
         -_load_default_program_names()
-        -_get_batch_from_disk(start, limit)
     }
 
     %% ===== Model =====

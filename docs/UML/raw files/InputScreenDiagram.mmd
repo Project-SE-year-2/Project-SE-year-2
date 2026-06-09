@@ -3,14 +3,15 @@ classDiagram
 
     class InputScreen {
         -service: IAppService
-        -_file_loader: FileLoaderWidget
-        -_program_list: ProgramListWidget
-        -_period_list: PeriodListWidget
-        -_period_editor: PeriodEditorWidget
-        -_programs_panel: SelectedProgramsPanel
-        -_error_banner: ErrorBanner
-        -_spinner: LoadingSpinner
-        -_btn_state: GenerateButtonState
+        +file_loader: FileLoaderWidget
+        +program_list: ProgramListWidget
+        +period_list: PeriodListWidget
+        +period_editor: PeriodEditorWidget
+        +selected_panel: SelectedProgramsPanel
+        +generate_btn: QPushButton
+        +spinner: LoadingSpinner
+        +error_banner: ErrorBanner
+        -_generate_state: GenerateButtonState
         -_worker: EngineListener
         +switch_to_output: pyqtSignal
         +_on_files_loaded()
@@ -20,25 +21,33 @@ classDiagram
         +_on_generation_finished(count)
         +_on_period_ready(period_id)
         +_on_error(message)
+        -_make_section(number, title, widgets, subtitle) QFrame
         -_sync_generate_button_state()
     }
+    note for InputScreen "3-column layout: col1=Data Input, col2=Study Programs,\ncol3=Exam Period. Bottom bar has fixed-height generate bar.\nWidgets start hidden; shown progressively as user advances.\nprogram_removed signal wired: selected_panel → program_list.remove_selection"
 
     %% ===== File Loading =====
     class FileLoaderWidget {
         -_service: IAppService
         -_validator: FilePathValidator
-        -_courses_path: str
+        -_courses_paths: list[str]
         -_dates_path: str
         +files_loaded: pyqtSignal
-        +_choose_courses_file()
-        +_choose_dates_file()
-        +_load_files()
+        +update_validation(programs, period)
+        -_load_files()
         -_get_mode() str
         -_set_loading_state(is_loading)
     }
 
+    class DropZoneCard {
+        -_paths: list[str]
+        -_replace_mode: bool
+        -_single_file: bool
+        +file_added: pyqtSignal(str)
+    }
+
     class FilePathValidator {
-        +validate(courses_path, dates_path)
+        +validate(courses_paths, dates_path)
     }
 
     %% ===== Program Selection =====
@@ -47,20 +56,30 @@ classDiagram
         -_max_selection: int
         -_selected_ids: set[str]
         -_rows_by_id: dict[str, ProgramRowWidget]
+        -_search_input: QLineEdit
         +programs_selected: pyqtSignal(list)
         +refresh()
         +selected_programs() list[str]
         +clear_selection()
+        +remove_selection(program_id)
         -_on_program_clicked(program_id)
         -_update_row_states()
+        -_apply_search_filter(text)
     }
 
     class ProgramRowWidget {
+        <<QWidget>>
         -program: ProgramItem
         -_selected: bool
+        -_badge: QLabel
+        -_name_lbl: QLabel
+        +clicked: pyqtSignal
+        +text() str
+        +click()
         +set_selected(selected)
         +setDisabled(disabled)
     }
+    note for ProgramRowWidget "Badge shows 2-letter abbreviation.\nColor determined by badge_color_for(program_id).\nExposes text()/click() for test compatibility."
 
     class ProgramItem {
         <<dataclass>>
@@ -141,15 +160,23 @@ classDiagram
     class SelectedProgramsPanel {
         -_service: IAppService
         -_formatter: CourseFormatter
+        +program_removed: pyqtSignal(str)
         +refresh(program_ids)
         +clear()
+        +clear_cache()
         +cached_program_ids() list[str]
     }
+    note for SelectedProgramsPanel "Chip-style expandable cards.\nprogram_removed → ProgramListWidget.remove_selection"
 
-    class SelectedProgramCard {
+    class ProgramChip {
+        <<QFrame>>
         -program_id: str
-        -courses: list[CourseItem]
+        -_courses: list[CourseItem]
+        -_expanded: bool
+        +remove_clicked: pyqtSignal(str)
+        -_toggle_expand()
     }
+    note for ProgramChip "Header: badge + program ID + name + chevron + × remove btn.\nBody: collapsible course table grouped by year/semester."
 
     class CourseItem {
         <<dataclass>>
@@ -167,7 +194,6 @@ classDiagram
 
     %% ===== State & Shared Components =====
     class GenerateButtonState {
-        <<dataclass>>
         +has_selected_programs: bool
         +has_viewed_period: bool
         +is_generating: bool
@@ -192,19 +218,21 @@ classDiagram
     }
 
     %% ===== Relationships =====
-    InputScreen --> FileLoaderWidget : contains
-    InputScreen --> ProgramListWidget : contains
-    InputScreen --> PeriodListWidget : contains
-    InputScreen --> PeriodEditorWidget : contains
-    InputScreen --> SelectedProgramsPanel : contains
-    InputScreen --> ErrorBanner : contains
-    InputScreen --> LoadingSpinner : contains
+    InputScreen --> FileLoaderWidget : col 1
+    InputScreen --> ProgramListWidget : col 2 top
+    InputScreen --> SelectedProgramsPanel : col 2 bottom
+    InputScreen --> PeriodListWidget : col 3 top
+    InputScreen --> PeriodEditorWidget : col 3 bottom
+    InputScreen --> ErrorBanner : bottom bar
+    InputScreen --> LoadingSpinner : bottom bar
     InputScreen --> GenerateButtonState : owns
 
+    FileLoaderWidget --> DropZoneCard : contains (courses + dates)
     FileLoaderWidget --> FilePathValidator : uses
 
     ProgramListWidget --> ProgramRowWidget : creates per program
     ProgramRowWidget --> ProgramItem : displays
+    SelectedProgramsPanel ..> ProgramListWidget : program_removed → remove_selection
 
     PeriodListWidget --> PeriodRowWidget : creates per period
     PeriodListWidget --> PeriodFormatter : uses
@@ -216,6 +244,6 @@ classDiagram
     EditablePeriodFormatter --> EditablePeriod : creates
 
     SelectedProgramsPanel --> CourseFormatter : uses
-    SelectedProgramsPanel --> SelectedProgramCard : creates per program
+    SelectedProgramsPanel --> ProgramChip : creates per program
     CourseFormatter --> CourseItem : creates
-    SelectedProgramCard --> CourseItem : displays
+    ProgramChip --> CourseItem : displays

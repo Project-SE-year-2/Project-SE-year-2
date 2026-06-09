@@ -60,12 +60,16 @@ sequenceDiagram
     ResultsReader-->>AppService: ExamSchedule (from batch file)
     AppService-->>OutputScreen: formatted schedule rows
 
-    User->>OutputScreen: navigates to next combination
-    OutputScreen->>AppService: navigate_global(+1)
-    AppService->>ResultsReader: get_count / get_schedule_at [per period]
-    AppService-->>OutputScreen: updated period indices
+    User->>OutputScreen: clicks Next/Prev
+    Note over OutputScreen: FourMonthOutputWidget.navigator emits navigate_to(new_index)
+    OutputScreen->>OutputScreen: _on_navigator_index_changed(new_index)
+    Note over OutputScreen: _period_indices[active_period_id] = new_index
+    OutputScreen->>AppService: get_period_schedule(period_id, new_index)
+    AppService->>ResultsReader: get_schedule_at(period_id, new_index)
+    ResultsReader-->>AppService: ExamSchedule (from batch file)
+    AppService-->>OutputScreen: formatted schedule rows
 
     User->>OutputScreen: clicks Export
-    OutputScreen->>AppService: export_current(path)
+    OutputScreen->>AppService: export_by_period_indices(period_indices, path)
     AppService->>ResultsReader: get_schedule_at(period_id, idx) [per period]
     AppService->>ScheduleReportWriter: write(combined_schedules, metadata, programs, path)

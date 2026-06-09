@@ -233,6 +233,11 @@ class MoedCalendarOutputWidget(QWidget):
         self._moed_all_btn.setCursor(Qt.PointingHandCursor)
         self._moed_all_btn.clicked.connect(lambda: self._on_moed_btn("All"))
 
+        # Left: schedule navigator (hidden automatically in All Sessions mode)
+        self.navigator = ScheduleNavigatorWidget()
+        row.addWidget(self.navigator)
+        row.addSpacing(14)
+
         row.addWidget(self._moed_aleph_btn)
         row.addSpacing(6)
         row.addWidget(self._moed_bet_btn)
@@ -240,11 +245,6 @@ class MoedCalendarOutputWidget(QWidget):
         row.addWidget(self._moed_gimel_btn)
         row.addSpacing(6)
         row.addWidget(self._moed_all_btn)
-        row.addSpacing(14)
-
-        # Right: schedule navigator (hidden automatically in All Sessions mode)
-        self.navigator = ScheduleNavigatorWidget()
-        row.addWidget(self.navigator)
 
         return row
 

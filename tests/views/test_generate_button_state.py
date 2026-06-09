@@ -8,15 +8,14 @@ def test_generate_button_hidden_initially():
     assert state.should_show_button() is False
     assert state.should_enable_button() is False
 
-
-# Tests that selecting only programs is not enough to show the Generate button.
-def test_generate_button_hidden_when_only_programs_selected():
+# Tests that selecting programs makes the Generate button visible and enabled, even without viewing a period.
+def test_generate_button_visible_when_programs_selected():
     state = GenerateButtonState()
 
     state.set_program_selection(True)
 
-    assert state.should_show_button() is False
-    assert state.should_enable_button() is False
+    assert state.should_show_button() is True
+    assert state.should_enable_button() is True
 
 
 # Tests that selecting programs and viewing a period makes the Generate button visible and enabled.

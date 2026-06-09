@@ -382,6 +382,12 @@ class MoedCalendarOutputWidget(QWidget):
     # Internal helpers
     # ──────────────────────────────────────────────────────────────────────────
 
+    def set_active_moed(self, moed: str) -> None:
+        """Silently reset the active moed button without emitting moed_changed."""
+        self._current_moed = moed
+        self._apply_moed_style()
+        self.navigator.setVisible(moed != "All")
+
     def _on_moed_btn(self, moed: str) -> None:
         if moed == self._current_moed:
             return

@@ -7,7 +7,7 @@ Layout
 QVBoxLayout (inside QScrollArea)
 ├── Toolbar: [← Back]  ·····  [⬇ Download Schedule]
 ├── SemesterTabsWidget: [🍃 FALL]  [🌸 SPRING]
-└── FourMonthOutputWidget (white card)
+└── MoedCalendarOutputWidget (white card)
       ├── Header: icon + title | [מועד א] [מועד ב] | ‹ N of M ›
       ├── Dynamic horizontal months (rebuilt per period date range)
       └── Legend
@@ -38,7 +38,7 @@ Fallback: if date-range filter yields nothing, filter by the "semester"
 "No period" banner
 ------------------
 When get_periods() has no entry for the active period_id,
-FourMonthOutputWidget.show_no_period() shows a styled warning.
+MoedCalendarOutputWidget.show_no_period() shows a styled warning.
 
 Isolated fetching
 -----------------
@@ -72,7 +72,7 @@ from PyQt5.QtWidgets import (
 
 from src.models.enums import Semester, Moed
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
-from src.views.output_screen.four_month_output_widget import FourMonthOutputWidget
+from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutputWidget
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
 from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
@@ -214,8 +214,8 @@ class OutputScreen(QWidget):
         self._conflict_banner.setVisible(False)
         main_layout.addWidget(self._conflict_banner)
 
-        # FourMonthOutputWidget
-        self.four_month = FourMonthOutputWidget()
+        # MoedCalendarOutputWidget
+        self.four_month = MoedCalendarOutputWidget()
         self.four_month.exam_day_clicked.connect(self._on_exam_day_clicked)
         self.four_month.moed_changed.connect(self._on_moed_changed)
         main_layout.addWidget(self.four_month, stretch=1)

@@ -1,5 +1,5 @@
 """
-FourMonthOutputWidget
+MoedCalendarOutputWidget
 =====================
 White card displaying one exam schedule as a dynamic horizontal row of months.
 
@@ -133,7 +133,7 @@ _MONTH_CARD_STYLE = """
 """
 
 
-class FourMonthOutputWidget(QWidget):
+class MoedCalendarOutputWidget(QWidget):
     """White card: semester header + moed toggle + horizontal months + legend."""
 
     exam_day_clicked = pyqtSignal(object, object)   # list[dict], QPoint
@@ -146,6 +146,8 @@ class FourMonthOutputWidget(QWidget):
         self._months: list[tuple[int, int]] = []
         self._month_grids:  list[MonthGrid] = []
         self._current_moed: str = "Aleph"
+        self._period_start: _date | None = None
+        self._period_end:   _date | None = None
         self._setup_ui()
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -388,9 +390,13 @@ class FourMonthOutputWidget(QWidget):
             )
             cl.addWidget(title)
 
+            pstart = QDate(self._period_start.year, self._period_start.month, self._period_start.day) if self._period_start else None
+            pend   = QDate(self._period_end.year,   self._period_end.month,   self._period_end.day)   if self._period_end   else None
+
             mg = MonthGrid(CalendarMode.OUTPUT)
             mg.output_exam_clicked.connect(self._on_cell_clicked)
-            mg.populate_output(year, month, self._exams_by_date, self._unavail_dates)
+            mg.populate_output(year, month, self._exams_by_date, self._unavail_dates,
+                               period_start=pstart, period_end=pend)
             self._month_grids.append(mg)
             cl.addWidget(mg, stretch=1)
 
@@ -401,7 +407,13 @@ class FourMonthOutputWidget(QWidget):
         self._icon_lbl.setText(icon)
         self._semester_title.setText(f"{semester} {year}")
 
-        if self._months:
+        if self._period_start and self._period_end:
+            qs = QDate(self._period_start.year, self._period_start.month, self._period_start.day)
+            qe = QDate(self._period_end.year,   self._period_end.month,   self._period_end.day)
+            start = EN_LOCALE.toString(qs, "d MMM yyyy")
+            end   = EN_LOCALE.toString(qe, "d MMM yyyy")
+            self._semester_subtitle.setText(f"{start} – {end}")
+        elif self._months:
             fy, fm = self._months[0]
             ly, lm = self._months[-1]
             start = EN_LOCALE.toString(QDate(fy, fm, 1), "MMMM yyyy")
@@ -499,6 +511,10 @@ class FourMonthOutputWidget(QWidget):
             qd = _to_qdate(d)
             if qd.isValid():
                 self._unavail_dates.add(qd)
+
+        # Store period bounds for graying out-of-range days
+        self._period_start = start_date
+        self._period_end   = end_date
 
         # Determine months to show
         if start_date is not None and end_date is not None:

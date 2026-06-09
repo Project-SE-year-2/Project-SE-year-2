@@ -1,0 +1,236 @@
+# Input Screen Class Diagram
+
+Detailed structure of `InputScreen` and all its contained widgets, view-model dataclasses, formatters, and state objects.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class InputScreen {
+        -service: IAppService
+        -_file_loader: FileLoaderWidget
+        -_program_list: ProgramListWidget
+        -_period_list: PeriodListWidget
+        -_period_editor: PeriodEditorWidget
+        -_programs_panel: SelectedProgramsPanel
+        -_error_banner: ErrorBanner
+        -_spinner: LoadingSpinner
+        -_btn_state: GenerateButtonState
+        -_worker: EngineListener
+        +switch_to_output: pyqtSignal
+        +_on_files_loaded()
+        +_on_programs_selected(selected_programs)
+        +_on_period_selected(period_id)
+        +_on_generate_clicked()
+        +_on_generation_finished(count)
+        +_on_period_ready(period_id)
+        +_on_error(message)
+        -_sync_generate_button_state()
+    }
+
+    %% ===== File Loading =====
+    class FileLoaderWidget {
+        -_service: IAppService
+        -_validator: FilePathValidator
+        -_courses_path: str
+        -_dates_path: str
+        +files_loaded: pyqtSignal
+        +_choose_courses_file()
+        +_choose_dates_file()
+        +_load_files()
+        -_get_mode() str
+        -_set_loading_state(is_loading)
+    }
+
+    class FilePathValidator {
+        +validate(courses_path, dates_path)
+    }
+
+    %% ===== Program Selection =====
+    class ProgramListWidget {
+        -_service: IAppService
+        -_max_selection: int
+        -_selected_ids: set[str]
+        -_rows_by_id: dict[str, ProgramRowWidget]
+        +programs_selected: pyqtSignal(list)
+        +refresh()
+        +selected_programs() list[str]
+        +clear_selection()
+        -_on_program_clicked(program_id)
+        -_update_row_states()
+    }
+
+    class ProgramRowWidget {
+        -program: ProgramItem
+        -_selected: bool
+        +set_selected(selected)
+        +setDisabled(disabled)
+    }
+
+    class ProgramItem {
+        <<dataclass>>
+        +program_id: str
+        +name: str
+    }
+
+    %% ===== Period Selection =====
+    class PeriodListWidget {
+        -_service: IAppService
+        -_formatter: PeriodFormatter
+        -_selected_period_id: str
+        -_rows_by_id: dict[str, PeriodRowWidget]
+        +period_selected: pyqtSignal(str)
+        +refresh()
+        +selected_period_id() str
+        +clear_selection()
+        -_on_period_clicked(period_id)
+        -_update_row_states()
+    }
+
+    class PeriodRowWidget {
+        -period: PeriodItem
+        -_selected: bool
+        +set_selected(selected)
+    }
+
+    class PeriodItem {
+        <<dataclass>>
+        +period_id: str
+        +title: str
+        +start_date: date
+        +end_date: date
+    }
+
+    class PeriodFormatter {
+        +format(period_dict) PeriodItem
+        -_format_date(value) str
+    }
+
+    %% ===== Period Editor =====
+    class PeriodEditorWidget {
+        -_service: IAppService
+        -_formatter: EditablePeriodFormatter
+        -_current_period_id: str
+        +load_period(period_id)
+        +clear()
+        +current_period_id() str
+        -_on_day_clicked(qdate)
+        -_on_save_requested(start, end, unavailable_days)
+    }
+
+    class EditablePeriod {
+        <<dataclass>>
+        +period_id: str
+        +title: str
+        +start_date: date
+        +end_date: date
+        +forbidden_days: set
+    }
+
+    class EditablePeriodFormatter {
+        +format(period_dict) EditablePeriod
+        -_format_date(value) str
+    }
+
+    class CalendarTableWidget {
+        -mode: CalendarMode
+        +day_clicked: pyqtSignal
+        +save_requested: pyqtSignal
+        +update_schedule(schedule_data, unavailable_dates)
+        +set_date_range(start, end)
+        +set_unavailable_days(days)
+        +get_unavailable_days() list
+    }
+
+    %% ===== Selected Programs Panel =====
+    class SelectedProgramsPanel {
+        -_service: IAppService
+        -_formatter: CourseFormatter
+        +refresh(program_ids)
+        +clear()
+        +cached_program_ids() list[str]
+    }
+
+    class SelectedProgramCard {
+        -program_id: str
+        -courses: list[CourseItem]
+    }
+
+    class CourseItem {
+        <<dataclass>>
+        +number: str
+        +name: str
+        +year: int
+        +semester: str
+        +course_type: str
+        +evaluation: str
+    }
+
+    class CourseFormatter {
+        +format(course_dict) CourseItem
+    }
+
+    %% ===== State & Shared Components =====
+    class GenerateButtonState {
+        <<dataclass>>
+        +has_selected_programs: bool
+        +has_viewed_period: bool
+        +is_generating: bool
+        +reset_after_file_load()
+        +set_program_selection(has_selection)
+        +set_period_viewed(has_period)
+        +start_generation()
+        +finish_generation()
+        +should_show_button() bool
+        +should_enable_button() bool
+    }
+
+    class ErrorBanner {
+        +dismissed: pyqtSignal
+        +show_error(message)
+        +hide_error()
+    }
+
+    class LoadingSpinner {
+        +start()
+        +stop()
+    }
+
+    %% ===== Relationships =====
+    InputScreen --> FileLoaderWidget : contains
+    InputScreen --> ProgramListWidget : contains
+    InputScreen --> PeriodListWidget : contains
+    InputScreen --> PeriodEditorWidget : contains
+    InputScreen --> SelectedProgramsPanel : contains
+    InputScreen --> ErrorBanner : contains
+    InputScreen --> LoadingSpinner : contains
+    InputScreen --> GenerateButtonState : owns
+
+    FileLoaderWidget --> FilePathValidator : uses
+
+    ProgramListWidget --> ProgramRowWidget : creates per program
+    ProgramRowWidget --> ProgramItem : displays
+
+    PeriodListWidget --> PeriodRowWidget : creates per period
+    PeriodListWidget --> PeriodFormatter : uses
+    PeriodFormatter --> PeriodItem : creates
+    PeriodRowWidget --> PeriodItem : displays
+
+    PeriodEditorWidget --> EditablePeriodFormatter : uses
+    PeriodEditorWidget --> CalendarTableWidget : contains
+    EditablePeriodFormatter --> EditablePeriod : creates
+
+    SelectedProgramsPanel --> CourseFormatter : uses
+    SelectedProgramsPanel --> SelectedProgramCard : creates per program
+    CourseFormatter --> CourseItem : creates
+    SelectedProgramCard --> CourseItem : displays
+```
+
+## Overview
+- **FileLoaderWidget**: File picker for courses + dates files; supports replace/append mode; calls `IAppService.load_data()`; emits `files_loaded` on success.
+- **ProgramListWidget**: Scrollable list of programs (max 5 selected). Calls `IAppService.select_programs()` on every toggle.
+- **PeriodListWidget**: Scrollable list of exam periods. Emits `period_selected` so `InputScreen` can load the editor.
+- **PeriodEditorWidget**: Embeds a `CalendarTableWidget` (INPUT mode) to toggle forbidden days and shift period dates. Calls `IAppService.toggle_day()` / `shift_period()` on save.
+- **SelectedProgramsPanel**: Shows a card per selected program listing all its courses in a table. Refreshed after program selection changes.
+- **GenerateButtonState**: Pure-data state machine (dataclass). Controls when the Generate button is shown and enabled — requires at least one program selected and one period viewed.
+- **ErrorBanner / LoadingSpinner**: Shared feedback components displayed during long operations.

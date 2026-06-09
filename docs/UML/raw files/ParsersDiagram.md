@@ -27,8 +27,8 @@ classDiagram
         +parse(path) List~String~
     }
 
-    class ProgramParserModule {
-        <<module>>
+    class ProgramsParser {
+        +parse(filepath)$ dict[str, str]
     }
 
     %% ===== Module-Level Function =====
@@ -61,15 +61,13 @@ classDiagram
     }
 
     %% ===== Relationships =====
-    CourseFileParser ..|> IFileParser : implements
-    ExamPeriodFileParser ..|> IFileParser : implements
-    ProgramSelectionParser ..|> IFileParser : implements
+    IFileParser <|.. CourseFileParser : implements
+    IFileParser <|.. ExamPeriodFileParser : implements
+    IFileParser <|.. ProgramSelectionParser : implements
 
     CourseFileParser ..> Course : creates
     CourseFileParser ..> ProgramRequirement : creates
     ExamPeriodFileParser ..> ExamPeriod : creates
-
-    ProgramParserModule --> ProgramSelectionParser : contains
 
     ParserModule --> CourseFileParser : uses
     ParserModule ..> Course : filters
@@ -78,9 +76,9 @@ classDiagram
 ```
 
 ## Overview
-- **IFileParser**: Generic interface for all file parsers
-- **CourseFileParser**: Parses courses and program requirements
-- **ExamPeriodFileParser**: Parses exam periods and forbidden dates
-- **ProgramSelectionParser**: Parses selected program IDs
-- **ProgramParserModule**: Represents `src/parsers/program_parser.py`, which contains `ProgramSelectionParser`
-- **ParserModule**: Module-level function `filter_courses_for_scheduling` that filters courses by evaluation type and program membership
+- **IFileParser**: Generic interface for file-based parsers.
+- **CourseFileParser**: Parses courses and program requirements from the courses data file.
+- **ExamPeriodFileParser**: Parses exam periods and forbidden dates from the dates data file.
+- **ProgramSelectionParser**: Parses a list of selected program IDs from a text file (used by the CLI `AppController`).
+- **ProgramsParser**: Static parser that reads `data/programsName.txt` and returns a `{program_id: display_name}` mapping. Used by `AppService` to show human-readable program names in the UI.
+- **ParserModule** (`filter_courses_for_scheduling`): Module-level function that filters the full course list down to only those belonging to selected programs and having an exam evaluation type.

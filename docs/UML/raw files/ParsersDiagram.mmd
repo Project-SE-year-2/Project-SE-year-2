@@ -22,8 +22,8 @@ classDiagram
         +parse(path) List~String~
     }
 
-    class ProgramParserModule {
-        <<module>>
+    class ProgramsParser {
+        +parse(filepath)$ dict[str, str]
     }
 
     %% ===== Module-Level Function =====
@@ -63,8 +63,7 @@ classDiagram
     CourseFileParser ..> Course : creates
     CourseFileParser ..> ProgramRequirement : creates
     ExamPeriodFileParser ..> ExamPeriod : creates
-
-    ProgramParserModule --> ProgramSelectionParser : contains
+    ProgramsParser ..> ProgramNamesMap : creates
 
     ParserModule --> CourseFileParser : uses
     ParserModule ..> Course : filters

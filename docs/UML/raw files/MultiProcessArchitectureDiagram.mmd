@@ -1,0 +1,43 @@
+flowchart TD
+    subgraph UIProcess["UI Process (main)"]
+        direction TB
+        MainWindow["MainWindow"]
+        InputScreen["InputScreen"]
+        OutputScreen["OutputScreen"]
+        EngineListener["EngineListener\n(QThread)"]
+        AppService["AppService\n(Singleton)"]
+        ResultsReader["ResultsReader"]
+        DataStore["DataStore"]
+
+        MainWindow --> InputScreen
+        MainWindow --> OutputScreen
+        InputScreen -->|"start()"| EngineListener
+        EngineListener -->|"generate_stream()"| AppService
+        AppService --> DataStore
+        AppService --> ResultsReader
+        OutputScreen -->|"get_period_schedule()"| AppService
+    end
+
+    subgraph EngineSubprocess["Engine Subprocess (daemon)"]
+        direction TB
+        EngineWorker["_engine_worker()"]
+        SchedulingEngine["SchedulingEngine"]
+        PeriodResultsWriter["PeriodResultsWriter"]
+
+        EngineWorker -->|"solve_to_disk()"| SchedulingEngine
+        SchedulingEngine -->|"write_batch()"| PeriodResultsWriter
+    end
+
+    subgraph DiskStorage["Disk: data/results/"]
+        Manifest["manifest.json\n(schedule counts per period)"]
+        Batches["FALL_Aleph/batch_0000.pkl\nFALL_Bet/batch_0000.pkl\n..."]
+    end
+
+    AppService -->|"task_queue\n{type:solve, engine, tasks}"| EngineSubprocess
+    EngineSubprocess -->|"notify_queue\n{type:period_done, period_id}"| AppService
+    PeriodResultsWriter -->|"writes batches"| DiskStorage
+    ResultsReader -->|"reads batches"| DiskStorage
+
+    style UIProcess fill:#1a1a2e,stroke:#4a90d9,color:#ffffff
+    style EngineSubprocess fill:#1a2e1a,stroke:#4a9d4a,color:#ffffff
+    style DiskStorage fill:#2e2a1a,stroke:#d9a44a,color:#ffffff

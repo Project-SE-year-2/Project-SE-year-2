@@ -1,13 +1,12 @@
-# View Layer Class Diagram
+# View Layer Class Diagram (Overview)
 
-Detailed structure of the PyQt5 View layer: screens, reusable widgets, view-model dataclasses, and the background worker thread. Everything above the dashed thread boundary runs on the Qt main thread; `GenerateWorker.run()` executes on a dedicated QThread.
+High-level overview of the PyQt5 View layer: the two screens, the background worker thread, and shared reusable components. For widget-level detail see `InputScreenDiagram` and `OutputScreenDiagram`.
 
 ```mermaid
 classDiagram
     direction TB
 
-    %% ===== Main Thread =====
-
+    %% ===== Root Window =====
     class MainWindow {
         -service: AppService
         -stacked_widget: QStackedWidget
@@ -18,103 +17,32 @@ classDiagram
         +_show_input_screen()
     }
 
+    %% ===== Screens =====
     class InputScreen {
         -service: IAppService
-        -_worker: GenerateWorker
+        -_worker: EngineListener
         +switch_to_output: pyqtSignal
+        +_on_files_loaded()
+        +_on_programs_selected(ids)
+        +_on_period_selected(period_id)
         +_on_generate_clicked()
         +_on_generation_finished(count)
         +_on_period_ready(period_id)
         +_on_error(message)
     }
+    note for InputScreen "Contains FileLoaderWidget, ProgramListWidget,\nPeriodListWidget, PeriodEditorWidget,\nSelectedProgramsPanel — see InputScreenDiagram"
 
     class OutputScreen {
         -service: IAppService
         +switch_to_input: pyqtSignal
-        +show_schedule()
-        +export_schedule(index, path)
+        +connect_listener(listener)
+        +_on_period_ready(period_id)
+        +_on_generation_finished(total)
     }
+    note for OutputScreen "Contains FourMonthOutputWidget,\nSemesterTabsWidget, ScheduleNavigatorWidget,\nDayDetailDialog — see OutputScreenDiagram"
 
-    %% ===== Reusable Widgets (main thread) =====
-
-    class FileLoaderWidget {
-        -_service: IAppService
-        -_validator: FilePathValidator
-        -_courses_path: str
-        -_dates_path: str
-        +files_loaded: pyqtSignal
-        +_choose_courses_file()
-        +_choose_dates_file()
-        +_load_files()
-        -_get_mode() str
-        -_set_loading_state(is_loading)
-    }
-
-    class FilePathValidator {
-        +validate(courses_path, dates_path)
-    }
-
-    class ProgramListWidget {
-        -_service: IAppService
-        -_max_selection: int
-        -_selected_ids: set[str]
-        -_rows_by_id: dict[str, ProgramRowWidget]
-        +programs_selected: pyqtSignal(list)
-        +refresh()
-        +selected_programs() list[str]
-        +clear_selection()
-        -_on_program_clicked(program_id)
-        -_update_row_states()
-    }
-
-    class ProgramRowWidget {
-        -program: ProgramItem
-        -_selected: bool
-        +set_selected(selected)
-        +setDisabled(disabled)
-    }
-
-    class ProgramItem {
-        <<dataclass>>
-        +program_id: str
-        +name: str
-    }
-
-    class PeriodListWidget {
-        -_service: IAppService
-        -_formatter: PeriodFormatter
-        -_selected_period_id: str
-        -_rows_by_id: dict[str, PeriodRowWidget]
-        +period_selected: pyqtSignal(str)
-        +refresh()
-        +selected_period_id() str
-        +clear_selection()
-        -_on_period_clicked(period_id)
-        -_update_row_states()
-    }
-
-    class PeriodRowWidget {
-        -period: PeriodItem
-        -_selected: bool
-        +set_selected(selected)
-    }
-
-    class PeriodItem {
-        <<dataclass>>
-        +period_id: str
-        +title: str
-        +start_date: date
-        +end_date: date
-    }
-
-    class PeriodFormatter {
-        +format(period_dict) PeriodItem
-        -_format_date(value) str
-    }
-
-    %% ===== Worker Thread =====
-
-    class GenerateWorker {
+    %% ===== Background Thread =====
+    class EngineListener {
         -_service: IAppService
         +period_ready: pyqtSignal(str)
         +finished: pyqtSignal(int)
@@ -122,40 +50,92 @@ classDiagram
         +__init__(service)
         +run()
     }
+    note for EngineListener "QThread — runs on worker thread.\nRe-exported as GenerateWorker."
 
-    note for GenerateWorker "Runs on a background QThread.\nCommunicates back to main thread\nonly via Qt signals (thread-safe)."
+    %% ===== Shared Components =====
+    class ErrorBanner {
+        +dismissed: pyqtSignal
+        +show_error(message)
+        +hide_error()
+    }
+
+    class LoadingSpinner {
+        +start()
+        +stop()
+    }
+
+    class CalendarTableWidget {
+        -mode: CalendarMode
+        +day_clicked: pyqtSignal
+        +exams_day_clicked: pyqtSignal
+        +save_requested: pyqtSignal
+        +update_schedule(schedule_data, unavailable_dates)
+        +set_date_range(start, end)
+        +set_unavailable_days(days)
+        +get_unavailable_days() list
+    }
+
+    class ScheduleNavigatorWidget {
+        +navigate_to: pyqtSignal(int)
+        +prefetch_needed: pyqtSignal(int)
+        +current_index: int
+        +set_state(current, total, loaded)
+    }
+
+    class TypeBadge {
+        +set_type(type_str)
+    }
+
+    class PrimaryButton { }
+    class SecondaryButton { }
+    class DangerButton { }
+
+    %% ===== Calendar Sub-components =====
+    class MonthGrid {
+        +update_month(year, month, exams, unavailable)
+    }
+
+    class InputDayCell {
+        -is_forbidden: bool
+        -has_exam: bool
+    }
+
+    class OutputDayCell {
+        -exams: list
+        -is_exam_day: bool
+    }
+
+    %% ===== Threading Model =====
+    note for MainWindow "All classes run on the Qt main thread\nexcept EngineListener.run() which runs\non a background QThread."
 
     %% ===== Relationships =====
     MainWindow --> InputScreen : creates and injects service
     MainWindow --> OutputScreen : creates and injects service
 
-    InputScreen --> FileLoaderWidget : contains
-    InputScreen --> ProgramListWidget : contains
-    InputScreen --> PeriodListWidget : contains
-    InputScreen --> GenerateWorker : creates on generate click
+    InputScreen --> EngineListener : creates on generate click
+    OutputScreen --> EngineListener : connect_listener()
 
-    FileLoaderWidget --> FilePathValidator : uses
-    ProgramListWidget --> ProgramRowWidget : creates per program
-    ProgramRowWidget --> ProgramItem : displays
-    PeriodListWidget --> PeriodRowWidget : creates per period
-    PeriodListWidget --> PeriodFormatter : uses
-    PeriodFormatter --> PeriodItem : creates
-    PeriodRowWidget --> PeriodItem : displays
+    CalendarTableWidget --> MonthGrid : contains
+    CalendarTableWidget --> InputDayCell : creates in INPUT mode
+    CalendarTableWidget --> OutputDayCell : creates in OUTPUT mode
+
+    MonthGrid --> InputDayCell : creates in INPUT mode
+    MonthGrid --> OutputDayCell : creates in OUTPUT mode
 ```
 
 ## Overview
-- **MainWindow**: Root QMainWindow; owns a `QStackedWidget` with `InputScreen` at index 0 and `OutputScreen` at index 1. Wires `switch_to_output` / `switch_to_input` signals to navigate between them.
-- **InputScreen**: Top-level input screen. Composes `FileLoaderWidget`, `ProgramListWidget`, and `PeriodListWidget`. Creates a `GenerateWorker` when the user clicks Generate.
-- **OutputScreen**: Displays and paginates generated schedules; supports export.
-- **FileLoaderWidget**: Lets the user pick two files and a load mode (replace/append). Delegates validation to `FilePathValidator` and loading to `IAppService.load_data()`. Emits `files_loaded` on success.
-- **ProgramListWidget**: Scrollable, selectable list of academic programs (max 5). Calls `IAppService.select_programs()` on every toggle. Emits `programs_selected`.
-- **PeriodListWidget**: Scrollable list of exam periods. Emits `period_selected` when a row is clicked. Uses `PeriodFormatter` to convert raw service dicts into display-friendly `PeriodItem` objects.
-- **GenerateWorker**: `QThread` subclass. Iterates `IAppService.generate_stream()` on a **background thread**. Emits `period_ready(period_id)` per period and `finished(count)` when done. All communication back to the UI is through Qt signals (thread-safe crossing of the thread boundary).
+- **MainWindow**: Root `QMainWindow`; owns a `QStackedWidget` with `InputScreen` at index 0 and `OutputScreen` at index 1.
+- **InputScreen**: The full input flow screen — see `InputScreenDiagram` for all contained widgets.
+- **OutputScreen**: The schedule display screen — see `OutputScreenDiagram` for all contained components.
+- **EngineListener**: `QThread` subclass (re-exported as `GenerateWorker` for backward compatibility). Runs `IAppService.generate_stream()` on a background thread; emits `period_ready`, `finished`, `error` signals back to the Qt main thread.
+- **CalendarTableWidget**: Dual-mode (INPUT/OUTPUT) calendar shared between `PeriodEditorWidget` and `OutputScreen`. In INPUT mode shows forbidden-day toggles; in OUTPUT mode shows exam assignments.
+- **MonthGrid / InputDayCell / OutputDayCell**: Low-level calendar rendering components inside `CalendarTableWidget`.
+- **ErrorBanner, LoadingSpinner, TypeBadge, PrimaryButton, SecondaryButton, DangerButton**: Shared UI components used across multiple screens and widgets.
 
-## Threading model
+## Threading Model
 | Thread | Runs |
 |--------|------|
-| Main (Qt event loop) | `MainWindow`, `InputScreen`, `OutputScreen`, all widgets |
-| Worker (QThread) | `GenerateWorker.run()` only |
+| Qt main thread (event loop) | All widgets, screens, `MainWindow` |
+| Background QThread | `EngineListener.run()` only |
 
-Signals (`period_ready`, `finished`, `error`) are automatically queued across the thread boundary by Qt — no manual locking is needed.
+Signals (`period_ready`, `finished`, `error`) are automatically queued across the thread boundary by Qt — no manual locking needed.

@@ -1,40 +1,28 @@
 # Presenter Layer Class Diagram
 
-Detailed view of the MVP Presenter layer: the `IAppService` contract, the singleton `AppService`, the `DataStore` model, the `GenerateWorker` background thread, and their relationships to the View screens and external subsystems.
+Structure of the MVP Presenter layer: the `IAppService` contract, singleton `AppService`, `DataStore` model, `EngineListener` thread, multi-process wrapper, and disk I/O bridge classes.
 
 ```mermaid
 classDiagram
     direction TB
 
-    %% ===== View Layer =====
-    class MainWindow {
-        -service: AppService
-        -stacked_widget: QStackedWidget
-        -input_screen: InputScreen
-        -output_screen: OutputScreen
-        +_init_screens()
-        +_show_output_screen()
-        +_show_input_screen()
-    }
-
+    %% ===== View Layer (abbreviated) =====
     class InputScreen {
         -service: IAppService
-        -_worker: GenerateWorker
         +switch_to_output: pyqtSignal
         +_on_generate_clicked()
-        +_on_generation_finished(count)
         +_on_period_ready(period_id)
-        +_on_error(message)
+        +_on_generation_finished(count)
     }
 
     class OutputScreen {
         -service: IAppService
         +switch_to_input: pyqtSignal
-        +show_schedule()
-        +export_schedule(index, path)
+        +connect_listener(listener)
     }
 
-    class GenerateWorker {
+    %% ===== Background Thread (UI Process) =====
+    class EngineListener {
         -_service: IAppService
         +period_ready: pyqtSignal(str)
         +finished: pyqtSignal(int)
@@ -42,11 +30,12 @@ classDiagram
         +__init__(service)
         +run()
     }
+    note for EngineListener "Re-exported as GenerateWorker\nfor backward compatibility"
 
-    %% ===== Presenter Layer =====
+    %% ===== Presenter Interface =====
     class IAppService {
         <<interface>>
-        +load_data(courses_path, dates_path, mode)
+        +load_data(courses_path, dates_path, mode, programs_path)
         +get_available_programs()
         +select_programs(ids)
         +get_courses(program_id)
@@ -57,19 +46,31 @@ classDiagram
         +generate_stream()
         +get_period_ids()
         +get_period_schedules(period_id)
-        +get_schedule_count()
+        +get_period_schedule(period_id, index)
+        +get_schedule_count(period_id)
+        +get_schedule_batch(start, limit)
         +get_schedule(index)
         +export_schedule(index, path)
+        +navigate(period_id, direction)
+        +navigate_global(direction)
+        +get_current_combination()
+        +export_current(path)
+        +export_by_period_indices(period_indices, path)
     }
 
+    %% ===== Presenter =====
     class AppService {
         -_datastore: DataStore
         -_selected_programs: list[str]
         -_results: list[ExamSchedule]
         -_results_by_period: dict[str, list[ExamSchedule]]
         -_last_metadata: dict
+        -_results_writer: PeriodResultsWriter
+        -_results_reader: ResultsReader
+        -_current_indices: dict[str, int]
+        -_engine_process: EngineProcess
         +getInstance()$
-        +load_data(courses_path, dates_path, mode)
+        +load_data(courses_path, dates_path, mode, programs_path)
         +get_available_programs()
         +select_programs(ids)
         +get_courses(program_id)
@@ -80,25 +81,38 @@ classDiagram
         +generate_stream()
         +get_period_ids()
         +get_period_schedules(period_id)
-        +get_schedule_count()
+        +get_period_schedule(period_id, index)
+        +get_schedule_count(period_id)
+        +get_schedule_batch(start, limit)
         +get_schedule(index)
         +export_schedule(index, path)
+        +navigate(period_id, direction)
+        +navigate_global(direction)
+        +get_current_combination()
+        +export_current(path)
+        +export_by_period_indices(period_indices, path)
         -_prepare_engine()
         -_validate_paths(paths)
         -_get_period_or_raise(period_id)
+        -_format_schedule_rows(schedule)
+        -_default_program_names_path()
+        -_load_default_program_names()
+        -_get_batch_from_disk(start, limit)
     }
 
-    %% ===== Model Layer =====
+    %% ===== Model =====
     class DataStore {
         -_path: Path
         -_courses: list[Course]
         -_periods: list[ExamPeriod]
+        -_program_names: dict[str, str]
         +load()
         +save()
         +clear()
         +is_empty()
         +set_courses(courses)
         +set_periods(periods)
+        +set_program_names(names)
         +merge_courses(new_courses)
         +merge_periods(new_periods)
         +get_all_courses()
@@ -115,8 +129,34 @@ classDiagram
         -end_date: date
         -possible_dates: list[date]
         -forbidden_days: list[date]
+        +period_id: str
         +toggle_day(day)
         +shift_dates(start, end)
+    }
+
+    %% ===== Disk I/O Bridge =====
+    class PeriodResultsWriter {
+        -_root: Path
+        +BATCH_SIZE: int
+        +write_batch(period_id, schedules)
+        +update_manifest(period_id, count)
+    }
+
+    class ResultsReader {
+        -_root: Path
+        +get_count(period_id) int
+        +get_schedule_at(period_id, index) ExamSchedule
+        +get_period_ids() list[str]
+    }
+
+    %% ===== Multi-process Wrapper =====
+    class EngineProcess {
+        -_task_queue: mp.Queue
+        -_notify_queue: mp.Queue
+        -_process: mp.Process
+        +submit(engine, tasks)
+        +get_notification() dict
+        +stop()
     }
 
     %% ===== External Subsystems (abbreviated) =====
@@ -128,9 +168,14 @@ classDiagram
         +parse(filepath) list[Course]
     }
 
+    class ProgramsParser {
+        +parse(filepath)$ dict[str, str]
+    }
+
     class SchedulingEngine {
         +generateAll(scheduling_tasks) Tuple
         +iterPeriodResults(scheduling_tasks) Generator
+        +solve_to_disk(period, courses_dict, writer) int
     }
 
     class ScheduleCombiner {
@@ -142,31 +187,34 @@ classDiagram
     }
 
     %% ===== Relationships =====
-    MainWindow --> InputScreen : injects
-    MainWindow --> OutputScreen : injects
-    InputScreen --> GenerateWorker : creates
+    InputScreen --> EngineListener : creates
     InputScreen --> IAppService : uses
     OutputScreen --> IAppService : uses
-    GenerateWorker --> IAppService : calls generate_stream()
+    OutputScreen --> EngineListener : connect_listener()
+    EngineListener --> IAppService : calls generate_stream()
     AppService --|> IAppService : implements
     AppService --> DataStore : owns
+    AppService --> ResultsReader : owns
+    AppService --> EngineProcess : optionally owns
     AppService --> ExamPeriodFileParser : uses
     AppService --> CourseFileParser : uses
+    AppService --> ProgramsParser : uses
     AppService --> SchedulingEngine : uses
     AppService --> ScheduleCombiner : uses
     AppService --> ScheduleReportWriter : uses
+    EngineProcess --> PeriodResultsWriter : subprocess uses
+    ResultsReader --> ExamSchedule : reads from disk
     DataStore --> ExamPeriod : stores
     DataStore --> Course : stores
     ExamPeriodFileParser --> ExamPeriod : creates
-    SchedulingEngine --> ExamPeriod : reads
-    SchedulingEngine --> Course : reads
 ```
 
 ## Overview
-- **MainWindow**: Root PyQt5 scaffold; owns a `QStackedWidget` and wires navigation signals between screens
-- **InputScreen**: View for file loading, program selection, period editing, and generation trigger
-- **OutputScreen**: View for browsing and exporting generated schedules
-- **GenerateWorker**: `QThread` subclass that drives `generate_stream()` off the main thread, emitting `period_ready` and `finished` signals
-- **IAppService**: Abstract interface — the only contract Views may use; no direct imports of models, parsers, or algorithm classes allowed in the View layer
-- **AppService**: Singleton Presenter implementing `IAppService`; owns `DataStore`, orchestrates parsers, engine, combiner, and writer
-- **DataStore**: Persists parsed `Course` and `ExamPeriod` objects to disk via pickle so unchanged files are not re-parsed on every startup
+- **IAppService**: The only interface Views may call. Enforces the MVP boundary — no View file may import from algorithm, models, or parsers directly.
+- **AppService**: Singleton Presenter. Supports three generation modes: multiprocessing (EP-83), file-based single-process (EP-82), and legacy in-memory.
+- **DataStore**: Persists `Course`, `ExamPeriod`, and program-name mappings to `data/datastore.pkl` via pickle.
+- **EngineListener**: `QThread` subclass (formerly `GenerateWorker`). Iterates `generate_stream()` on a background thread; emits `period_ready` and `finished` signals back to the main thread.
+- **EngineProcess**: Manages a daemon `multiprocessing.Process`. Sends work via `task_queue` and receives `period_done` notifications via `notify_queue`. No heavy objects cross the process boundary — only period IDs.
+- **PeriodResultsWriter**: Writes solved schedules to `data/results/<period_id>/batch_XXXX.pkl` files in batches of 50. Updates `manifest.json` after each batch.
+- **ResultsReader**: Reads individual schedules from batch files by index without loading entire periods into RAM.
+- **ProgramsParser**: Static parser that reads `data/programsName.txt` and returns a `{program_id: display_name}` map.

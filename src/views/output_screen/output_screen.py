@@ -121,8 +121,8 @@ class OutputScreen(QWidget):
         # touches another period's position.
         self._period_indices: dict[str, int] = {
             f"{sem.value}_{moed.value}": 0
-            for sem in [Semester.FALL, Semester.SPRI]
-            for moed in [Moed.Aleph, Moed.Bet]
+            for sem in Semester
+            for moed in Moed
         }
 
         # ── Active view ───────────────────────────────────────────────────────

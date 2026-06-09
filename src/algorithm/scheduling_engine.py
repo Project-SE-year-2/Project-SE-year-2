@@ -124,25 +124,23 @@ class SchedulingEngine:
         Returns the total number of valid schedules found.
         """
         pid = period.period_id
+        # Clear stale results from any previous run before writing new ones.
+        # Also ensures manifest stays at 0 when the solver finds no valid schedules.
+        writer.clear_period(pid)
+
         courses = list(courses_dict.keys())
-        # Handle the edge case where no courses exist for this period
         if not courses:
-            writer.update_manifest(pid, 0)
             return 0
 
         batch: list = []
         total = 0
-        # Process solutions using a generator to keep memory consumption low
         for sched in self._solver.solve_stream(courses, period, self._validator):
             batch.append(sched)
             total += 1
-            # Flush the batch to disk once it reaches the defined capacity
             if len(batch) >= BATCH_SIZE:
                 writer.write_batch(pid, batch)
-                # Clear the batch from RAM to allow garbage collection
                 batch = []
-        
-        # Persist any remaining schedules that didn't fill the last batch
+
         if batch:
             writer.write_batch(pid, batch)
         return total

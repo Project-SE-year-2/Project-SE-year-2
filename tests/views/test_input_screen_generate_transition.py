@@ -68,6 +68,18 @@ class MockAppService:
     def export_current(self, path):
         self.exported_current = path
 
+    # Updated IAppService compatibility: exports what is currently on screen using per-period indices.
+    def export_by_period_indices(self, period_indices, path):
+        self.exported_by_period = (period_indices, path)
+
+    # Updated IAppService compatibility: returns the isolated schedule for one period at a local index.
+    def get_period_schedule(self, period_id, index):
+        return []
+
+    # Updated IAppService compatibility: returns the current cross-period combination from disk.
+    def get_current_combination(self):
+        return []
+
 
 class FakeGenerateWorker(QObject):
     period_ready = pyqtSignal(str)
@@ -92,15 +104,15 @@ def test_generate_button_hidden_initially(qtbot):
 
     assert screen.generate_btn.isHidden()
 
-
-# Tests that the Generate button stays hidden after selecting programs but before selecting a period.
-def test_generate_button_hidden_after_program_only(qtbot):
+# Tests that selecting only programs is enough to show the Generate button.
+def test_generate_button_visible_after_program_only(qtbot):
     screen = InputScreen(MockAppService())
     qtbot.addWidget(screen)
 
     screen._on_programs_selected(["83101"])
 
-    assert screen.generate_btn.isHidden()
+    assert not screen.generate_btn.isHidden()
+    assert screen.generate_btn.isEnabled()
 
 
 # Tests that the Generate button becomes visible after selecting programs and a period.
@@ -162,3 +174,45 @@ def test_generation_error_reenables_button(qtbot):
     screen._on_error("Generation failed")
 
     assert screen.generate_btn.isEnabled()
+
+
+# Tests that removing the last selected program via the chip × hides the Generate button.
+def test_removing_last_program_hides_generate_button(qtbot):
+    from src.views.widgets.program_list_widget import ProgramItem, ProgramRowWidget
+
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    screen._on_programs_selected(["83101"])
+    screen._on_period_selected("FALL_Aleph")
+    assert not screen.generate_btn.isHidden()
+
+    # Give the program list enough state for remove_selection to emit programs_selected([])
+    row = ProgramRowWidget(ProgramItem(program_id="83101", name="CS"))
+    screen.program_list._rows_by_id["83101"] = row
+    screen.program_list._selected_ids.add("83101")
+
+    screen.selected_panel.program_removed.emit("83101")
+
+    assert screen.generate_btn.isHidden()
+
+
+# Tests that removing one of two selected programs keeps the Generate button visible.
+def test_removing_one_of_two_programs_keeps_generate_button_visible(qtbot):
+    from src.views.widgets.program_list_widget import ProgramItem, ProgramRowWidget
+
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    screen._on_programs_selected(["83101", "83102"])
+    screen._on_period_selected("FALL_Aleph")
+    assert not screen.generate_btn.isHidden()
+
+    for pid, name in [("83101", "CS"), ("83102", "Math")]:
+        row = ProgramRowWidget(ProgramItem(program_id=pid, name=name))
+        screen.program_list._rows_by_id[pid] = row
+        screen.program_list._selected_ids.add(pid)
+
+    screen.selected_panel.program_removed.emit("83101")
+
+    assert not screen.generate_btn.isHidden()

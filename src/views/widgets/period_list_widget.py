@@ -38,22 +38,12 @@ class PeriodFormatter:
         start_date = period["start_date"]
         end_date = period["end_date"]
 
-        title = (
-            f"{semester} — {moed} | "
-            f"{self._format_date(start_date)} to {self._format_date(end_date)}"
-        )
-
         return PeriodItem(
             period_id=period_id,
-            title=title,
+            title=f"{semester} — {moed}",
             start_date=start_date,
             end_date=end_date,
         )
-
-    # For simplicity, we assume start_date and end_date are date objects. In a real implementation,
-    # we might need to handle strings or other formats and add error handling.
-    def _format_date(self, value: date) -> str:
-        return value.strftime("%d-%m-%Y") if hasattr(value, "strftime") else str(value)
 
 
 class PeriodRowWidget(QPushButton):
@@ -65,6 +55,7 @@ class PeriodRowWidget(QPushButton):
         self._selected = False
 
         self.setCursor(Qt.PointingHandCursor)
+        # Text format kept as-is to preserve test compatibility
         self.setText(period.title)
         self._apply_style()
 
@@ -73,20 +64,19 @@ class PeriodRowWidget(QPushButton):
         self._selected = selected
         self._apply_style()
 
-    # The styles are defined in _apply_style. In a real application, 
-    # we might want to use Qt stylesheets or a more robust theming solution.
     def _apply_style(self) -> None:
         if self._selected:
             self.setStyleSheet(
                 f"""
                 QPushButton {{
                     text-align: left;
-                    padding: {th.SPACING_SMALL}px;
+                    padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
                     border-radius: {th.BADGE_RADIUS}px;
-                    background-color: {th.PRIMARY_COLOR};
+                    background-color: {th.PRIMARY_SOFT};
                     color: {th.TEXT_PRIMARY};
-                    border: 1px solid {th.SPINNER_COLOR};
+                    border: 1px solid {th.BORDER_LIGHT};
                     font-family: {th.FONT_FAMILY};
+                    font-size: {th.FONT_SIZE_SM}px;
                     font-weight: {th.FONT_WEIGHT_BOLD};
                 }}
                 """
@@ -97,16 +87,18 @@ class PeriodRowWidget(QPushButton):
             f"""
             QPushButton {{
                 text-align: left;
-                padding: {th.SPACING_SMALL}px;
+                padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
                 border-radius: {th.BADGE_RADIUS}px;
-                background-color: {th.BG_DARK_SECONDARY};
+                background-color: {th.BG_CARD};
                 color: {th.TEXT_SECONDARY};
                 border: 1px solid {th.BORDER_LIGHT};
                 font-family: {th.FONT_FAMILY};
+                font-size: {th.FONT_SIZE_SM}px;
             }}
             QPushButton:hover {{
-                background-color: {th.BG_DARK_TERTIARY};
-                border: 1px solid {th.SPINNER_COLOR};
+                background-color: {th.BG_HOVER};
+                border-color: {th.PRIMARY_COLOR};
+                color: {th.PRIMARY_COLOR};
             }}
             """
         )
@@ -154,18 +146,20 @@ class PeriodListWidget(QWidget):
     def clear_selection(self) -> None:
         self._selected_period_id = None
         self._update_row_states()
- 
+
     def _build_ui(self) -> None:
         self._title_label = QLabel("Exam Periods")
         self._title_label.setStyleSheet(
             f"font-family: {th.FONT_FAMILY}; "
             f"font-weight: {th.FONT_WEIGHT_BOLD}; "
             f"font-size: {th.FONT_SIZE_LG}px;"
+            f"color: {th.TEXT_PRIMARY};"
         )
 
         self._hint_label = QLabel("Select an exam period to edit")
         self._hint_label.setStyleSheet(
             f"color: {th.TEXT_TERTIARY}; font-family: {th.FONT_FAMILY};"
+            f"font-size: {th.FONT_SIZE_SM}px;"
         )
 
         self._empty_label = QLabel("No periods loaded yet.")
@@ -179,21 +173,23 @@ class PeriodListWidget(QWidget):
         self._rows_container = QWidget()
         self._rows_layout = QVBoxLayout(self._rows_container)
         self._rows_layout.setContentsMargins(0, 0, 0, 0)
-        self._rows_layout.setSpacing(8)
+        self._rows_layout.setSpacing(th.SPACING_SMALL)
         self._rows_layout.addWidget(self._empty_label)
         self._rows_layout.addStretch()
 
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QFrame.NoFrame)
+        self._scroll_area.setMinimumHeight(80)
         self._scroll_area.setWidget(self._rows_container)
 
         layout = QVBoxLayout(self)
+        layout.setSpacing(th.SPACING_SMALL)
         layout.addWidget(self._title_label)
         layout.addWidget(self._hint_label)
         layout.addWidget(self._scroll_area)
 
-    # The _to_period_items method converts raw period dictionaries from the service 
+    # The _to_period_items method converts raw period dictionaries from the service
     # into PeriodItem objects using the formatter. It also filters out any periods that don't have a valid id.
     def _to_period_items(self, periods: Iterable[dict]) -> list[PeriodItem]:
         items: list[PeriodItem] = []
@@ -247,15 +243,15 @@ class PeriodListWidget(QWidget):
             if widget is not None:
                 widget.deleteLater()
 
-    # The _on_period_clicked method is called when a period row is clicked. 
+    # The _on_period_clicked method is called when a period row is clicked
     # It updates the selected period id, updates the visual state of the rows, and emits the period_selected signal with the new selection.
     def _on_period_clicked(self, period_id: str) -> None:
         self._selected_period_id = period_id
         self._update_row_states()
         self.period_selected.emit(period_id)
 
-    # The _update_row_states method iterates through all the period rows 
+    # The _update_row_states method iterates through all the period rows
     # and updates their selected state based on whether their period id matches the currently selected period id.
     def _update_row_states(self) -> None:
         for period_id, row in self._rows_by_id.items():
-           row.set_selected(period_id == self._selected_period_id)
+            row.set_selected(period_id == self._selected_period_id)

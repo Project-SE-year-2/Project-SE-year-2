@@ -97,9 +97,9 @@ def test_writer_never_overwrites_existing_batch(tmp_path):
     writer.write_batch("FALL_Aleph", second)
 
     manifest = json.loads(
-        (tmp_path / "results" / "manifest.json").read_text(encoding="utf-8")
+        (tmp_path / "results" / "FALL_Aleph" / "manifest.json").read_text(encoding="utf-8")
     )
-    assert manifest["FALL_Aleph"] == 100
+    assert manifest["count"] == 100
     assert (tmp_path / "results" / "FALL_Aleph" / "batch_0001.pkl").exists()
 
 
@@ -113,9 +113,9 @@ def test_writer_updates_manifest_after_every_batch(tmp_path):
     writer.write_batch("FALL_Aleph", schedules)
 
     manifest = json.loads(
-        (tmp_path / "results" / "manifest.json").read_text(encoding="utf-8")
+        (tmp_path / "results" / "FALL_Aleph" / "manifest.json").read_text(encoding="utf-8")
     )
-    assert manifest["FALL_Aleph"] == 70
+    assert manifest["count"] == 70
 
 
 # ================================================================== #
@@ -394,41 +394,62 @@ def test_navigate_global_raises_at_first_combination(tmp_path):
 
 
 # ================================================================== #
-# No ScheduleCombiner in file-based flow                             #
+# PeriodResultsWriter.clear_period()                                 #
 # ================================================================== #
 
-def test_generate_stream_file_mode_skips_combiner(tmp_path, monkeypatch):
-    """In file-based mode _results stays empty (combiner never ran) and
-    _current_indices is populated for every period that was solved."""
+def test_clear_period_removes_batch_files_and_resets_manifest(tmp_path):
+    """clear_period() deletes all batch_*.pkl files and sets manifest count to 0."""
+    root = tmp_path / "results"
+    writer = PeriodResultsWriter(root_path=root)
+    period = _make_period()
+
+    schedules = [ExamSchedule(period) for _ in range(60)]
+    for i, s in enumerate(schedules):
+        s.assign(_make_course(f"C{i}", "83101"), date(2026, 1, 1))
+    writer.write_batch("FALL_Aleph", schedules)
+
+    # Sanity: data is present before clear
+    assert (root / "FALL_Aleph" / "batch_0000.pkl").exists()
+    manifest_before = json.loads((root / "FALL_Aleph" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest_before["count"] == 60
+
+    writer.clear_period("FALL_Aleph")
+
+    assert not (root / "FALL_Aleph" / "batch_0000.pkl").exists()
+    assert not (root / "FALL_Aleph" / "batch_0001.pkl").exists()
+    manifest_after = json.loads((root / "FALL_Aleph" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest_after["count"] == 0
+
+
+def test_clear_period_on_nonexistent_period_does_not_raise(tmp_path):
+    """clear_period() is safe when the period directory does not yet exist."""
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+    writer.clear_period("FALL_Aleph")
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert reader.get_count("FALL_Aleph") == 0
+
+
+def test_second_generate_run_replaces_stale_results(tmp_path):
+    """A new generate run must not accumulate old batch files from a previous run."""
     root = tmp_path / "results"
     writer = PeriodResultsWriter(root_path=root)
     reader = ResultsReader(root_path=root)
 
-    app = AppService()
-    app._results_writer = writer
-    app._results_reader = reader
-    app._selected_programs = ["83101"]
+    period = _make_period()
+    first_run = [ExamSchedule(period) for _ in range(3)]
+    for i, s in enumerate(first_run):
+        s.assign(_make_course(f"Old{i}", "83101"), date(2026, 1, 1))
+    writer.write_batch("FALL_Aleph", first_run)
+    assert reader.get_count("FALL_Aleph") == 3
 
-    fall = _make_period()
-    course = _make_course("C1", "83101")
-    sched = ExamSchedule(fall)
-    sched.assign(course, date(2026, 1, 1))
+    # Simulate a second generate run: clear then write new results
+    writer.clear_period("FALL_Aleph")
+    second_run = [ExamSchedule(period) for _ in range(2)]
+    for i, s in enumerate(second_run):
+        s.assign(_make_course(f"New{i}", "83101"), date(2026, 1, 2))
+    writer.write_batch("FALL_Aleph", second_run)
 
-    # solve_to_disk is called per period — simulate it writing one schedule
-    def fake_solve_to_disk(period, courses_dict, w):
-        pid = f"{period.semester.value}_{period.moed.value}"
-        w.write_batch(pid, [sched])
+    assert reader.get_count("FALL_Aleph") == 2   # only new results, not 3+2=5
 
-    mock_engine = MagicMock()
-    mock_engine.solve_to_disk.side_effect = fake_solve_to_disk
-    # scheduling_tasks must contain the period so the loop body runs
-    monkeypatch.setattr(app, "_prepare_engine", lambda: (mock_engine, {fall: {}}))
 
-    list(app.generate_stream())
 
-    # ScheduleCombiner was NOT used - _results stays empty
-    assert app._results == []
-    # Per-period navigation is ready
-    assert app._current_indices == {"FALL_Aleph": 0}
-    # Batch was actually written to disk
-    assert reader.get_count("FALL_Aleph") == 1

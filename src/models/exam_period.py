@@ -30,14 +30,19 @@ class ExamPeriod:
     # to return a duplicate of the possible_dates
     def getAvailableDates(self) -> list:
         if self.possible_dates:
-            return self.possible_dates
+            return [
+                d for d in self.possible_dates
+                if d not in self.forbidden_days
+            ]
 
         all_dates = []
         current = self.start_date
+        forbidden_set = set(self.forbidden_days)
 
         # Iterate through the entire range from start_date to end_date.
         while current <= self.end_date:
-            all_dates.append(current)
+            if current not in forbidden_set:
+                all_dates.append(current)
             current += timedelta(days=1)
 
         return all_dates

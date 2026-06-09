@@ -17,11 +17,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Schedule Generator System")
         self.resize(1024, 768)
         
-        # Apply dark mode styling for a consistent application theme
         self.setStyleSheet("""
-            QMainWindow {
-                background-color: #121212;
-            }
+            QMainWindow    { background-color: #F8FAFC; }
+            QStackedWidget { background-color: #F8FAFC; }
         """)
 
         # Instantiate AppService.getInstance() exactly once
@@ -53,6 +51,23 @@ class MainWindow(QMainWindow):
         """Switches the stacked widget to the Output Screen (Index 1)."""
         self.stacked_widget.setCurrentIndex(1)
 
+    def _wipe_results(self):
+        """Cleanly stop the background engine and aggressively wipe the disk."""
+        if self.service._engine_process is not None:
+            self.service._engine_process.stop()
+            
+        import shutil
+        from pathlib import Path
+        results_dir = Path("data") / "results"
+        if results_dir.exists():
+            shutil.rmtree(results_dir, ignore_errors=True)
+
     def _show_input_screen(self):
         """Switches the stacked widget to the Input Screen (Index 0)."""
+        self._wipe_results()
         self.stacked_widget.setCurrentIndex(0)
+
+    def closeEvent(self, event):
+        """Hook into the application shutdown to wipe all generated results."""
+        self._wipe_results()
+        super().closeEvent(event)

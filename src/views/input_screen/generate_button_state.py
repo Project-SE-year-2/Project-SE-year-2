@@ -43,7 +43,7 @@ class GenerateButtonState:
 
     # Returns True only when the Generate button should be visible.
     def should_show_button(self) -> bool:
-        return self.has_selected_programs and self.has_viewed_period
+        return self.has_selected_programs
 
     # Returns True only when the Generate button should be clickable.
     def should_enable_button(self) -> bool:

@@ -17,3 +17,6 @@ docs/UML/.DS_Store
 tester_main.py
 
 *.pkl
+
+data/*.pkl
+data/results

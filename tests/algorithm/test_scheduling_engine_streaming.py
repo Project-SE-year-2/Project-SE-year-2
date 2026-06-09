@@ -315,3 +315,64 @@ def test_solve_to_disk_empty_period_writes_zero_to_manifest(tmp_path):
     reader = ResultsReader(root_path=tmp_path / "results")
     assert total == 0
     assert reader.get_count("FALL_Aleph") == 0
+
+
+def test_solve_to_disk_zero_valid_schedules_resets_manifest(tmp_path, monkeypatch):
+    """A period with courses but a solver that finds nothing must leave manifest at 0,
+    not carry over stale results from a previous run."""
+    c1 = _make_independent_course("10001")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1], ["10001"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+    reader = ResultsReader(root_path=tmp_path / "results")
+
+    # Simulate a first run that produced results
+    stale = ExamSchedule(fall)
+    stale.assign(c1, date(2026, 1, 1))
+    writer.write_batch("FALL_Aleph", [stale])
+    assert reader.get_count("FALL_Aleph") == 1
+
+    # Second run: courses present but solver yields nothing (mocked)
+    monkeypatch.setattr(engine._solver, "solve_stream", lambda *a, **kw: iter([]))
+    total = engine.solve_to_disk(fall, {c1: ["10001"]}, writer)
+
+    assert total == 0
+    assert reader.get_count("FALL_Aleph") == 0   # stale result must not persist
+
+
+def test_solve_to_disk_second_run_replaces_first_run_results(tmp_path):
+    """Running solve_to_disk twice on the same period must not accumulate results."""
+    c1 = _make_independent_course("10001")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1], ["10001"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+    reader = ResultsReader(root_path=tmp_path / "results")
+
+    engine.solve_to_disk(fall, {c1: ["10001"]}, writer)
+    first_count = reader.get_count("FALL_Aleph")
+
+    engine.solve_to_disk(fall, {c1: ["10001"]}, writer)
+    second_count = reader.get_count("FALL_Aleph")
+
+    # Second run must produce exactly the same count, not double it
+    assert second_count == first_count

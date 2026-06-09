@@ -75,7 +75,7 @@ class SchedulingEngine:
         if not scheduling_tasks:
             return
 
-        worker_count = max_workers or min(32, len(scheduling_tasks))
+        worker_count = max_workers or 1
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             future_map = {
                 executor.submit(self._solve_period, period, courses_dict): period
@@ -117,35 +117,83 @@ class SchedulingEngine:
         combined.sort(key=lambda s: s.sort_key)
         return combined, metadata
 
-    def solve_to_disk(self, period: ExamPeriod, courses_dict: dict, writer) -> int:
+    def solve_to_disk(self, period: ExamPeriod, courses_dict: dict, writer, on_batch_written=None) -> int:
         """Solve one period with solve_stream() and write every BATCH_SIZE schedules
         directly to disk - at most one batch is in RAM at any moment.
 
         Returns the total number of valid schedules found.
         """
         pid = period.period_id
+        # Clear stale results from any previous run before writing new ones.
+        # Also ensures manifest stays at 0 when the solver finds no valid schedules.
+        writer.clear_period(pid)
+
         courses = list(courses_dict.keys())
-        # Handle the edge case where no courses exist for this period
         if not courses:
-            writer.update_manifest(pid, 0)
             return 0
 
         batch: list = []
         total = 0
-        # Process solutions using a generator to keep memory consumption low
         for sched in self._solver.solve_stream(courses, period, self._validator):
             batch.append(sched)
             total += 1
-            # Flush the batch to disk once it reaches the defined capacity
-            if len(batch) >= BATCH_SIZE:
+            
+            # Eagerly write the very first schedule to disk to unblock the UI instantly
+            if total == 1:
                 writer.write_batch(pid, batch)
-                # Clear the batch from RAM to allow garbage collection
+                if on_batch_written:
+                    on_batch_written()
                 batch = []
-        
-        # Persist any remaining schedules that didn't fill the last batch
+            elif len(batch) >= BATCH_SIZE:
+                writer.write_batch(pid, batch)
+                if on_batch_written:
+                    on_batch_written()
+                batch = []
+
         if batch:
             writer.write_batch(pid, batch)
+            if on_batch_written:
+                on_batch_written()
         return total
+
+    def solve_all_to_disk_round_robin(self, tasks: dict, writer, on_first_batch_written=None) -> None:
+        """
+        Solves all periods using a round-robin approach. 
+        Pulls BATCH_SIZE schedules from each period in a cycle so that all periods 
+        have some results available almost immediately.
+        """
+        generators = {}
+        for period, courses_dict in tasks.items():
+            pid = period.period_id
+            writer.clear_period(pid)
+            courses = list(courses_dict.keys())
+            if courses:
+                generators[pid] = self._solver.solve_stream(courses, period, self._validator)
+        
+        active_pids = list(generators.keys())
+        first_batch_sent = set()
+
+        while active_pids:
+            for pid in list(active_pids):
+                gen = generators[pid]
+                batch = []
+                try:
+                    for _ in range(BATCH_SIZE):
+                        batch.append(next(gen))
+                except StopIteration:
+                    active_pids.remove(pid)
+                    if batch:
+                        writer.write_batch(pid, batch)
+                        if pid not in first_batch_sent and on_first_batch_written:
+                            on_first_batch_written(pid)
+                            first_batch_sent.add(pid)
+                    continue
+                
+                if batch:
+                    writer.write_batch(pid, batch)
+                    if pid not in first_batch_sent and on_first_batch_written:
+                        on_first_batch_written(pid)
+                        first_batch_sent.add(pid)
 
     def _orderCourses(self, courses, period: ExamPeriod) -> list:
         heuristic = CourseOrderingHeuristic(self._index)

@@ -24,9 +24,9 @@ def test_file_loader_calls_service_with_replace_mode(qtbot, tmp_path):
 
     qtbot.addWidget(widget)
 
-    widget._courses_path = str(courses_file)
-    widget._dates_path = str(dates_file)
-    widget._replace_radio.setChecked(True)
+    widget._courses_zone._paths = [str(courses_file)]
+    widget._dates_zone._paths = [str(dates_file)]
+    widget._set_mode(replace=True)
 
     widget._load_button.click()
 
@@ -48,9 +48,9 @@ def test_file_loader_calls_service_with_append_mode(qtbot, tmp_path):
 
     qtbot.addWidget(widget)
 
-    widget._courses_path = str(courses_file)
-    widget._dates_path = str(dates_file)
-    widget._append_radio.setChecked(True)
+    widget._courses_zone._paths = [str(courses_file)]
+    widget._dates_zone._paths = [str(dates_file)]
+    widget._set_mode(replace=False)
 
     widget._load_button.click()
 
@@ -72,8 +72,8 @@ def test_file_loader_emits_files_loaded_on_success(qtbot, tmp_path):
 
     qtbot.addWidget(widget)
 
-    widget._courses_path = str(courses_file)
-    widget._dates_path = str(dates_file)
+    widget._courses_zone._paths = [str(courses_file)]
+    widget._dates_zone._paths = [str(dates_file)]
 
     with qtbot.waitSignal(widget.files_loaded, timeout=1000):
         widget._load_button.click()
@@ -92,8 +92,8 @@ def test_file_loader_shows_success_message_after_load(qtbot, tmp_path):
 
     qtbot.addWidget(widget)
 
-    widget._courses_path = str(courses_file)
-    widget._dates_path = str(dates_file)
+    widget._courses_zone._paths = [str(courses_file)]
+    widget._dates_zone._paths = [str(dates_file)]
 
     widget._load_button.click()
 

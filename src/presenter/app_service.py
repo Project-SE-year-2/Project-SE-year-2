@@ -223,7 +223,23 @@ class AppService(IAppService):
         # Only lightweight period_id strings cross the process boundary.
         if self._engine_process is not None:
             self._current_indices = {}
-            self._engine_process.submit(engine, scheduling_tasks)
+            # Ensure any previous generation run is completely terminated
+            self._engine_process.stop()
+
+            # Instantly yield the first period to unblock the UI and trigger OutputScreen
+            # to show up immediately in 0ms (it will show loading spinners until data arrives)
+            first_pid = next(iter(scheduling_tasks.keys()))
+            yield _period_id(first_pid), []
+
+            # Instantly clear all old period results on disk to prevent the OutputScreen
+            # from accidentally reading a leftover manifest from a previous run
+            from src.algorithm.period_results_writer import PeriodResultsWriter
+            writer = PeriodResultsWriter()
+            for period in scheduling_tasks.keys():
+                pid = _period_id(period)
+                writer.clear_period(pid)
+
+            self._engine_process.start(engine, scheduling_tasks)
 
             while True:
                 msg = self._engine_process.get_notification()
@@ -234,11 +250,17 @@ class AppService(IAppService):
                 if msg["type"] == "all_done":
                     break
 
-                if msg["type"] == "period_done":
+                if msg["type"] in ("period_done", "period_ready"):
                     pid = msg["period_id"]
                     self._current_indices.setdefault(pid, 0)
                     yield pid, []
             return
+
+    def is_generating(self) -> bool:
+        """Returns True if the background engine is actively generating schedules."""
+        if self._engine_process is None or self._engine_process._process is None:
+            return False
+        return self._engine_process._process.is_alive()
 
         # ── EP-82: File-based single-process mode ─────────────────────────
         if self._results_writer is not None:
@@ -301,13 +323,63 @@ class AppService(IAppService):
         return result
 
     def get_schedule_count(self, period_id: str | None = None) -> int:
-        # If we are in global navigation mode, return total product of all periods
         if period_id is None:
-            return len(self._results)
-        # Otherwise, return the count for a specific period from disk
-        if self._results_reader is None:
-            raise RuntimeError("Results reader not initialised.")
-        return self._results_reader.get_count(period_id)
+            # Legacy (in-memory) mode: results stored in self._results
+            if self._results:
+                return len(self._results)
+            # Disk-based mode (multiprocessing or file-based): sum per-period counts
+            if self._current_indices and self._results_reader:
+                return sum(
+                    self._results_reader.get_count(pid)
+                    for pid in self._current_indices
+                )
+            return 0
+        # Per-period count — disk first
+        disk_count = self._results_reader.get_count(period_id)
+        if disk_count > 0:
+            return disk_count
+        # Legacy mode fallback — in-memory per-period results
+        if period_id in self._results_by_period:
+            return len(self._results_by_period[period_id])
+        return 0
+
+    def get_period_schedule(self, period_id: str, index: int) -> list[dict]:
+        """Return formatted exam rows for one period at the given local index.
+
+        Disk mode   : reads the ExamSchedule object from the period's batch file
+                      via ResultsReader and formats it into flat dicts.
+        Legacy mode : reads from the in-memory _results_by_period cache that is
+                      populated per-period as generate_stream() runs.
+
+        The returned list contains only exams that belong to *period_id*; there
+        is no Cartesian-product mixing with other periods.
+
+        Returns an empty list when no data is available (generation not yet
+        complete, or the period has no valid schedules).
+        """
+        # ── Disk mode ─────────────────────────────────────────────────────────
+        disk_count = self._results_reader.get_count(period_id)
+        if disk_count > 0:
+            safe_index = min(max(0, index), disk_count - 1)
+            try:
+                schedule = self._results_reader.get_schedule_at(period_id, safe_index)
+                return self._format_schedule_rows(schedule)
+            except Exception as exc:
+                print(f"AppService: disk read failed for {period_id}[{safe_index}]: {exc}")
+                return []
+
+        # ── Legacy mode (in-memory per-period results) ────────────────────────
+        period_schedules = self._results_by_period.get(period_id)
+        if period_schedules:
+            safe_index = min(max(0, index), len(period_schedules) - 1)
+            try:
+                schedule = period_schedules[safe_index]
+                return self._format_schedule_rows(schedule)
+            except Exception as exc:
+                print(f"AppService: format failed for {period_id}[{safe_index}]: {exc}")
+                return []
+
+        return []
 
     def get_schedule_batch(self, start: int, limit: int) -> list[list[dict]]:
         if start < 0:
@@ -315,8 +387,45 @@ class AppService(IAppService):
         if limit < 0:
             raise ValueError("Schedule batch limit cannot be negative.")
 
+        # Disk-based mode: in-memory results unavailable but disk results exist
+        if not self._results and self._current_indices and self._results_reader:
+            return self._get_batch_from_disk(start, limit)
+
+        # Legacy mode: read from in-memory list
         end = min(start + limit, len(self._results))
         return [self._format_schedule_rows(schedule) for schedule in self._results[start:end]]
+
+    def _get_batch_from_disk(self, start: int, limit: int) -> list[list[dict]]:
+        """Read a contiguous batch of schedules from disk (multiprocessing / file-based mode).
+
+        Period results are concatenated in the order they appear in _current_indices.
+        The caller receives formatted list[dict] rows — same shape as legacy mode.
+        """
+        result: list[list[dict]] = []
+        global_offset = 0
+
+        for pid in self._current_indices:
+            count = self._results_reader.get_count(pid)
+            # Skip periods that lie entirely before `start`
+            if global_offset + count <= start:
+                global_offset += count
+                continue
+
+            local_start = max(0, start - global_offset)
+            to_fetch    = min(limit - len(result), count - local_start)
+
+            for i in range(local_start, local_start + to_fetch):
+                try:
+                    schedule = self._results_reader.get_schedule_at(pid, i)
+                    result.append(self._format_schedule_rows(schedule))
+                except Exception:
+                    pass   # skip corrupt / missing batch files gracefully
+
+            global_offset += count
+            if len(result) >= limit:
+                break
+
+        return result
 
     def get_schedule(self, index: int) -> dict:
         if index < 0 or index >= len(self._results):
@@ -478,26 +587,107 @@ class AppService(IAppService):
             else "Already at the first combination."
         )
 
-    def export_current(self, path: str) -> None:
-        """Write one schedule per period (at the current index) into one file.
+    def get_current_combination(self) -> list[dict]:
+        """Return the currently selected schedule combination across all periods.
 
-        No ScheduleCombiner — each period's schedule is loaded from its
-        own batch file and all are written together by ScheduleReportWriter.
+        Reads each active period's schedule from disk (via ``_results_reader``)
+        at the index stored in ``_current_indices``, then flattens all the
+        per-period rows into one list.
+
+        Raises:
+            RuntimeError: when ``_results_reader`` is not initialised (legacy
+                          in-memory mode — use ``get_schedule_batch`` instead).
         """
         if self._results_reader is None:
             raise RuntimeError("Results reader not initialised.")
 
-        # Collect the currently selected schedule for every active period
-        schedules = []
+        rows: list[dict] = []
         for period_id, idx in self._current_indices.items():
             if self._results_reader.get_count(period_id) > 0:
-                schedules.append(
-                    self._results_reader.get_schedule_at(period_id, idx)
-                )
+                schedule = self._results_reader.get_schedule_at(period_id, idx)
+                rows.extend(self._format_schedule_rows(schedule))
 
-        # Use the dedicated writer to compile all gathered schedules into the final output
+        return rows
+
+    def export_by_period_indices(self, period_indices: dict, path: str) -> None:
+        """Export one combined schedule built from specific per-period local indices.
+
+        Reads the ExamSchedule at *period_indices[period_id]* for every period
+        that has data (disk mode via ResultsReader, or legacy via
+        _results_by_period), merges them with ScheduleCombiner, and writes a
+        single human-readable report.
+
+        This is the correct export path for the isolated architecture: the caller
+        passes _period_indices from the UI (one local index per period tab) and
+        the report reflects exactly what is shown on screen.
+        """
+        from src.algorithm.schedule_combiner import ScheduleCombiner
+
+        schedules_to_merge: list[list] = []
+
+        for period_id, local_index in period_indices.items():
+            schedule = None
+
+            # Disk mode — batch files written by EngineProcess / file-based mode
+            disk_count = self._results_reader.get_count(period_id)
+            if disk_count > 0:
+                safe_idx = min(max(0, local_index), disk_count - 1)
+                try:
+                    schedule = self._results_reader.get_schedule_at(period_id, safe_idx)
+                except Exception as exc:
+                    print(f"AppService: export disk read failed for {period_id}: {exc}")
+
+            # Legacy mode — in-memory per-period results
+            if schedule is None and period_id in self._results_by_period:
+                period_scheds = self._results_by_period[period_id]
+                if period_scheds:
+                    safe_idx = min(max(0, local_index), len(period_scheds) - 1)
+                    schedule = period_scheds[safe_idx]
+
+            if schedule is not None:
+                schedules_to_merge.append([schedule])
+
+        if not schedules_to_merge:
+            raise ValueError("No schedule data available to export.")
+
+        combined = ScheduleCombiner().combineSubResults(schedules_to_merge)
         ScheduleReportWriter().write(
-            schedules=schedules,
+            schedules=combined,
+            metadata=self._last_metadata,
+            programs=self._selected_programs,
+            output_path=path,
+        )
+
+    def export_current(self, path: str) -> None:
+        """Write one combined schedule (from the current index of each period) to disk.
+
+        Each period's currently-selected ExamSchedule is fetched from disk,
+        then all periods are merged into a single unified ExamSchedule via
+        ScheduleCombiner.combineSubResults, and finally written by
+        ScheduleReportWriter so that FALL and SPRING both appear in one file.
+        """
+        if self._results_reader is None:
+            raise RuntimeError("Results reader not initialised.")
+
+        # 1. Collect the currently selected schedule for each period.
+        #    combineSubResults expects list[list[ExamSchedule]], so wrap each
+        #    single schedule in its own one-element list.
+        period_schedules: list[list] = []
+        for period_id, idx in self._current_indices.items():
+            if self._results_reader.get_count(period_id) > 0:
+                schedule = self._results_reader.get_schedule_at(period_id, idx)
+                period_schedules.append([schedule])
+
+        if not period_schedules:
+            return
+
+        # 2. Merge all per-period schedules into a single unified ExamSchedule.
+        from src.algorithm.schedule_combiner import ScheduleCombiner
+        combined_schedules = ScheduleCombiner().combineSubResults(period_schedules)
+
+        # 3. Write the merged schedule(s) to disk.
+        ScheduleReportWriter().write(
+            schedules=combined_schedules,
             metadata=self._last_metadata,
             programs=self._selected_programs,
             output_path=path,

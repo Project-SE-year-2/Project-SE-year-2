@@ -223,3 +223,184 @@ def test_error_emitted_when_exception_raised_mid_stream(qapp):
     assert finished_calls == []
     # error must carry the crash message
     assert "disk full mid-stream" in errors[0]
+
+
+# ================================================================== #
+# Concurrent signal ordering                                           #
+# ================================================================== #
+
+def test_period_ready_signals_arrive_in_stream_order(qapp):
+    """Even with many periods, signals arrive in the order yielded by the stream."""
+    received = []
+    period_ids = [f"PERIOD_{i}" for i in range(10)]
+
+    mock_service = MagicMock()
+    mock_service.generate_stream.return_value = iter(
+        [(pid, []) for pid in period_ids]
+    )
+    mock_service.get_schedule_count.return_value = 10
+
+    worker = GenerateWorker(mock_service)
+    worker.period_ready.connect(received.append)
+    worker.run()
+
+    assert received == period_ids
+
+
+def test_finished_carries_count_not_period_count(qapp):
+    """finished signal carries the total schedule count from service,
+    not the number of periods."""
+    counts = []
+
+    mock_service = MagicMock()
+    mock_service.generate_stream.return_value = iter([
+        ("P1", []), ("P2", []), ("P3", []),
+    ])
+    mock_service.get_schedule_count.return_value = 999
+
+    worker = GenerateWorker(mock_service)
+    worker.finished.connect(counts.append)
+    worker.run()
+
+    assert counts == [999]
+
+
+# ================================================================== #
+# Large stream performance                                             #
+# ================================================================== #
+
+def test_large_stream_completes_without_signal_loss(qapp):
+    """A stream of 100 periods emits exactly 100 period_ready signals."""
+    import time
+    received = []
+    n = 100
+
+    mock_service = MagicMock()
+    mock_service.generate_stream.return_value = iter(
+        [(f"P_{i}", []) for i in range(n)]
+    )
+    mock_service.get_schedule_count.return_value = n
+
+    worker = GenerateWorker(mock_service)
+    worker.period_ready.connect(received.append)
+
+    start = time.time()
+    worker.run()
+    elapsed = time.time() - start
+
+    assert len(received) == n
+    assert elapsed < 2.0, f"100-period stream took {elapsed:.2f}s, expected < 2s"
+
+
+# ================================================================== #
+# Service interaction counts                                           #
+# ================================================================== #
+
+def test_generate_stream_called_exactly_once(qapp):
+    """generate_stream is called once per worker.run() invocation."""
+    mock_service = MagicMock()
+    mock_service.generate_stream.return_value = iter([("P1", [])])
+    mock_service.get_schedule_count.return_value = 1
+
+    worker = GenerateWorker(mock_service)
+    worker.run()
+
+    mock_service.generate_stream.assert_called_once()
+
+
+def test_get_schedule_count_called_after_stream_exhausted(qapp):
+    """get_schedule_count is called after the stream is fully consumed."""
+    call_log = []
+
+    def fake_stream():
+        call_log.append("stream_start")
+        yield "P1", []
+        call_log.append("stream_end")
+
+    mock_service = MagicMock()
+    mock_service.generate_stream.return_value = fake_stream()
+    mock_service.get_schedule_count.side_effect = lambda: (
+        call_log.append("get_count"), 42
+    )[1]
+
+    worker = GenerateWorker(mock_service)
+    worker.run()
+
+    # get_count must come after stream_end
+    assert call_log.index("stream_end") < call_log.index("get_count")
+
+
+# ================================================================== #
+# Re-run safety                                                        #
+# ================================================================== #
+
+def test_worker_can_be_run_twice(qapp):
+    """Calling run() a second time must work (stateless between runs)."""
+    received_1 = []
+    received_2 = []
+
+    mock_service = MagicMock()
+    mock_service.generate_stream.return_value = iter([("P1", [])])
+    mock_service.get_schedule_count.return_value = 1
+
+    worker = GenerateWorker(mock_service)
+    worker.period_ready.connect(received_1.append)
+    worker.run()
+
+    # Reset for second run
+    mock_service.generate_stream.return_value = iter([("P2", [])])
+    worker.period_ready.disconnect()
+    worker.period_ready.connect(received_2.append)
+    worker.run()
+
+    assert received_1 == ["P1"]
+    assert received_2 == ["P2"]
+
+
+# ================================================================== #
+# Signal type validation                                               #
+# ================================================================== #
+
+def test_period_ready_signal_is_str(qapp):
+    """period_ready signal must emit a str, not bytes or other types."""
+    received = []
+
+    mock_service = MagicMock()
+    mock_service.generate_stream.return_value = iter([("FALL_Aleph", [])])
+    mock_service.get_schedule_count.return_value = 1
+
+    worker = GenerateWorker(mock_service)
+    worker.period_ready.connect(received.append)
+    worker.run()
+
+    assert isinstance(received[0], str)
+
+
+def test_finished_signal_is_int(qapp):
+    """finished signal must emit an int."""
+    received = []
+
+    mock_service = MagicMock()
+    mock_service.generate_stream.return_value = iter([])
+    mock_service.get_schedule_count.return_value = 0
+
+    worker = GenerateWorker(mock_service)
+    worker.finished.connect(received.append)
+    worker.run()
+
+    assert isinstance(received[0], int)
+
+
+def test_error_signal_is_str(qapp):
+    """error signal must emit a str."""
+    received = []
+
+    mock_service = MagicMock()
+    mock_service.generate_stream.side_effect = RuntimeError("crash")
+
+    worker = GenerateWorker(mock_service)
+    worker.error.connect(received.append)
+    worker.run()
+
+    assert isinstance(received[0], str)
+

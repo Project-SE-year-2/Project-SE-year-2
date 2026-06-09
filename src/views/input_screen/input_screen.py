@@ -208,11 +208,19 @@ class InputScreen(QWidget):
     def _on_files_loaded(self):
         self._generate_state.reset_after_file_load()
 
-        # Clear any state from previous file loads
+        # Clear selected programs in the service
+        self.service.select_programs([])
+
+        # Clear selected programs UI
         self.selected_panel.clear_cache()
         self.selected_panel.clear()
         self.selected_panel.setVisible(False)
 
+        # Clear program list selection state
+        if hasattr(self.program_list, "clear_selection"):
+            self.program_list.clear_selection()
+
+        # Clear period selection/editor
         self.period_list.clear_selection()
         self.period_list.setVisible(False)
 
@@ -223,6 +231,7 @@ class InputScreen(QWidget):
         self.program_list.refresh()
         self.program_list.setVisible(True)
 
+        self.file_loader.update_validation(programs=False, period=False)
         self.file_loader.update_validation(programs=False, period=False)
         self._sync_generate_button_state()
 
@@ -263,6 +272,7 @@ class InputScreen(QWidget):
 
         self._generate_state.start_generation()
         self._sync_generate_button_state()
+        self._switched_to_output = False
 
         self._worker = GenerateWorker(self.service)
         self._worker.period_ready.connect(self._on_period_ready)
@@ -272,6 +282,9 @@ class InputScreen(QWidget):
 
     # Handles successful generation completion and switches to the output screen.
     def _on_generation_finished(self, count):
+        if getattr(self, "_switched_to_output", False):
+            return
+        self._switched_to_output = True
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
@@ -279,7 +292,13 @@ class InputScreen(QWidget):
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
-        pass
+        if getattr(self, "_switched_to_output", False):
+            return
+        self._switched_to_output = True
+        self.spinner.stop()
+        self._generate_state.finish_generation()
+        self._sync_generate_button_state()
+        self.switch_to_output.emit()
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

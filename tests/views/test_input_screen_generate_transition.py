@@ -216,3 +216,99 @@ def test_removing_one_of_two_programs_keeps_generate_button_visible(qtbot):
     screen.selected_panel.program_removed.emit("83101")
 
     assert not screen.generate_btn.isHidden()
+
+
+# Tests that clicking generate starts the loading spinner.
+def test_generate_click_starts_spinner(qtbot, monkeypatch):
+    monkeypatch.setattr(
+        "src.views.input_screen.input_screen.GenerateWorker",
+        FakeGenerateWorker,
+    )
+
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    screen._on_programs_selected(["83101"])
+    screen._on_period_selected("FALL_Aleph")
+    
+    assert not screen.spinner.is_running
+    
+    screen._on_generate_clicked()
+    
+    assert screen.spinner.is_running is True
+
+
+# Tests that generation completion stops the loading spinner.
+def test_generation_finished_stops_spinner(qtbot):
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    screen._on_programs_selected(["83101"])
+    screen._on_period_selected("FALL_Aleph")
+    screen._generate_state.start_generation()
+    screen.spinner.start()
+
+    screen._on_generation_finished(1)
+    
+    assert screen.spinner.is_running is False
+
+
+# Tests that generation error shows the error banner and stops the spinner.
+def test_generation_error_shows_banner_and_stops_spinner(qtbot):
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    screen._on_programs_selected(["83101"])
+    screen._on_period_selected("FALL_Aleph")
+    screen._generate_state.start_generation()
+    screen.spinner.start()
+
+    screen._on_error("Test constraint error")
+    
+    assert screen.spinner.is_running is False
+    assert not screen.error_banner.isHidden()
+    assert "Test constraint error" in screen.error_banner.message_label.text()
+
+
+# Tests that clicking generate hides any previous error banner.
+def test_generate_click_hides_error_banner(qtbot, monkeypatch):
+    monkeypatch.setattr(
+        "src.views.input_screen.input_screen.GenerateWorker",
+        FakeGenerateWorker,
+    )
+
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    screen.error_banner.show_error("Old error")
+    assert not screen.error_banner.isHidden()
+
+    screen._on_programs_selected(["83101"])
+    screen._on_period_selected("FALL_Aleph")
+    screen._on_generate_clicked()
+
+    assert screen.error_banner.isHidden()
+
+
+# Tests that loading new files resets the entire screen state.
+def test_files_loaded_resets_screen_state(qtbot):
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    screen._on_programs_selected(["83101"])
+    screen._on_period_selected("FALL_Aleph")
+    
+    assert not screen.selected_panel.isHidden()
+    assert not screen.period_list.isHidden()
+    assert not screen.period_editor.isHidden()
+    assert not screen.generate_btn.isHidden()
+
+    screen._on_files_loaded()
+
+    assert screen.selected_panel.isHidden()
+    assert screen.period_list.isHidden()
+    assert screen.period_editor.isHidden()
+    assert screen.generate_btn.isHidden()
+    assert screen._generate_state.has_selected_programs is False
+    assert screen._generate_state.has_viewed_period is False
+

@@ -223,7 +223,23 @@ class AppService(IAppService):
         # Only lightweight period_id strings cross the process boundary.
         if self._engine_process is not None:
             self._current_indices = {}
-            self._engine_process.submit(engine, scheduling_tasks)
+            # Ensure any previous generation run is completely terminated
+            self._engine_process.stop()
+
+            # Instantly yield the first period to unblock the UI and trigger OutputScreen
+            # to show up immediately in 0ms (it will show loading spinners until data arrives)
+            first_pid = next(iter(scheduling_tasks.keys()))
+            yield _period_id(first_pid), []
+
+            # Instantly clear all old period results on disk to prevent the OutputScreen
+            # from accidentally reading a leftover manifest from a previous run
+            from src.algorithm.period_results_writer import PeriodResultsWriter
+            writer = PeriodResultsWriter()
+            for period in scheduling_tasks.keys():
+                pid = _period_id(period)
+                writer.clear_period(pid)
+
+            self._engine_process.start(engine, scheduling_tasks)
 
             while True:
                 msg = self._engine_process.get_notification()
@@ -234,11 +250,17 @@ class AppService(IAppService):
                 if msg["type"] == "all_done":
                     break
 
-                if msg["type"] == "period_done":
+                if msg["type"] in ("period_done", "period_ready"):
                     pid = msg["period_id"]
                     self._current_indices.setdefault(pid, 0)
                     yield pid, []
             return
+
+    def is_generating(self) -> bool:
+        """Returns True if the background engine is actively generating schedules."""
+        if self._engine_process is None or self._engine_process._process is None:
+            return False
+        return self._engine_process._process.is_alive()
 
         # ── EP-82: File-based single-process mode ─────────────────────────
         if self._results_writer is not None:

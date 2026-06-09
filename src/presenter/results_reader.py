@@ -20,8 +20,8 @@ class ResultsReader:
 
     # Returns the total number of schedules stored for a specific period
     def get_count(self, period_id: str) -> int:
-        manifest = self._load_manifest()
-        return int(manifest.get(period_id, 0))
+        manifest = self._load_manifest(period_id)
+        return int(manifest.get("count", 0))
 
     # Retrieves a single schedule by its global index across all batches for the specified period
     def get_schedule_at(self, period_id: str, index: int) -> ExamSchedule:
@@ -51,18 +51,15 @@ class ResultsReader:
     def _batch_path(self, period_id: str, batch_index: int) -> Path:    
         return self._root / period_id / f"batch_{batch_index:04d}.pkl"
 
-    # Returns the path to the manifest file that tracks total schedule counts per period
-    def _manifest_path(self) -> Path:
-        return self._root / "manifest.json"
-
     # Returns all period identifiers found in the manifest
     def get_period_ids(self) -> list[str]:
-        manifest = self._load_manifest()
-        return list(manifest.keys())
+        if not self._root.exists():
+            return []
+        return [p.name for p in self._root.iterdir() if p.is_dir() and (p / "manifest.json").exists()]
 
      # Reads the central index file; fails gracefully if missing
-    def _load_manifest(self) -> dict:
-        manifest_path = self._manifest_path()
+    def _load_manifest(self, period_id: str) -> dict:
+        manifest_path = self._root / period_id / "manifest.json"
         if not manifest_path.exists():
             return {}
         try:

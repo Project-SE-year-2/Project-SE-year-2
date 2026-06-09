@@ -1,70 +1,155 @@
 $$$$
-Load Test Fall 01
+Stress Course 1
 84001
-Dr. Load 01
+Dr. Stress 1
 83101,1,FALL,Obligatory
-83101,1,SPRI,Obligatory
 Exam
 $$$$
-Load Test Fall 02
+Stress Course 2
 84002
-Dr. Load 02
+Dr. Stress 2
 83101,1,FALL,Obligatory
-83101,1,SPRI,Obligatory
 Exam
 $$$$
-Load Test Fall 03
+Stress Course 3
 84003
-Dr. Load 03
-83102,1,FALL,Obligatory
-83102,1,SPRI,Obligatory
+Dr. Stress 3
+83101,1,FALL,Obligatory
 Exam
 $$$$
-Load Test Fall 04
+Stress Course 4
 84004
-Dr. Load 04
+Dr. Stress 4
+83101,1,FALL,Elective
+Exam
+$$$$
+Stress Course 5
+84005
+Dr. Stress 5
+83101,1,FALL,Elective
 83102,1,FALL,Obligatory
+Exam
+$$$$
+Stress Course 6
+84006
+Dr. Stress 6
+83101,1,FALL,Obligatory
+83102,1,FALL,Obligatory
+Exam
+$$$$
+Stress Course 7
+84007
+Dr. Stress 7
+83101,1,FALL,Elective
+83102,1,FALL,Elective
+Exam
+$$$$
+Stress Course 8
+84008
+Dr. Stress 8
+83102,1,FALL,Obligatory
+Exam
+$$$$
+Stress Course 9
+84009
+Dr. Stress 9
 83102,1,SPRI,Obligatory
 Exam
 $$$$
-Load Test Fall 05
-84005
-Dr. Load 05
-83103,1,FALL,Obligatory
-83103,1,SPRI,Obligatory
-Exam
-$$$$
-Load Test Fall 06
-84006
-Dr. Load 06
-83103,1,FALL,Obligatory
-83103,1,SPRI,Obligatory
-Exam
-$$$$
-Load Test Fall 07
-84007
-Dr. Load 07
-83104,1,FALL,Obligatory
-83104,1,SPRI,Obligatory
-Exam
-$$$$
-Load Test Fall 08
-84008
-Dr. Load 08
-83104,1,FALL,Obligatory
-83104,1,SPRI,Obligatory
-Exam
-$$$$
-Load Test Fall 09
-84009
-Dr. Load 09
-83105,1,FALL,Obligatory
-83105,1,SPRI,Obligatory
-Exam
-$$$$
-Load Test Fall 10
+Stress Course 10
 84010
-Dr. Load 10
-83105,1,FALL,Obligatory
-83105,1,SPRI,Obligatory
+Dr. Stress 10
+83102,1,SPRI,Elective
+83103,1,SPRI,Elective
+Exam
+$$$$
+Stress Course 11
+84011
+Dr. Stress 11
+83102,1,SPRI,Elective
+83103,1,SPRI,Obligatory
+Exam
+$$$$
+Stress Course 12
+84012
+Dr. Stress 12
+83103,1,SPRI,Elective
+Exam
+$$$$
+Stress Course 13
+84013
+Dr. Stress 13
+83103,1,SPRI,Obligatory
+Exam
+$$$$
+Stress Course 14
+84014
+Dr. Stress 14
+83103,1,SPRI,Obligatory
+Exam
+$$$$
+Stress Course 15
+84015
+Dr. Stress 15
+83103,1,SPRI,Elective
+83104,1,SPRI,Obligatory
+Exam
+$$$$
+Stress Course 16
+84016
+Dr. Stress 16
+83103,1,SPRI,Obligatory
+83104,1,SPRI,Elective
+Exam
+$$$$
+Stress Course 17
+84017
+Dr. Stress 17
+83104,1,SUMM,Obligatory
+Exam
+$$$$
+Stress Course 18
+84018
+Dr. Stress 18
+83104,1,SUMM,Obligatory
+83105,1,SUMM,Elective
+Exam
+$$$$
+Stress Course 19
+84019
+Dr. Stress 19
+83104,1,SUMM,Obligatory
+83105,1,SUMM,Obligatory
+Exam
+$$$$
+Stress Course 20
+84020
+Dr. Stress 20
+83104,1,SUMM,Elective
+83105,1,SUMM,Elective
+Exam
+$$$$
+Stress Course 21
+84021
+Dr. Stress 21
+83104,1,SUMM,Elective
+83105,1,SUMM,Obligatory
+Exam
+$$$$
+Stress Course 22
+84022
+Dr. Stress 22
+83105,1,SUMM,Obligatory
+Exam
+$$$$
+Stress Course 23
+84023
+Dr. Stress 23
+83105,1,SUMM,Elective
+Exam
+$$$$
+Stress Course 24
+84024
+Dr. Stress 24
+83105,1,SUMM,Obligatory
 Exam

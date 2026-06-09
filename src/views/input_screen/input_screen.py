@@ -1,5 +1,5 @@
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QIcon
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QSizePolicy, QGraphicsDropShadowEffect,
@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
 
 import src.styles.theme as th
 from src.presenter.generate_worker import GenerateWorker
+from src.styles.icons import load_pixmap, ICON_CALENDAR_PLUS
 from src.styles.input_screen_style import INPUT_SCREEN_STYLE
 from src.views.shared_components.error_banner import ErrorBanner
 from src.views.shared_components.loading_spinner import LoadingSpinner
@@ -114,7 +115,11 @@ class InputScreen(QWidget):
             th.SPACING_XL, 0, th.SPACING_XL, 0
         )
 
-        self.generate_btn = QPushButton("🚀  Generate Schedule")
+        self.generate_btn = QPushButton("  Generate Schedule")
+        _gen_pix = load_pixmap(ICON_CALENDAR_PLUS, size=20)
+        if not _gen_pix.isNull():
+            self.generate_btn.setIcon(QIcon(_gen_pix))
+
         self.generate_btn.setObjectName("generateBtn")
         self.generate_btn.setVisible(False)
         self.generate_btn.clicked.connect(self._on_generate_clicked)

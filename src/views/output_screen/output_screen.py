@@ -70,7 +70,10 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from PyQt5.QtGui import QIcon
+
 from src.models.enums import Semester, Moed
+from src.styles.icons import load_pixmap, ICON_DOWNLOAD
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
 from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutputWidget
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
@@ -196,7 +199,11 @@ class OutputScreen(QWidget):
         self.back_btn.setObjectName("backBtn")
         self.back_btn.clicked.connect(self._on_back_clicked)
 
-        self.download_btn = QPushButton("⬇  Download Schedule")
+        self.download_btn = QPushButton("  Download Schedule")
+        _dl_pix = load_pixmap(ICON_DOWNLOAD, size=18)
+        if not _dl_pix.isNull():
+            self.download_btn.setIcon(QIcon(_dl_pix))
+
         self.download_btn.setObjectName("downloadBtn")
         self.download_btn.clicked.connect(self._on_download_clicked)
 

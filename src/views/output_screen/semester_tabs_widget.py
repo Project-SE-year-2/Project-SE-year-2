@@ -29,13 +29,15 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from src.styles.icons import load_pixmap, ICON_FALL, ICON_SPRING, ICON_SUMMER
+
 
 # ── Semester definitions ──────────────────────────────────────────────────────
 
 _SEMESTERS = [
-    {"id": "FALL",   "icon": "🍃", "color": "#2563EB", "bg_sel": "#EFF6FF"},
-    {"id": "SPRING", "icon": "🌸", "color": "#16A34A", "bg_sel": "#F0FDF4"},
-    {"id": "SUMMER", "icon": "☀️", "color": "#F59E0B", "bg_sel": "#FFF7ED"},
+    {"id": "FALL",   "icon": ICON_FALL,   "color": "#2563EB", "bg_sel": "#EFF6FF"},
+    {"id": "SPRING", "icon": ICON_SPRING, "color": "#16A34A", "bg_sel": "#F0FDF4"},
+    {"id": "SUMMER", "icon": ICON_SUMMER, "color": "#F59E0B", "bg_sel": "#FFF7ED"},
 ]
 
 # ── Individual tab card ───────────────────────────────────────────────────────
@@ -92,12 +94,13 @@ class _SemesterTabCard(QFrame):
         layout.setSpacing(12)
         layout.setAlignment(Qt.AlignCenter)
 
-        # Icon label — emoji (natural colour, not CSS-styleable)
-        self._icon_lbl = QLabel(meta["icon"])
-        self._icon_lbl.setStyleSheet(
-            "font-size: 22px; background: transparent;"
-        )
+        # Icon label — PNG image from the icon registry
+        self._icon_lbl = QLabel()
+        self._icon_lbl.setStyleSheet("background: transparent;")
         self._icon_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        pix = load_pixmap(meta["icon"], size=22)
+        if not pix.isNull():
+            self._icon_lbl.setPixmap(pix)
         layout.addWidget(self._icon_lbl)
 
         # Semester name — uses accent colour

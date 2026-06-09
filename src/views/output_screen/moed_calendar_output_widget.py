@@ -60,6 +60,7 @@ from src.styles.output_screen_style import (
     ALL_SESSIONS_MONTH_CARD_STYLE,
     ALL_SESSIONS_SECTION_STYLE_TPL,
 )
+from src.styles.icons import load_pixmap, SEMESTER_ICON, ICON_CALENDAR
 from src.views.shared_components.calendar_widgets import MonthGrid
 from src.views.shared_components.calendar_widgets._constants import EN_LOCALE
 from src.views.shared_components.schedule_navigator_widget import ScheduleNavigatorWidget
@@ -72,10 +73,8 @@ _SEMESTER_DEFAULT_MONTHS: dict[str, list[int]] = {
     "SPRING": [1,  2,  3,  4],
 }
 
-_SEMESTER_ICONS = {
-    "FALL":   "🍃",
-    "SPRING": "🌸",
-}
+# Maps semester id → icon name (see src/styles/icons.py)
+_SEMESTER_ICONS = SEMESTER_ICON  # {"FALL": "fall", "SPRING": "spring", "SUMMER": "summer"}
 
 _MOED_INFO = {
     "Aleph": "You are viewing the first exam session.\nSwitch to see another exam session.",
@@ -194,10 +193,11 @@ class MoedCalendarOutputWidget(QWidget):
         row = QHBoxLayout()
         row.setSpacing(10)
 
-        # Left block: emoji icon + title stack
-        self._icon_lbl = QLabel("🍃")
-        self._icon_lbl.setStyleSheet("font-size: 20px; background: transparent;")
+        # Left block: season icon + title stack
+        self._icon_lbl = QLabel()
+        self._icon_lbl.setStyleSheet("background: transparent;")
         self._icon_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._icon_lbl.setPixmap(load_pixmap("fall", size=24))  # default; updated on load
         row.addWidget(self._icon_lbl)
 
         title_col = QVBoxLayout()
@@ -293,8 +293,33 @@ class MoedCalendarOutputWidget(QWidget):
         return page
 
     def _build_empty_page(self) -> QWidget:
-        page = self._build_state_page("📅", "No schedules available for this semester.", "#94A3B8")
-        self._empty_lbl = page.findChildren(QLabel)[1]
+        # Build inline so we can use a pixmap for the calendar icon
+        page   = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setAlignment(Qt.AlignCenter)
+
+        icon_lbl = QLabel()
+        icon_lbl.setAlignment(Qt.AlignCenter)
+        icon_lbl.setStyleSheet("background: transparent;")
+        pix = load_pixmap(ICON_CALENDAR, size=36)
+        if not pix.isNull():
+            icon_lbl.setPixmap(pix)
+        else:
+            icon_lbl.setText("📅")
+            icon_lbl.setStyleSheet("font-size: 36px; color: #94A3B8; background: transparent;")
+
+        self._empty_lbl = QLabel("No schedules available for this semester.")
+        self._empty_lbl.setAlignment(Qt.AlignCenter)
+        self._empty_lbl.setWordWrap(True)
+        self._empty_lbl.setStyleSheet(
+            "font-size: 14px; font-weight: 500; color: #94A3B8; background: transparent;"
+        )
+
+        layout.addStretch()
+        layout.addWidget(icon_lbl)
+        layout.addSpacing(8)
+        layout.addWidget(self._empty_lbl)
+        layout.addStretch()
         return page
 
     def _build_no_period_page(self) -> QWidget:
@@ -421,9 +446,13 @@ class MoedCalendarOutputWidget(QWidget):
 
             self._months_layout.addWidget(card)
 
+    def _set_icon_pixmap(self, semester: str) -> None:
+        """Update the header icon to the season image for *semester*."""
+        icon_name = _SEMESTER_ICONS.get(semester, ICON_CALENDAR)
+        self._icon_lbl.setPixmap(load_pixmap(icon_name, size=24))
+
     def _update_header(self, semester: str, year: int) -> None:
-        icon = _SEMESTER_ICONS.get(semester, "📅")
-        self._icon_lbl.setText(icon)
+        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester} {year}")
 
         if self._period_start and self._period_end:
@@ -536,9 +565,15 @@ class MoedCalendarOutputWidget(QWidget):
             empty_col.setAlignment(Qt.AlignCenter)
             empty_col.setContentsMargins(24, 24, 24, 24)
 
-            icon_e = QLabel("📅")
+            icon_e = QLabel()
             icon_e.setAlignment(Qt.AlignCenter)
-            icon_e.setStyleSheet("font-size: 26px; background: transparent; border: none;")
+            icon_e.setStyleSheet("background: transparent; border: none;")
+            _pix_e = load_pixmap(ICON_CALENDAR, size=26)
+            if not _pix_e.isNull():
+                icon_e.setPixmap(_pix_e)
+            else:
+                icon_e.setText("📅")
+                icon_e.setStyleSheet("font-size: 26px; background: transparent; border: none;")
             empty_col.addWidget(icon_e)
             empty_col.addSpacing(8)
 
@@ -636,7 +671,7 @@ class MoedCalendarOutputWidget(QWidget):
     def show_loading(self, semester: str = "") -> None:
         name = semester or "schedules"
         self._loading_lbl.setText(f"Loading {name} schedules…")
-        self._icon_lbl.setText(_SEMESTER_ICONS.get(semester, "⏳"))
+        self._set_icon_pixmap(semester)
         self._semester_title.setText(semester or "—")
         self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_LOADING)
@@ -650,8 +685,7 @@ class MoedCalendarOutputWidget(QWidget):
     def show_empty(self, semester: str = "") -> None:
         name = semester or "this semester"
         self._empty_lbl.setText(f"No schedules available for {name}.")
-        icon = _SEMESTER_ICONS.get(semester, "📅")
-        self._icon_lbl.setText(icon)
+        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester}" if semester else "—")
         self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_EMPTY)
@@ -663,8 +697,7 @@ class MoedCalendarOutputWidget(QWidget):
         """Show 'no schedules' state when the period doesn't exist in the data."""
         name = semester or "this semester"
         self._empty_lbl.setText(f"No schedules available for {name}.")
-        icon = _SEMESTER_ICONS.get(semester, "📅")
-        self._icon_lbl.setText(icon)
+        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester}" if semester else "—")
         self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_EMPTY)
@@ -692,8 +725,7 @@ class MoedCalendarOutputWidget(QWidget):
                 break
 
         # ── Update header ─────────────────────────────────────────────────────
-        icon = _SEMESTER_ICONS.get(semester, "📅")
-        self._icon_lbl.setText(icon)
+        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester} {year}")
 
         # Compute overall date range across all moeds for the subtitle

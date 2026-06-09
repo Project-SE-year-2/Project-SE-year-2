@@ -101,7 +101,9 @@ class MonthGrid(QWidget):
     # ── Population — OUTPUT ───────────────────────────────────────────────────
 
     def populate_output(self, year: int, month: int,
-                        exams_by_date: dict, unavail_dates: set) -> None:
+                        exams_by_date: dict, unavail_dates: set,
+                        period_start: QDate | None = None,
+                        period_end:   QDate | None = None) -> None:
         """Fill the grid with OutputDayCells for the given month, marking those with exams or unavailable."""
         self._clear_cells()
         first     = QDate(year, month, 1)
@@ -118,11 +120,13 @@ class MonthGrid(QWidget):
                                  is_weekend=is_weekend)
             cell.exam_clicked.connect(self.output_exam_clicked)
 
-            if not is_other and qdate in unavail_dates:
+            if is_other:
+                pass  # already rendered as faded by OutputDayCell default
+            elif period_start and period_end and not (period_start <= qdate <= period_end):
+                cell.set_out_of_range()
+            elif qdate in unavail_dates:
                 cell.set_unavailable()
-            elif not is_other and qdate in exams_by_date:
-                # Pass all exams for the day; OutputDayCell shows up to
-                # MAX_VISIBLE_BADGES pills and a "+N" indicator for the rest
+            elif qdate in exams_by_date:
                 cell.set_exams(exams_by_date[qdate])
 
             self._grid.addWidget(cell, row, col)

@@ -5,6 +5,46 @@ All colours here are light-theme — the output screen uses a white card on a
 very-light-gray background, intentionally different from the dark input screen.
 """
 
+# ── All Sessions view ────────────────────────────────────────────────────────
+
+# Left accent colours for each moed section
+ALL_SESSIONS_MOED_COLORS: dict[str, str] = {
+    "Aleph": "#4F46E5",   # indigo — Moed A
+    "Bet":   "#16A34A",   # green  — Moed B
+    "Gimel": "#7C3AED",   # violet — Moed C
+}
+
+# English display labels used in the All Sessions section headers
+ALL_SESSIONS_MOED_LABELS: dict[str, str] = {
+    "Aleph": "Moed A",
+    "Bet":   "Moed B",
+    "Gimel": "Moed C",
+}
+
+# Fixed pixel width for every month card inside the All Sessions view.
+# All moeds use this same width so calendars are visually uniform regardless
+# of how many months a given period spans.
+ALL_SESSIONS_CARD_WIDTH: int = 230
+
+# Stylesheet for a single month card frame inside the All Sessions view
+ALL_SESSIONS_MONTH_CARD_STYLE = """
+    QFrame#monthCard {
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 10px;
+    }
+"""
+
+# Stylesheet template for a moed section frame (use .format(color=...))
+ALL_SESSIONS_SECTION_STYLE_TPL = """
+    QFrame {{
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-left: 5px solid {color};
+        border-radius: 10px;
+    }}
+"""
+
 # ── Screen / card backgrounds ────────────────────────────────────────────────
 SCREEN_BG          = "#F5F7FB"   # outer page background (design spec)
 CARD_BG            = "#FFFFFF"   # white card

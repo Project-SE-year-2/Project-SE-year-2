@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 
 import src.styles.theme as th
 from src.presenter.i_app_service import IAppService
+from src.styles.icons import load_pixmap, ICON_FILE, ICON_CALENDAR
 from src.views.shared_components.buttons import PrimaryButton
 
 _FILE_FILTER = "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
@@ -63,11 +64,17 @@ class DropZoneCard(QFrame):
         layout.setAlignment(Qt.AlignCenter)
         layout.setSpacing(th.SPACING_SMALL)
 
-        self._icon_lbl = QLabel(icon)
+        self._icon_lbl = QLabel()
         self._icon_lbl.setAlignment(Qt.AlignCenter)
-        self._icon_lbl.setStyleSheet(
-            f"font-size: {th.FONT_SIZE_XXL}px; background: transparent; border: none;"
-        )
+        self._icon_lbl.setStyleSheet("background: transparent; border: none;")
+        pix = load_pixmap(icon, size=40)
+        if not pix.isNull():
+            self._icon_lbl.setPixmap(pix)
+        else:
+            self._icon_lbl.setText(icon)
+            self._icon_lbl.setStyleSheet(
+                f"font-size: {th.FONT_SIZE_XXL}px; background: transparent; border: none;"
+            )
 
         self._title_lbl = QLabel(title)
         self._title_lbl.setAlignment(Qt.AlignCenter)
@@ -316,13 +323,13 @@ class FileLoaderWidget(QWidget):
         zones_row.setSpacing(th.SPACING_MEDIUM)
 
         self._courses_zone = DropZoneCard(
-            icon="📄",
+            icon=ICON_FILE,
             title="Courses File",
             hint="Drag & drop courses file here\n(or click to browse)\n\nCSV, Text (.csv, .txt)",
             dialog_caption="Select Courses File",
         )
         self._dates_zone = DropZoneCard(
-            icon="📅",
+            icon=ICON_CALENDAR,
             title="Dates File",
             hint="Drag & drop dates file here\n(or click to browse)\n\nCSV, Text (.csv, .txt)",
             dialog_caption="Select Dates File",

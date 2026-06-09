@@ -7,7 +7,7 @@ Layout
 QVBoxLayout (inside QScrollArea)
 ├── Toolbar: [← Back]  ·····  [⬇ Download Schedule]
 ├── SemesterTabsWidget: [🍃 FALL]  [🌸 SPRING]
-└── FourMonthOutputWidget (white card)
+└── MoedCalendarOutputWidget (white card)
       ├── Header: icon + title | [מועד א] [מועד ב] | ‹ N of M ›
       ├── Dynamic horizontal months (rebuilt per period date range)
       └── Legend
@@ -38,7 +38,7 @@ Fallback: if date-range filter yields nothing, filter by the "semester"
 "No period" banner
 ------------------
 When get_periods() has no entry for the active period_id,
-FourMonthOutputWidget.show_no_period() shows a styled warning.
+MoedCalendarOutputWidget.show_no_period() shows a styled warning.
 
 Isolated fetching
 -----------------
@@ -60,7 +60,9 @@ from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -68,9 +70,12 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from PyQt5.QtGui import QIcon
+
 from src.models.enums import Semester, Moed
+from src.styles.icons import load_pixmap, ICON_DOWNLOAD
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
-from src.views.output_screen.four_month_output_widget import FourMonthOutputWidget
+from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutputWidget
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
 from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
@@ -128,6 +133,8 @@ class OutputScreen(QWidget):
         # ── Active view ───────────────────────────────────────────────────────
         self._current_semester: str = "FALL"
         self._current_moed:     str = "Aleph"
+        self._check_conflicts_next: bool = False
+        self._day_dialog: DayDetailDialog | None = None
 
         self._setup_ui()
         self._setup_polling()
@@ -192,7 +199,11 @@ class OutputScreen(QWidget):
         self.back_btn.setObjectName("backBtn")
         self.back_btn.clicked.connect(self._on_back_clicked)
 
-        self.download_btn = QPushButton("⬇  Download Schedule")
+        self.download_btn = QPushButton("  Download Schedule")
+        _dl_pix = load_pixmap(ICON_DOWNLOAD, size=18)
+        if not _dl_pix.isNull():
+            self.download_btn.setIcon(QIcon(_dl_pix))
+
         self.download_btn.setObjectName("downloadBtn")
         self.download_btn.clicked.connect(self._on_download_clicked)
 
@@ -206,8 +217,13 @@ class OutputScreen(QWidget):
         self.semester_tabs.semester_changed.connect(self._on_semester_changed)
         main_layout.addWidget(self.semester_tabs)
 
-        # FourMonthOutputWidget
-        self.four_month = FourMonthOutputWidget()
+        # Conflict banner (hidden by default)
+        self._conflict_banner = self._build_conflict_banner()
+        self._conflict_banner.setVisible(False)
+        main_layout.addWidget(self._conflict_banner)
+
+        # MoedCalendarOutputWidget
+        self.four_month = MoedCalendarOutputWidget()
         self.four_month.exam_day_clicked.connect(self._on_exam_day_clicked)
         self.four_month.moed_changed.connect(self._on_moed_changed)
         main_layout.addWidget(self.four_month, stretch=1)
@@ -224,6 +240,58 @@ class OutputScreen(QWidget):
         self.calendar = CalendarTableWidget()
         self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
         # exam_clicked intentionally NOT connected (would open dialog twice)
+
+    def _build_conflict_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setObjectName("conflictBanner")
+        banner.setStyleSheet("""
+            QFrame#conflictBanner {
+                background: #FEF2F2;
+                border: 1.5px solid #FECACA;
+                border-radius: 10px;
+            }
+        """)
+
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(16, 12, 16, 12)
+        row.setSpacing(12)
+
+        icon = QLabel("")
+        icon.setStyleSheet("color: #DC2626; font-size: 18px;")
+        row.addWidget(icon)
+
+        self._conflict_text = QLabel("")
+        self._conflict_text.setWordWrap(True)
+        self._conflict_text.setStyleSheet(
+            "color: #DC2626; font-size: 13px; font-weight: 700; letter-spacing: 0.3px;"
+        )
+        row.addWidget(self._conflict_text, stretch=1)
+
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(28, 28)
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #DC2626;
+                font-size: 15px;
+                font-weight: 700;
+            }
+            QPushButton:hover { color: #991B1B; }
+        """)
+        close_btn.clicked.connect(self._hide_conflict_banner)
+        row.addWidget(close_btn)
+
+        return banner
+
+    def _show_conflict_banner(self, message: str) -> None:
+        self._conflict_text.setText(message)
+        self._conflict_banner.setVisible(True)
+
+    def _hide_conflict_banner(self) -> None:
+        self._conflict_banner.setVisible(False)
+        self._conflict_text.setText("")
 
     def _setup_polling(self) -> None:
         self.poll_timer = QTimer(self)
@@ -278,15 +346,65 @@ class OutputScreen(QWidget):
         """Switch semester tab — restore the stored index for the new period."""
         self._current_semester = semester
         self._global_index = self._period_indices.get(self._active_period_id(), 0)
+        self._hide_conflict_banner()
+        self._check_conflicts_next = True
         self._refresh_screen_display()
 
     def _on_moed_changed(self, moed: str) -> None:
-        """Switch moed — restore the stored index for the new period."""
+        """Switch moed, or switch to the read-only All Sessions overview."""
         self._current_moed = moed
+        self._hide_conflict_banner()
+
+        if moed == "All":
+            # All Sessions is read-only: no navigation, no conflict checks.
+            self._refresh_all_sessions_display()
+            return
+
         self._global_index = self._period_indices.get(self._active_period_id(), 0)
+        self._check_conflicts_next = True
         self._refresh_screen_display()
 
     # ── Central display refresh ───────────────────────────────────────────────
+
+    def _refresh_all_sessions_display(self) -> None:
+        """Fetch and render the read-only All Sessions overview for the active semester.
+
+        Shows one grouped section per moed (A/B/C), each displaying the currently
+        selected schedule index for that period.  No navigation is shown.
+        """
+        sem      = self._current_semester
+        sem_code = _SEMESTER_TO_ID.get(sem, sem)
+        sections: list[dict] = []
+
+        for moed in ["Aleph", "Bet", "Gimel"]:
+            pid  = f"{sem_code}_{moed}"
+            idx  = self._period_indices.get(pid, 0)
+            exams: list = []
+            start_date: _date | None = None
+            end_date:   _date | None = None
+
+            try:
+                exams = self.service.get_period_schedule(pid, idx) or []
+            except Exception:
+                pass
+
+            try:
+                for p in self.service.get_periods():
+                    if p.get("id") == pid:
+                        start_date = _to_date(p.get("start_date"))
+                        end_date   = _to_date(p.get("end_date"))
+                        break
+            except Exception:
+                pass
+
+            sections.append({
+                "moed":       moed,
+                "exams":      exams,
+                "start_date": start_date,
+                "end_date":   end_date,
+            })
+
+        self.four_month.show_all_sessions(sem, sections)
 
     def _refresh_screen_display(self) -> None:
         """Fetch and render the isolated schedule for the active (semester, moed).
@@ -295,6 +413,11 @@ class OutputScreen(QWidget):
         directly from the period's own file (disk mode) or from the in-memory
         per-period cache (legacy mode).  No Cartesian-product mixing occurs.
         """
+        # Guard: if "All Sessions" is active, delegate to the dedicated method.
+        if self._current_moed == "All":
+            self._refresh_all_sessions_display()
+            return
+
         sem  = self._current_semester
         moed = self._current_moed
         pid  = self._active_period_id()
@@ -336,10 +459,60 @@ class OutputScreen(QWidget):
                 start_date=start_date,
                 end_date=end_date,
             )
+            if self._check_conflicts_next:
+                self._check_conflicts_next = False
+                self._check_cross_moed_conflicts(sem, moed, exams)
         else:
             self.four_month.show_empty(sem)
 
         self._update_navigator()
+
+    # ── Cross-moed conflict detection ─────────────────────────────────────────
+
+    _MOED_LABEL: dict[str, str] = {"Aleph": "A", "Bet": "B", "Gimel": "C"}
+    _ALL_MOEDS = ["Aleph", "Bet", "Gimel"]
+
+    def _check_cross_moed_conflicts(
+        self, semester: str, current_moed: str, current_exams: list[dict]
+    ) -> None:
+        """Warn the user when an exam in the current schedule shares course+date
+        with the same course in another moed of the same semester."""
+        sem_code = _SEMESTER_TO_ID.get(semester, semester)
+
+        # Build (course_id, date_str) → course_name map for the current schedule.
+        current_pairs: dict[tuple, str] = {}
+        for e in current_exams:
+            cid  = str(e.get("course_number", ""))
+            date = str(e.get("exam_date", ""))
+            name = str(e.get("course_name", cid))
+            if cid and date:
+                current_pairs[(cid, date)] = name
+
+        conflicts: list[str] = []
+
+        for other_moed in self._ALL_MOEDS:
+            if other_moed == current_moed:
+                continue
+            other_pid = f"{sem_code}_{other_moed}"
+            other_idx = self._period_indices.get(other_pid, 0)
+            try:
+                other_exams = self.service.get_period_schedule(other_pid, other_idx)
+            except Exception:
+                continue
+
+            for e in other_exams:
+                cid  = str(e.get("course_number", ""))
+                date = str(e.get("exam_date", ""))
+                if (cid, date) in current_pairs:
+                    label       = self._MOED_LABEL.get(other_moed, other_moed)
+                    course_name = current_pairs[(cid, date)]
+                    conflicts.append(
+                        f"Scheduling Conflict: '{course_name}' ({cid}) is scheduled"
+                        f" on the same date ({date}) in Moed {label}."
+                    )
+
+        if conflicts:
+            self._show_conflict_banner("\n".join(conflicts))
 
     # ── Per-period navigator ──────────────────────────────────────────────────
 
@@ -353,6 +526,8 @@ class OutputScreen(QWidget):
         pid = self._active_period_id()
         self._period_indices[pid] = index
         self._global_index = index
+        self._hide_conflict_banner()
+        self._check_conflicts_next = True
         self._refresh_screen_display()
 
     def _on_prefetch_needed(self, loaded_so_far: int) -> None:
@@ -365,7 +540,13 @@ class OutputScreen(QWidget):
         When the period has no schedules (total == 0) the navigator shows
         "— of —" and both NEXT and PREV are disabled automatically by
         ScheduleNavigatorWidget.set_state(total=0).
+
+        Guard: in "All Sessions" mode the navigator is always hidden and
+        must not be touched — the overview panel replaces it.
         """
+        if self._current_moed == "All":
+            return
+
         pid         = self._active_period_id()
         current_idx = self._period_indices.get(pid, 0)
 
@@ -394,7 +575,13 @@ class OutputScreen(QWidget):
 
         Checks whether per-period data has arrived since the last poll.
         When data first appears, re-renders so the loading indicator clears.
+
+        Guard: in "All Sessions" mode no polling is needed — the view is
+        read-only and contains no live navigation counter.
         """
+        if self._current_moed == "All":
+            return
+
         pid = self._active_period_id()
 
         try:
@@ -414,16 +601,22 @@ class OutputScreen(QWidget):
     # ── Exam cell click → DayDetailDialog ────────────────────────────────────
 
     def _on_exam_day_clicked(self, exams: list, anchor) -> None:
+        # Close any previously open detail dialog before opening a new one
+        if self._day_dialog is not None:
+            self._day_dialog.close()
+            self._day_dialog = None
+
         program_names = self._get_program_names()
         exam_date     = exams[0].get("exam_date") if exams else None
-        dialog = DayDetailDialog(
+        self._day_dialog = DayDetailDialog(
             exams         = exams,
             exam_date     = exam_date,
             program_names = program_names,
             anchor_pos    = anchor,
             parent        = self,
         )
-        dialog.exec_()
+        self._day_dialog.finished.connect(lambda: setattr(self, "_day_dialog", None))
+        self._day_dialog.show()
 
     def _on_exam_clicked(self, exam_data: dict) -> None:
         """Backward-compat shim."""
@@ -440,6 +633,7 @@ class OutputScreen(QWidget):
     _PERIOD_PREFIX_TO_TAB: dict[str, str] = {
         "FALL": "FALL",
         "SPRI": "SPRING",
+        "SUMM": "SUMMER",
     }
 
     def connect_listener(self, listener) -> None:
@@ -504,6 +698,9 @@ class OutputScreen(QWidget):
     # ── Toolbar ───────────────────────────────────────────────────────────────
 
     def _on_back_clicked(self) -> None:
+        if self._day_dialog is not None:
+            self._day_dialog.close()
+            self._day_dialog = None
         self.switch_to_input.emit()
 
     def _on_download_clicked(self) -> None:

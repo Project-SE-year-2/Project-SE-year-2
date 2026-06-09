@@ -1,0 +1,38 @@
+$$$$
+Physics 1
+83102
+Prof. O. Some
+83101,1,FALL,Obligatory
+83102,1,FALL,Obligatory
+Exam
+$$$$
+Calculus 1
+83112
+Dr. Erez Scheiner
+83101,1,FALL,Obligatory
+83102,1,FALL,Obligatory
+Exam
+$$$$
+Introduction to Programming
+83108
+Dr. Ada Lovelace
+83101,1,FALL,Obligatory
+83108,1,FALL,Obligatory
+83107,1,FALL,Elective
+Exam
+$$$$
+Data Structures
+83113
+Dr. Grace Hopper
+83101,1,SPRI,Obligatory
+83108,1,SPRI,Obligatory
+83107,1,SPRI,Obligatory
+Exam
+$$$$
+Digital Logic
+83114
+Dr. Alan Turing
+83101,1,FALL,Obligatory
+83102,1,FALL,Obligatory
+83104,1,FALL,Elective
+Exam

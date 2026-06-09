@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from tkinter import dialog
 from typing import Iterable
 
 from PyQt5.QtCore import Qt
@@ -13,6 +14,9 @@ from PyQt5.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
+    QDialog,
+    QPushButton,
+    QHBoxLayout
 )
 
 from src.presenter.i_app_service import IAppService
@@ -166,6 +170,7 @@ class SelectedProgramsPanel(QWidget):
         self,
         service: IAppService,
         formatter: CourseFormatter | None = None,
+        show_expand_button: bool = True,
         parent=None,
     ):
         super().__init__(parent)
@@ -174,6 +179,8 @@ class SelectedProgramsPanel(QWidget):
         self._formatter = formatter or CourseFormatter()
         self._courses_cache: dict[str, list[CourseItem]] = {}
         self._cards_by_program_id: dict[str, SelectedProgramCard] = {}
+        self._selected_program_ids: list[str] = []
+        self._show_expand_button = show_expand_button
 
         # InputScreen should call refresh(selected_program_ids) whenever
         # ProgramListWidget emits programs_selected.
@@ -184,6 +191,7 @@ class SelectedProgramsPanel(QWidget):
     def refresh(self, program_ids: list[str]) -> None:
         """Rebuild the panel for the currently selected program ids."""
         self._clear_cards()
+        self._selected_program_ids = list(program_ids)
 
         if not program_ids:
             self._show_empty_state("No programs selected yet.")
@@ -247,8 +255,43 @@ class SelectedProgramsPanel(QWidget):
         self._scroll_area.setWidget(self._cards_container)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(title)
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+
+        if self._show_expand_button:
+            self.expand_btn = QPushButton("⛶ Expand")
+            self.expand_btn.clicked.connect(self._on_expand_clicked)
+            header_layout.addWidget(self.expand_btn)
+
+        layout.addLayout(header_layout)
         layout.addWidget(self._scroll_area)
+
+    def _on_expand_clicked(self) -> None:
+        """Open the selected programs panel in a larger dialog."""
+        if not self._selected_program_ids:
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Selected Programs Courses")
+        dialog.resize(1200, 700)
+
+        layout = QVBoxLayout(dialog)
+
+        expanded_panel = SelectedProgramsPanel(
+            self._service,
+            show_expand_button=False
+        )
+        expanded_panel._courses_cache = self._courses_cache
+        expanded_panel.refresh(self._selected_program_ids)
+
+        layout.addWidget(expanded_panel)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn, alignment=Qt.AlignRight)
+
+        dialog.exec_()
 
     # The get_courses_for_program method retrieves the list of CourseItem objects for a given program id,
     # using the internal cache to avoid redundant calls to the service, and converting raw course data

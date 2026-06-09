@@ -118,6 +118,25 @@ class PeriodEditorWidget(QWidget):
             f"font-size: {th.FONT_SIZE_SM}px;"
         )
 
+        self._warning_label = QLabel(
+            "Note: The start date and end date cannot be marked as unavailable."
+        )
+        self._warning_label.setWordWrap(True)
+        self._warning_label.setStyleSheet(
+            f"""
+            QLabel {{
+                color: {th.DANGER_DARK};
+                background-color: {th.DANGER_LIGHT};
+                border: 1px solid {th.ERROR_BORDER};
+                border-radius: 6px;
+                padding: 8px;
+                font-family: {th.FONT_FAMILY};
+                font-size: {th.FONT_SIZE_SM}px;
+                font-weight: {th.FONT_WEIGHT_BOLD};
+            }}
+            """
+        )
+
         self._calendar = CalendarTableWidget(CalendarMode.INPUT)
 
         self._status_label = QLabel("")
@@ -131,6 +150,7 @@ class PeriodEditorWidget(QWidget):
         layout.setSpacing(th.SPACING_SMALL)
         layout.addWidget(self._title_label)
         layout.addWidget(self._hint_label)
+        layout.addWidget(self._warning_label)
         layout.addWidget(self._calendar)
         layout.addWidget(self._status_label)
 

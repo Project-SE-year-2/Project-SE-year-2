@@ -260,3 +260,99 @@ def test_solve_stream_yields_copies_not_partial():
     # Verify first schedule was modified (proves it's a copy, not partial)
     assert first.assignments[c1] == date(2026, 1, 5)
     assert first.assignments[c2] == date(2026, 1, 5)
+
+
+def test_solver_timing_5_constrained_courses_10_days():
+    """5 courses in the same obligatory group with 10 available days
+    must complete in < 2 seconds."""
+    import time
+
+    courses = []
+    for i in range(5):
+        c = Course(f"C{i}", str(i), "A", Evaluation.Exam)
+        c.add_requirement(
+            ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+        )
+        courses.append(c)
+
+    solver, validator = _setup_solver(courses, ["83101"])
+
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "10-01-2026")
+    period.possible_dates = [date(2026, 1, d) for d in range(1, 11)]
+
+    start = time.time()
+    schedules = solver.solve(courses, period, validator)
+    elapsed = time.time() - start
+
+    assert elapsed < 2.0, f"Solver took {elapsed:.2f}s, expected < 2s"
+    assert len(schedules) > 0
+
+
+def test_solver_all_in_one_group_n_days_gives_n_factorial_permutations():
+    """N courses in the same obligatory group with exactly N days
+    produces exactly N! valid schedules (all permutations)."""
+    import math
+
+    n = 4
+    courses = []
+    for i in range(n):
+        c = Course(f"C{i}", str(i), "A", Evaluation.Exam)
+        c.add_requirement(
+            ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+        )
+        courses.append(c)
+
+    solver, validator = _setup_solver(courses, ["83101"])
+
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "04-01-2026")
+    period.possible_dates = [date(2026, 1, d) for d in range(1, n + 1)]
+
+    schedules = solver.solve(courses, period, validator)
+    assert len(schedules) == math.factorial(n)
+
+    # Verify each schedule assigns all courses to distinct dates
+    for s in schedules:
+        dates = list(s.assignments.values())
+        assert len(dates) == n
+        assert len(set(dates)) == n
+
+
+def test_solve_stream_zero_solutions():
+    """solve_stream with an impossible setup yields nothing."""
+    c1 = Course("C1", "1", "A", Evaluation.Exam)
+    c1.add_requirement(
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+    )
+    c2 = Course("C2", "2", "B", Evaluation.Exam)
+    c2.add_requirement(
+        ProgramRequirement("83101", 1, Semester.FALL, ReqType.Obligatory)
+    )
+
+    solver, validator = _setup_solver([c1, c2], ["83101"])
+
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "01-01-2026")
+    period.possible_dates = [date(2026, 1, 1)]
+
+    results = list(solver.solve_stream([c1, c2], period, validator))
+    assert len(results) == 0
+
+
+def test_solve_stream_early_stop():
+    """Stopping iteration early (via break) does not corrupt the solver."""
+    c1 = Course("C1", "1", "A", "Exam")
+    c2 = Course("C2", "2", "B", "Exam")
+
+    solver, validator = _setup_solver([c1, c2], ["83101"])
+
+    period = ExamPeriod("FALL", "Aleph", "01-01-2026", "05-01-2026")
+    period.possible_dates = [date(2026, 1, d) for d in range(1, 6)]
+
+    # Only take the first 3 schedules
+    count = 0
+    for sched in solver.solve_stream([c1, c2], period, validator):
+        count += 1
+        if count >= 3:
+            break
+
+    assert count == 3
+

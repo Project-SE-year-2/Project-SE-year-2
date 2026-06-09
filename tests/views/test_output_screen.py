@@ -349,6 +349,216 @@ class TestOutputScreen(unittest.TestCase):
         self.assertEqual(kwargs["anchor_pos"], anchor_point)
         self.assertEqual(kwargs["program_names"], {"83101": "Computer Engineering"})
 
+    # ------------------------------------------------------------------
+    # Semester tab switching
+    # ------------------------------------------------------------------
+
+    def test_semester_switch_updates_current_semester(self):
+        """Switching semester tab updates _current_semester."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+        self.mock_service.get_periods.return_value = []
+
+        self.screen._on_semester_changed("SPRING")
+        self.assertEqual(self.screen._current_semester, "SPRING")
+
+    def test_semester_switch_restores_stored_index(self):
+        """Switching to a semester whose period has a stored index uses that index."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 5
+        self.mock_service.get_periods.return_value = []
+
+        # Set a stored index for SPRI_Aleph
+        self.screen._period_indices["SPRI_Aleph"] = 3
+        self.screen._on_semester_changed("SPRING")
+
+        self.assertEqual(self.screen._global_index, 3)
+
+    def test_semester_switch_calls_refresh(self):
+        """Semester switch triggers a display refresh."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+        self.mock_service.get_periods.return_value = []
+
+        self.screen._on_semester_changed("SUMMER")
+        # get_period_schedule should be called with the SUMM_Aleph period
+        self.mock_service.get_period_schedule.assert_called_with("SUMM_Aleph", 0)
+
+    # ------------------------------------------------------------------
+    # Moed switching
+    # ------------------------------------------------------------------
+
+    def test_moed_switch_updates_current_moed(self):
+        """Switching moed updates _current_moed."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+        self.mock_service.get_periods.return_value = []
+
+        self.screen._on_moed_changed("Bet")
+        self.assertEqual(self.screen._current_moed, "Bet")
+
+    def test_moed_switch_changes_active_period_id(self):
+        """After switching moed, _active_period_id reflects the new moed."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+        self.mock_service.get_periods.return_value = []
+
+        self.screen._on_moed_changed("Bet")
+        self.assertEqual(self.screen._active_period_id(), "FALL_Bet")
+
+    # ------------------------------------------------------------------
+    # Per-period navigation isolation
+    # ------------------------------------------------------------------
+
+    def test_advancing_fall_does_not_change_spring_index(self):
+        """Navigating forward in FALL_Aleph must not change SPRI_Aleph."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 10
+        self.mock_service.get_periods.return_value = []
+
+        self.screen._current_semester = "FALL"
+        self.screen._on_navigator_index_changed(5)
+
+        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 5)
+        self.assertEqual(self.screen._period_indices["SPRI_Aleph"], 0)
+        self.assertEqual(self.screen._period_indices["SUMM_Aleph"], 0)
+
+    def test_switching_semester_preserves_previous_index(self):
+        """Going FALL→SPRING→FALL restores FALL's stored index."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 10
+        self.mock_service.get_periods.return_value = []
+
+        self.screen._current_semester = "FALL"
+        self.screen._on_navigator_index_changed(7)
+
+        self.screen._on_semester_changed("SPRING")
+        self.screen._on_semester_changed("FALL")
+
+        self.assertEqual(self.screen._global_index, 7)
+
+    # ------------------------------------------------------------------
+    # Polling behavior
+    # ------------------------------------------------------------------
+
+    def test_polling_detects_first_data_arrival(self):
+        """When polling detects the first data (was_empty=True), refresh is triggered."""
+        self.mock_service.get_period_schedule.return_value = [_make_minimal_exam()]
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+
+        # Start with no data
+        self.screen._global_total = 0
+        self.mock_service.get_schedule_count.return_value = 5
+
+        self.screen._poll_schedule_count()
+        # Total should now be updated
+        self.assertEqual(self.screen._global_total, 5)
+
+    def test_polling_with_exception_does_not_crash(self):
+        """Polling must not crash if get_schedule_count raises."""
+        self.mock_service.get_schedule_count.side_effect = RuntimeError("db error")
+        self.mock_service.get_period_schedule.return_value = []
+        # Must not raise
+        self.screen._poll_schedule_count()
+
+    # ------------------------------------------------------------------
+    # Listener integration signals
+    # ------------------------------------------------------------------
+
+    def test_on_period_ready_updates_total_for_active_period(self):
+        """_on_period_ready updates _global_total when the active period gets data."""
+        self.mock_service.get_schedule_count.return_value = 42
+        self.mock_service.get_period_schedule.return_value = [_make_minimal_exam()]
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+
+        self.screen._current_semester = "FALL"
+        self.screen._current_moed = "Aleph"
+        self.screen._on_period_ready("FALL_Aleph")
+
+        self.assertGreaterEqual(self.screen._global_total, 42)
+
+    def test_on_period_ready_ignores_non_active_period(self):
+        """_on_period_ready for a different semester does not trigger refresh."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+
+        self.screen._current_semester = "FALL"
+        self.screen._on_period_ready("SPRI_Aleph")
+
+        # get_period_schedule should NOT be called since SPRI is not active
+        self.mock_service.get_period_schedule.assert_not_called()
+
+    def test_on_generation_finished_resets_all_indices(self):
+        """_on_generation_finished resets all period indices to 0."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 10
+        self.mock_service.get_periods.return_value = []
+
+        # Set non-zero indices
+        self.screen._period_indices["FALL_Aleph"] = 5
+        self.screen._period_indices["SPRI_Bet"] = 3
+
+        self.screen._on_generation_finished(100)
+
+        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 0)
+        self.assertEqual(self.screen._period_indices["SPRI_Bet"], 0)
+        self.assertEqual(self.screen._global_index, 0)
+
+    def test_on_generation_error_shows_error(self):
+        """_on_generation_error re-enables tabs (no crash)."""
+        # Must not raise
+        self.screen._on_generation_error("Something went wrong")
+
+    # ------------------------------------------------------------------
+    # Show/hide re-entry
+    # ------------------------------------------------------------------
+
+    def test_show_event_with_existing_data_does_not_reset_indices(self):
+        """Re-showing with _global_total > 0 preserves stored indices."""
+        self.mock_service.get_period_schedule.return_value = [_make_minimal_exam()]
+        self.mock_service.get_schedule_count.return_value = 5
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+
+        self.screen._global_total = 5
+        self.screen._period_indices["FALL_Aleph"] = 3
+
+        self.screen.showEvent(QShowEvent())
+
+        # Index must NOT be reset to 0
+        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 3)
+
+    # ------------------------------------------------------------------
+    # Navigator visibility
+    # ------------------------------------------------------------------
+
+    def test_navigator_hidden_when_no_schedules(self):
+        """Navigator bar is hidden when the active period has 0 schedules."""
+        self.mock_service.get_schedule_count.return_value = 0
+        self.screen._update_navigator()
+        self.assertTrue(self.screen.navigator.isHidden())
+
+    def test_navigator_visible_when_schedules_exist(self):
+        """Navigator bar is visible when the active period has schedules."""
+        self.mock_service.get_schedule_count.return_value = 5
+        self.screen._update_navigator()
+        self.assertFalse(self.screen.navigator.isHidden())
+
+    # ------------------------------------------------------------------
+    # Back button
+    # ------------------------------------------------------------------
+
+    def test_back_button_emits_switch_to_input(self):
+        """Back button emits switch_to_input signal."""
+        with unittest.mock.patch.object(self.screen, 'switch_to_input') as mock_signal:
+            self.screen._on_back_clicked()
+            mock_signal.emit.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # Module-level helper
@@ -368,3 +578,4 @@ def _make_minimal_exam() -> dict:
 
 if __name__ == '__main__':
     unittest.main()
+

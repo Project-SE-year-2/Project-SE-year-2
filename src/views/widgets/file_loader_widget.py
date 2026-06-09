@@ -11,7 +11,7 @@ from src.presenter.i_app_service import IAppService
 from src.styles.icons import load_pixmap, ICON_FILE, ICON_CALENDAR
 from src.views.shared_components.buttons import PrimaryButton
 
-_FILE_FILTER = "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)"
+_FILE_FILTER = "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
 _DROP_ZONE_MIN_HEIGHT = 155
 _TOGGLE_BTN_MIN_WIDTH = 72
 

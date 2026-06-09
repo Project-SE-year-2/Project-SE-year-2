@@ -212,3 +212,66 @@ Prof. O. Some
     
     with pytest.raises(ValueError):
         parser.parse(str(file_path))
+
+
+# Tests that a course with requirements spanning different semesters
+# is parsed correctly with all requirements preserved.
+def test_parse_course_with_multi_semester_requirements(tmp_path):
+    content = """$$$$
+Physics 1
+83102
+Prof. O. Some
+83101,1,FALL,Obligatory
+83102,1,SPRI,Elective
+Exam
+"""
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = CourseFileParser()
+    courses = parser.parse(str(file_path))
+
+    assert len(courses) == 1
+    assert len(courses[0].requirements) == 2
+    assert courses[0].requirements[0].semester == Semester.FALL
+    assert courses[0].requirements[1].semester == Semester.SPRI
+
+
+# Tests that course files with unicode/Hebrew instructor names
+# are parsed without errors.
+def test_parse_course_with_unicode_instructor(tmp_path):
+    content = """$$$$
+אלגברה לינארית
+83100
+פרופ' ישראלי
+83101,1,FALL,Obligatory
+Exam
+"""
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = CourseFileParser()
+    courses = parser.parse(str(file_path))
+
+    assert len(courses) == 1
+    assert courses[0].instructor == "פרופ' ישראלי"
+    assert courses[0].name == "אלגברה לינארית"
+
+
+# Tests that an invalid evaluation type (e.g. "Quiz") raises ValueError.
+def test_parse_course_with_invalid_evaluation_type(tmp_path):
+    content = """$$$$
+Physics 1
+83102
+Prof. A
+83101,1,FALL,Obligatory
+Quiz
+"""
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = CourseFileParser()
+
+    with pytest.raises(ValueError, match="Missing or invalid evaluation type"):
+        parser.parse(str(file_path))
+

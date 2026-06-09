@@ -110,7 +110,7 @@ class OutputScreen(QWidget):
     switch_to_input = pyqtSignal()
 
     BATCH_SIZE       = 10
-    POLL_INTERVAL_MS = 3_000
+    POLL_INTERVAL_MS = 500
 
     def __init__(self, service, parent=None):
         super().__init__(parent)

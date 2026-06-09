@@ -18,5 +18,5 @@ tester_main.py
 
 *.pkl
 
-data/datastore.pkl
+data/*.pkl
 data/results

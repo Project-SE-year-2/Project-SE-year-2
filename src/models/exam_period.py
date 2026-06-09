@@ -88,7 +88,8 @@ class ExamPeriod:
 
         # Drop forbidden days that are now outside the new range
         self.forbidden_days = [
-            d for d in self.forbidden_days if start <= d <= end
+            d for d in self.forbidden_days
+            if start <= d <= end and d not in (start, end)
         ]
 
         # Rebuild possible_dates for the new range

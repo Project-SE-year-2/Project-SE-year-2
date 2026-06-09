@@ -68,5 +68,23 @@ class TestMainWindow(unittest.TestCase):
         # Assert the view switched back to index 0
         self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
 
+    def test_service_singleton_integrity(self):
+        """
+        Verify that AppService.getInstance() returns the exact same instance across multiple calls.
+        """
+        from src.presenter.app_service import AppService
+        
+        # Clear the singleton to ensure a fresh state for the test
+        AppService._instance = None
+        
+        instance1 = AppService.getInstance()
+        instance2 = AppService.getInstance()
+        instance3 = AppService.getInstance()
+        
+        self.assertIs(instance1, instance2)
+        self.assertIs(instance1, instance3)
+        self.assertIsNotNone(instance1)
+
+
 if __name__ == '__main__':
     unittest.main()

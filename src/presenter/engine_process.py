@@ -22,17 +22,38 @@ from src.algorithm.period_results_writer import PeriodResultsWriter
 # Worker — runs inside the Engine Process                             #
 # ------------------------------------------------------------------ #
 
+def _solve_single_period(engine, period, courses_dict, root_path, notify_queue):
+    """Worker process target to solve a single period."""
+    writer = PeriodResultsWriter(root_path=root_path)
+    
+    first_batch_sent = False
+    def on_batch():
+        nonlocal first_batch_sent
+        if not first_batch_sent:
+            notify_queue.put({"type": "period_ready", "period_id": period.period_id})
+            first_batch_sent = True
+            
+    try:
+        engine.solve_to_disk(period, courses_dict, writer, on_batch_written=on_batch)
+    except Exception as exc:
+        notify_queue.put({"type": "error", "message": f"Error in {period.period_id}: {str(exc)}"})
+    finally:
+        notify_queue.put({"type": "period_done", "period_id": period.period_id})
+
 def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue, results_path: str | None = None) -> None:
     """
     Entry point for the Engine Process.
-
-    Blocks on task_queue waiting for work.  For each 'solve' message it
-    calls engine.solve_to_disk() for every period in the task dict, writing
-    results to the default data/results/ directory.  A 'period_done'
-    notification is sent after each period so the UI can start displaying
-    partial results immediately.
     """
-    writer = PeriodResultsWriter(root_path=results_path)
+    import signal
+    import sys
+
+    def sigterm_handler(signum, frame):
+        # Kill all running solver children before the worker dies
+        for p in mp.active_children():
+            p.terminate()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, sigterm_handler)
 
     while True:
         msg = task_queue.get()              # blocking wait
@@ -45,11 +66,19 @@ def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue, results_path: s
             tasks  = msg["tasks"]
 
             try:
+                import threading
+                threads = []
                 for period, courses_dict in tasks.items():
-                    pid = period.period_id
-                    engine.solve_to_disk(period, courses_dict, writer)
-                    # Send only the period_id — no heavy objects through the queue
-                    notify_queue.put({"type": "period_done", "period_id": pid})
+                    t = threading.Thread(
+                        target=_solve_single_period,
+                        args=(engine, period, courses_dict, results_path, notify_queue),
+                        daemon=True
+                    )
+                    threads.append(t)
+                    t.start()
+                    
+                for t in threads:
+                    t.join()
 
                 notify_queue.put({"type": "all_done"})
 
@@ -78,18 +107,32 @@ class EngineProcess:
             args=(self._task_queue, self._notify_queue, results_path),
             daemon=True,        # dies with the UI process automatically
         )
-        self._process.start()
+        self._results_path = results_path
+        self._process = None
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #
     # ------------------------------------------------------------------ #
 
-    def submit(self, engine, tasks: dict) -> None:
-        """Send engine + scheduling tasks to the Engine Process."""
+    def start(self, engine, tasks: dict) -> None:
+        """Starts the background worker to solve all periods."""
+        if self._process is None or not self._process.is_alive():
+            # Recreate queues to purge any stale messages from a previous run
+            self._task_queue = mp.Queue()
+            self._notify_queue = mp.Queue()
+            
+            self._process = mp.Process(
+                target=_engine_worker,
+                args=(self._task_queue, self._notify_queue, self._results_path),
+                daemon=True
+            )
+            self._process.start()
+
+        # Send the tasks to the worker
         self._task_queue.put({
-            "type":   "solve",
+            "type": "solve",
             "engine": engine,
-            "tasks":  tasks,
+            "tasks": tasks
         })
 
     def get_notification(self) -> dict:
@@ -97,8 +140,7 @@ class EngineProcess:
         return self._notify_queue.get()
 
     def stop(self) -> None:
-        """Shut down the Engine Process gracefully (5-second timeout)."""
-        self._task_queue.put({"type": "stop"})
-        self._process.join(timeout=5)
-        if self._process.is_alive():
+        """Forcefully stops the worker process and its children."""
+        if self._process and self._process.is_alive():
             self._process.terminate()
+            self._process.join()

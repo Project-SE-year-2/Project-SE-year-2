@@ -201,7 +201,7 @@ class FourMonthOutputWidget(QWidget):
 
         row.addStretch()
 
-        # Centre-left: מועד א / מועד ב toggle
+        # Centre-left: מועד א / מועד ב / מועד ג toggle
         self._moed_aleph_btn = QPushButton("מועד א  📅")
         self._moed_aleph_btn.setObjectName("moedBtnSelected")
         self._moed_aleph_btn.setCursor(Qt.PointingHandCursor)
@@ -212,9 +212,16 @@ class FourMonthOutputWidget(QWidget):
         self._moed_bet_btn.setCursor(Qt.PointingHandCursor)
         self._moed_bet_btn.clicked.connect(lambda: self._on_moed_btn("Bet"))
 
+        self._moed_gimel_btn = QPushButton("מועד ג  📅")
+        self._moed_gimel_btn.setObjectName("moedBtn")
+        self._moed_gimel_btn.setCursor(Qt.PointingHandCursor)
+        self._moed_gimel_btn.clicked.connect(lambda: self._on_moed_btn("Gimel"))
+
         row.addWidget(self._moed_aleph_btn)
         row.addSpacing(6)
         row.addWidget(self._moed_bet_btn)
+        row.addSpacing(6)
+        row.addWidget(self._moed_gimel_btn)
         row.addSpacing(14)
 
         # Right: navigator
@@ -340,16 +347,17 @@ class FourMonthOutputWidget(QWidget):
         self.moed_changed.emit(moed)
 
     def _apply_moed_style(self) -> None:
-        is_aleph = self._current_moed == "Aleph"
-
         self._moed_aleph_btn.setObjectName(
-            "moedBtnSelected" if is_aleph else "moedBtn"
+            "moedBtnSelected" if self._current_moed == "Aleph" else "moedBtn"
         )
         self._moed_bet_btn.setObjectName(
-            "moedBtnSelected" if not is_aleph else "moedBtn"
+            "moedBtnSelected" if self._current_moed == "Bet" else "moedBtn"
+        )
+        self._moed_gimel_btn.setObjectName(
+            "moedBtnSelected" if self._current_moed == "Gimel" else "moedBtn"
         )
         # Force Qt to re-evaluate the stylesheet (object-name changed)
-        for btn in (self._moed_aleph_btn, self._moed_bet_btn):
+        for btn in (self._moed_aleph_btn, self._moed_bet_btn, self._moed_gimel_btn):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
             btn.update()

@@ -263,6 +263,7 @@ class InputScreen(QWidget):
 
         self._generate_state.start_generation()
         self._sync_generate_button_state()
+        self._switched_to_output = False
 
         self._worker = GenerateWorker(self.service)
         self._worker.period_ready.connect(self._on_period_ready)
@@ -272,6 +273,9 @@ class InputScreen(QWidget):
 
     # Handles successful generation completion and switches to the output screen.
     def _on_generation_finished(self, count):
+        if getattr(self, "_switched_to_output", False):
+            return
+        self._switched_to_output = True
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
@@ -279,7 +283,13 @@ class InputScreen(QWidget):
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
-        pass
+        if getattr(self, "_switched_to_output", False):
+            return
+        self._switched_to_output = True
+        self.spinner.stop()
+        self._generate_state.finish_generation()
+        self._sync_generate_button_state()
+        self.switch_to_output.emit()
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

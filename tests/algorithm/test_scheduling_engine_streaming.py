@@ -1,8 +1,10 @@
+from datetime import date
 from threading import Event
 
 import pytest
 
 from src.algorithm.generation_result import PeriodGenerationResult
+from src.algorithm.period_results_writer import PeriodResultsWriter
 from src.algorithm.scheduling_engine import SchedulingEngine
 from src.algorithm.constraint_index import ConstraintIndex
 from src.algorithm.exam_period_catalog import ExamPeriodCatalog
@@ -11,7 +13,9 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
 from src.models.exam_schedule import ExamSchedule
-from src.models.enums import Evaluation, Semester, Moed
+from src.models.enums import Evaluation, Moed, ReqType, Semester
+from src.models.program_requirement import ProgramRequirement
+from src.presenter.results_reader import ResultsReader
 
 
 def _build_engine(periods: list[ExamPeriod]) -> SchedulingEngine:
@@ -253,3 +257,61 @@ def test_generate_all_propagates_worker_exception(monkeypatch):
 
     with pytest.raises(RuntimeError, match="solver exploded"):
         engine.generateAll({fall: {course1: ["83101"]}})
+
+
+# ================================================================== #
+# solve_to_disk                                                        #
+# ================================================================== #
+
+# Helper to create a course with no collision constraints (no shared obligatory groups)
+def _make_independent_course(cid: str) -> Course:
+    """Course with no shared obligatory group — no collision constraints."""
+    c = Course(f"Course {cid}", cid, "Prof. Test", Evaluation.Exam)
+    c.add_requirement(ProgramRequirement(cid, 1, Semester.FALL, ReqType.Obligatory))
+    return c
+
+
+def test_solve_to_disk_writes_all_schedules(tmp_path):
+    """2 independent courses (no collision constraint) × 3 available days = 9 valid
+    schedules (3×3, same-day assignments allowed across different programs).
+    solve_to_disk() must write them all to disk and return the correct total."""
+    c1 = _make_independent_course("10001")
+    c2 = _make_independent_course("10002")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1, c2], ["10001", "10002"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+    total = engine.solve_to_disk(fall, {c1: ["10001"], c2: ["10002"]}, writer)
+
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert total == 9
+    assert reader.get_count("FALL_Aleph") == 9
+
+
+def test_solve_to_disk_empty_period_writes_zero_to_manifest(tmp_path):
+    """A period with no courses must register 0 in the manifest."""
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1)]
+
+    index = ConstraintIndex()
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+    total = engine.solve_to_disk(fall, {}, writer)
+
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert total == 0
+    assert reader.get_count("FALL_Aleph") == 0

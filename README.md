@@ -30,9 +30,13 @@ Output is written to `output/schedule_output_YYYYMMDD_HHMMSS.txt` (UTF-8).
 Records in `courses.txt` and `dates.txt` are separated by `$$$$`.
 
 ## Tests
-
+In order to run tests, execute:
 ```bash
 pytest
+```
+To run the stress test, use:
+```bash
+RUN_STRESS=1 pytest -m stress tests/stress/test_stress_run.py -q
 ```
 
 ## Dependencies

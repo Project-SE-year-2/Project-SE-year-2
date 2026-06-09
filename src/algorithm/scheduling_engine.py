@@ -12,6 +12,7 @@ from src.algorithm.forward_checker import ForwardChecker
 from src.algorithm.backtracking_solver import BacktrackingSolver
 from src.algorithm.schedule_combiner import ScheduleCombiner
 from src.algorithm.generation_result import PeriodGenerationResult
+from src.algorithm.period_results_writer import BATCH_SIZE
 
 
 class SchedulingEngine:
@@ -115,6 +116,36 @@ class SchedulingEngine:
         # (FALL Aleph -> FALL Bet -> SPRING Aleph ...)
         combined.sort(key=lambda s: s.sort_key)
         return combined, metadata
+
+    def solve_to_disk(self, period: ExamPeriod, courses_dict: dict, writer) -> int:
+        """Solve one period with solve_stream() and write every BATCH_SIZE schedules
+        directly to disk - at most one batch is in RAM at any moment.
+
+        Returns the total number of valid schedules found.
+        """
+        pid = period.period_id
+        courses = list(courses_dict.keys())
+        # Handle the edge case where no courses exist for this period
+        if not courses:
+            writer.update_manifest(pid, 0)
+            return 0
+
+        batch: list = []
+        total = 0
+        # Process solutions using a generator to keep memory consumption low
+        for sched in self._solver.solve_stream(courses, period, self._validator):
+            batch.append(sched)
+            total += 1
+            # Flush the batch to disk once it reaches the defined capacity
+            if len(batch) >= BATCH_SIZE:
+                writer.write_batch(pid, batch)
+                # Clear the batch from RAM to allow garbage collection
+                batch = []
+        
+        # Persist any remaining schedules that didn't fill the last batch
+        if batch:
+            writer.write_batch(pid, batch)
+        return total
 
     def _orderCourses(self, courses, period: ExamPeriod) -> list:
         heuristic = CourseOrderingHeuristic(self._index)

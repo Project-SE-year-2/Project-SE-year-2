@@ -29,16 +29,24 @@ class DataStore:
         self._path = Path(path) if path else _DEFAULT_PATH
         self._courses: list[Course] = []
         self._periods: list[ExamPeriod] = []
+        #Dictionary to map program_id -> full display name
+        self._program_names: dict[str, str] = {}
 
     # ------------------------------------------------------------------ #
-    # Persistence                                                          #
+    # Persistence                                                        #
     # ------------------------------------------------------------------ #
 
     def save(self) -> None:
         """Serialize current state to disk."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._path, "wb") as f:
-            pickle.dump({"courses": self._courses, "periods": self._periods}, f)
+        with open(self._path, "wb") as program_file:
+            #Include the program names mapping in the persisted data
+            #dump the entire state as a single dictionary for easier loading later
+            pickle.dump({
+                "courses": self._courses, 
+                "periods": self._periods,
+                "program_names": self._program_names # EP-74: Persist the mapping
+            }, program_file)
 
     def load(self) -> bool:
         """Deserialize state from disk.
@@ -47,36 +55,50 @@ class DataStore:
             True  — data was loaded successfully.
             False — no persisted file found (first run or after clear).
         """
+        # If the file doesn't exist, we consider it a "clean slate" rather than an error.
         if not self._path.exists():
             return False
         try:
-            with open(self._path, "rb") as f:
-                data = pickle.load(f)
+            # Attempt to load the file. If it fails, we catch the exception,
+            with open(self._path, "rb") as program_file:
+                data = pickle.load(program_file)
             self._courses = data.get("courses", [])
             self._periods = data.get("periods", [])
+            self._program_names = data.get("program_names", {}) # Load the program names mapping
             return True
         except Exception:
             # Corrupted file — start fresh rather than crashing.
             self._courses = []
             self._periods = []
+            self._program_names = {}
             return False
 
     def clear(self) -> None:
         """Wipe in-memory state and delete the persisted file."""
         self._courses = []
         self._periods = []
+        self._program_names = {}
         if self._path.exists():
             self._path.unlink()
 
     # ------------------------------------------------------------------ #
-    # Write                                                                #
+    # Write                                                              #
     # ------------------------------------------------------------------ #
 
     def set_courses(self, courses: list[Course]) -> None:
+        """Replace all stored courses with the provided list."""
         self._courses = list(courses)
 
     def set_periods(self, periods: list[ExamPeriod]) -> None:
+        """Replace all stored periods with the provided list."""
         self._periods = list(periods)
+
+    def set_program_names(self, names: dict[str, str]) -> None:
+        """
+        Sets the mapping between program IDs and their display names.
+        This is typically populated by parsing the programs definition file.
+        """
+        self._program_names = dict(names)
 
     def merge_courses(self, new_courses: list[Course]) -> None:
         """Append courses whose course_id is not already stored."""
@@ -96,7 +118,7 @@ class DataStore:
                 existing_keys.add(key)
 
     # ------------------------------------------------------------------ #
-    # Read                                                                 #
+    # Read                                                               #
     # ------------------------------------------------------------------ #
 
     def get_all_courses(self) -> list[Course]:
@@ -109,16 +131,19 @@ class DataStore:
         """Return unique programs derived from loaded courses.
 
         Returns:
-            [{"id": str, "name": str}, ...] — name equals id (no separate
-            program-name field in the course file format).
+            [{"id": str, "name": str}, ...]
+            If a display name is available in the program names mapping, it is used.
+            Otherwise, falls back to using the program ID as the name.
         """
-        seen: set[str] = set()
+        # Set comprehension to gather unique program IDs from all course requirements
+        program_ids = {req.program_id for c in self._courses for req in c.requirements}
+        
         programs: list[dict] = []
-        for course in self._courses:
-            for req in course.requirements:
-                if req.program_id not in seen:
-                    seen.add(req.program_id)
-                    programs.append({"id": req.program_id, "name": req.program_id})
+        for pid in sorted(program_ids):
+            #get the name from the dict, or default to the ID string
+            display_name = self._program_names.get(pid, pid)
+            programs.append({"id": pid, "name": display_name})
+            
         return programs
 
     def get_periods(self) -> list[ExamPeriod]:
@@ -136,11 +161,9 @@ class DataStore:
 
 
 # ------------------------------------------------------------------ #
-# Helper                                                               #
+# Helper                                                             #
 # ------------------------------------------------------------------ #
 
 def _period_id(period: ExamPeriod) -> str:
-    """Stable string identifier for a period: "<SEMESTER>_<MOED>"."""
-    sem = period.semester.value if hasattr(period.semester, "value") else str(period.semester)
-    moed = period.moed.value if hasattr(period.moed, "value") else str(period.moed)
-    return f"{sem}_{moed}"
+    """Stable string identifier for a period — delegates to ExamPeriod.period_id."""
+    return period.period_id

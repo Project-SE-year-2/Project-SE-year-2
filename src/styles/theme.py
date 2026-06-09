@@ -1,0 +1,143 @@
+"""
+Application theme constants.
+Contains color tokens, typography sizes, and shared spacing/button metrics.
+"""
+
+# ===== COLOR PALETTE =====
+# PRIMARY
+PRIMARY_COLOR = "#120C72"
+# Hover state and pressed state colors
+PRIMARY_DARK = "#010240"   
+PRIMARY_DARKER = "#01001A"
+
+# DANGER
+DANGER_COLOR = "#EF4444"
+# Hover state and pressed state colors
+DANGER_DARK = "#DC2626"
+DANGER_DARKER = "#991B1B"
+
+# COURSE TYPE BADGES
+# Obligatory
+OBLIGATORY_BG = "#1E1B4B"
+OBLIGATORY_TEXT = "#E0E7FF"
+OBLIGATORY_BORDER = "#312E81"
+# Elective
+ELECTIVE_BG = "#451A03"
+ELECTIVE_TEXT = "#FEF3C7"
+ELECTIVE_BORDER = "#78350F"
+
+# BACKGROUND & SURFACES
+BG_DARK_PRIMARY = "#121212"
+# Secondary dark background for cards, modals, and surfaces that need to stand out against the primary dark background
+BG_DARK_SECONDARY = "#0F172A"
+# Dark tertiary for hover states and subtle surfaces 
+BG_DARK_TERTIARY = "#1F2937"
+# Base screen surface
+BG_DARK_SURFACE = "#050505"    
+
+# TYPOGRAPHY COLORS
+TEXT_PRIMARY = "#F9FAFB"       
+TEXT_SECONDARY = "#E5E7EB"     
+TEXT_TERTIARY = "#9CA3AF"  
+# Muted text (disabled states, placeholders, secondary info)
+TEXT_MUTED = "#6B7280"         
+
+# BORDERS & DIVIDERS
+# Light borders for inputs/dividers
+BORDER_LIGHT = "#374151"  
+# Lighter borders (subtle grid lines)
+BORDER_LIGHTER = "#1E293B"     
+
+# INLINE ERROR STATES
+ERROR_BG = "#7F1D1D"           
+ERROR_BORDER = "#DC2626"       
+ERROR_TEXT = "#FCA5A5"         
+
+# BUTTON VARIANTS - Secondary button uses transparent background with light border and text
+BUTTON_SECONDARY_BG = "transparent"
+BUTTON_SECONDARY_TEXT = TEXT_SECONDARY
+BUTTON_SECONDARY_BORDER = BORDER_LIGHT
+BUTTON_SECONDARY_HOVER_BG = "#1F2937"
+BUTTON_SECONDARY_HOVER_BORDER = "#6B7280"
+BUTTON_SECONDARY_PRESSED_BG = "#111827"
+BUTTON_SECONDARY_PRESSED_BORDER = "#9CA3AF"
+
+# DISABLED STATES - For buttons and inputs when disabled, using a dark gray background with muted text
+DISABLED_BG = "#1F2937"        
+DISABLED_TEXT = "#4B5563"     
+DISABLED_BORDER = "#1F2937"    
+
+# SPINNER/LOADING INDICATOR
+SPINNER_COLOR = "#6366F1"      
+# Error indicator icon (red dot)
+ICON_ERROR = "#EF4444"       
+# Header/ day names
+HEADER_TEXT = TEXT_MUTED 
+# Calendar grid lines
+CALENDAR_GRID = BORDER_LIGHT
+
+# NEUTRAL COLORS
+NEUTRAL_BG = "#E5E7EB"
+NEUTRAL_TEXT = "#374151"
+NEUTRAL_BORDER = "#D1D5DB"
+
+# ===== TYPOGRAPHY =====
+FONT_FAMILY = "Segoe UI, sans-serif"
+FONT_SIZE_XS = 10
+FONT_SIZE_SM = 12
+FONT_SIZE_MD = 14
+FONT_SIZE_LG = 16
+FONT_SIZE_XL = 18
+FONT_SIZE_XXL = 24
+FONT_WEIGHT_NORMAL = 400
+FONT_WEIGHT_MEDIUM = 500
+FONT_WEIGHT_BOLD = 700
+
+# ===== BUTTON METRICS =====
+BUTTON_BORDER_RADIUS = 8
+BUTTON_PADDING_HORIZONTAL = 24
+
+# Default large variants
+BUTTON_PADDING_VERTICAL = 12
+BUTTON_MIN_HEIGHT = 40
+
+# Generic compact/small variants
+BUTTON_PADDING_VERTICAL_SM = 6
+BUTTON_MIN_HEIGHT_SM = 32
+
+# ===== SPACING =====
+SPACING_SMALL = 8
+SPACING_MEDIUM = 12
+SPACING_LARGE = 16
+SPACING_XL = 24
+
+# ===== ERROR BANNER METRICS =====
+ERROR_ICON_SIZE = 16
+BANNER_PADDING_X = 16
+BANNER_PADDING_Y = 12
+BANNER_PADDING_RIGHT = 12
+BANNER_BORDER_RADIUS = 8
+BANNER_BUTTON_RADIUS = 4
+BANNER_SPACING = 12
+BANNER_BTN_SIZE = 32
+BANNER_FONT_WEIGHT = 500
+BANNER_BTN_FONT_SIZE = 16
+BANNER_BTN_FONT_WEIGHT = "bold"
+BANNER_BORDER_WIDTH = 1
+
+# ===== SPINNER METRICS =====
+QT_ANGLE_UNIT = 16  # Qt arc angles are in 1/16-degree units
+SPINNER_LINE_WIDTH = 3
+SPINNER_PADDING = 4
+SPINNER_ARC_ANGLE = 90
+SPINNER_TIMER_INTERVAL = 20
+SPINNER_SIZE = 50
+
+# ===== TYPE BADGE METRICS =====
+BADGE_RADIUS = 6
+BADGE_PADDING_Y = 6
+BADGE_PADDING_X = 12
+BADGE_FONT_SIZE = 12
+BADGE_FONT_WEIGHT = "bold"
+BADGE_BORDER_WIDTH = 1
+

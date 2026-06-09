@@ -4,10 +4,11 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QWidget, QPushButton, QLabel, QFileDialog,
     QVBoxLayout, QHBoxLayout, QRadioButton,
-    QButtonGroup
+    QButtonGroup, QMessageBox
 )
 
 from src.presenter.i_app_service import IAppService
+from src.views.shared_components.buttons import PrimaryButton, SecondaryButton
 
 
 class FilePathValidator:
@@ -55,9 +56,9 @@ class FileLoaderWidget(QWidget):
         self._message_label = QLabel("")
 
         # Buttons: Courses, Dates, Load
-        self._select_courses_button = QPushButton("Select Courses File")
-        self._select_dates_button = QPushButton("Select Dates File")
-        self._load_button = QPushButton("Load Files")
+        self._select_courses_button = SecondaryButton("Select Courses File")
+        self._select_dates_button = SecondaryButton("Select Dates File")
+        self._load_button = PrimaryButton("Load Files")
 
         # Mode selection: Replace or Append
         self._replace_radio = QRadioButton("Replace")
@@ -95,7 +96,7 @@ class FileLoaderWidget(QWidget):
             self,
             "Select Courses File",
             "",
-            "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)"
+            "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
         )
 
         # If a file was selected, update the path and label
@@ -109,7 +110,7 @@ class FileLoaderWidget(QWidget):
             self,
             "Select Dates File",
             "",
-            "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)"
+            "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
         )
 
         # If a file was selected, update the path and label
@@ -160,4 +161,10 @@ class FileLoaderWidget(QWidget):
         self._message_label.setText(message)
 
     def _show_error(self, message: str) -> None:
-        self._message_label.setText(f"Error: {message}")
+        self._message_label.setText("")
+
+        QMessageBox.critical(
+            self,
+            "File Loading Error",
+            message
+    )

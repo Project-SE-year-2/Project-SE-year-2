@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.presenter.i_app_service import IAppService
+import src.styles.theme as th
 
 
 @dataclass(frozen=True)
@@ -77,34 +78,36 @@ class PeriodRowWidget(QPushButton):
     def _apply_style(self) -> None:
         if self._selected:
             self.setStyleSheet(
-                """
-                QPushButton {
+                f"""
+                QPushButton {{
                     text-align: left;
-                    padding: 10px;
-                    border-radius: 6px;
-                    background-color: #1f6feb;
-                    color: white;
-                    border: 1px solid #58a6ff;
-                    font-weight: bold;
-                }
+                    padding: {th.SPACING_SMALL}px;
+                    border-radius: {th.BADGE_RADIUS}px;
+                    background-color: {th.PRIMARY_COLOR};
+                    color: {th.TEXT_PRIMARY};
+                    border: 1px solid {th.SPINNER_COLOR};
+                    font-family: {th.FONT_FAMILY};
+                    font-weight: {th.FONT_WEIGHT_BOLD};
+                }}
                 """
             )
             return
 
         self.setStyleSheet(
-            """
-            QPushButton {
+            f"""
+            QPushButton {{
                 text-align: left;
-                padding: 10px;
-                border-radius: 6px;
-                background-color: #161b22;
-                color: #d0d7de;
-                border: 1px solid #30363d;
-            }
-            QPushButton:hover {
-                background-color: #21262d;
-                border: 1px solid #58a6ff;
-            }
+                padding: {th.SPACING_SMALL}px;
+                border-radius: {th.BADGE_RADIUS}px;
+                background-color: {th.BG_DARK_SECONDARY};
+                color: {th.TEXT_SECONDARY};
+                border: 1px solid {th.BORDER_LIGHT};
+                font-family: {th.FONT_FAMILY};
+            }}
+            QPushButton:hover {{
+                background-color: {th.BG_DARK_TERTIARY};
+                border: 1px solid {th.SPINNER_COLOR};
+            }}
             """
         )
 
@@ -145,27 +148,33 @@ class PeriodListWidget(QWidget):
         items = self._to_period_items(periods)
         self._render_periods(items)
 
-    # For testing purposes, we expose the selected period id and a method to clear selection.
     def selected_period_id(self) -> str | None:
-        """Return the currently selected period id, if any."""
         return self._selected_period_id
 
-    # This method is not strictly necessary for the widget's functionality, but it allows tests to reset state between cases.
     def clear_selection(self) -> None:
-        """Clear the current period selection."""
         self._selected_period_id = None
         self._update_row_states()
  
     def _build_ui(self) -> None:
         self._title_label = QLabel("Exam Periods")
-        self._title_label.setStyleSheet("font-weight: bold; font-size: 16px;")
+        self._title_label.setStyleSheet(
+            f"font-family: {th.FONT_FAMILY}; "
+            f"font-weight: {th.FONT_WEIGHT_BOLD}; "
+            f"font-size: {th.FONT_SIZE_LG}px;"
+        )
 
         self._hint_label = QLabel("Select an exam period to edit")
-        self._hint_label.setStyleSheet("color: #8b949e;")
+        self._hint_label.setStyleSheet(
+            f"color: {th.TEXT_TERTIARY}; font-family: {th.FONT_FAMILY};"
+        )
 
         self._empty_label = QLabel("No periods loaded yet.")
         self._empty_label.setAlignment(Qt.AlignCenter)
-        self._empty_label.setStyleSheet("color: #8b949e; padding: 12px;")
+        self._empty_label.setStyleSheet(
+            f"color: {th.TEXT_TERTIARY}; "
+            f"padding: {th.SPACING_MEDIUM}px; "
+            f"font-family: {th.FONT_FAMILY};"
+        )
 
         self._rows_container = QWidget()
         self._rows_layout = QVBoxLayout(self._rows_container)
@@ -206,7 +215,11 @@ class PeriodListWidget(QWidget):
             self._selected_period_id = None
             self._empty_label = QLabel("No exam periods available.")
             self._empty_label.setAlignment(Qt.AlignCenter)
-            self._empty_label.setStyleSheet("color: #8b949e; padding: 12px;")
+            self._empty_label.setStyleSheet(
+                f"color: {th.TEXT_TERTIARY}; "
+                f"padding: {th.SPACING_MEDIUM}px; "
+                f"font-family: {th.FONT_FAMILY};"
+            )
             self._rows_layout.addWidget(self._empty_label)
             self._rows_layout.addStretch()
             return
@@ -245,4 +258,4 @@ class PeriodListWidget(QWidget):
     # and updates their selected state based on whether their period id matches the currently selected period id.
     def _update_row_states(self) -> None:
         for period_id, row in self._rows_by_id.items():
-            row.set_selected(period_id == self._selected_period_id)
+           row.set_selected(period_id == self._selected_period_id)

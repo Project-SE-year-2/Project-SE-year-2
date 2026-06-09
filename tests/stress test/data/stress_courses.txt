@@ -1,0 +1,70 @@
+$$$$
+Load Test Fall 01
+84001
+Dr. Load 01
+83101,1,FALL,Obligatory
+83101,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 02
+84002
+Dr. Load 02
+83101,1,FALL,Obligatory
+83101,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 03
+84003
+Dr. Load 03
+83102,1,FALL,Obligatory
+83102,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 04
+84004
+Dr. Load 04
+83102,1,FALL,Obligatory
+83102,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 05
+84005
+Dr. Load 05
+83103,1,FALL,Obligatory
+83103,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 06
+84006
+Dr. Load 06
+83103,1,FALL,Obligatory
+83103,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 07
+84007
+Dr. Load 07
+83104,1,FALL,Obligatory
+83104,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 08
+84008
+Dr. Load 08
+83104,1,FALL,Obligatory
+83104,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 09
+84009
+Dr. Load 09
+83105,1,FALL,Obligatory
+83105,1,SPRI,Obligatory
+Exam
+$$$$
+Load Test Fall 10
+84010
+Dr. Load 10
+83105,1,FALL,Obligatory
+83105,1,SPRI,Obligatory
+Exam

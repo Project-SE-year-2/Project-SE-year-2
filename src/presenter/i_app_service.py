@@ -16,7 +16,7 @@ class IAppService(ABC):
     # ------------------------------------------------------------------ #
 
     @abstractmethod
-    def load_data(self, courses_path: str, dates_path: str, mode: str) -> None:
+    def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
         """Parse and store course and period files.
 
         Args:
@@ -169,8 +169,48 @@ class IAppService(ABC):
         """
 
     @abstractmethod
-    def get_schedule_count(self) -> int:
-        """Return the total number of combined schedules from the last generate() call."""
+    def get_period_schedule(self, period_id: str, index: int) -> list[dict]:
+        """Return formatted exam rows for one isolated period at a local index.
+
+        Fetches directly from disk (disk mode) or from the in-memory per-period
+        cache (legacy mode).  Never mixes exams from other periods.
+
+        Args:
+            period_id: Backend period ID, e.g. ``"FALL_Aleph"``.
+            index:     Zero-based local index within that period's schedules.
+
+        Returns:
+            List of exam-row dicts (same schema as get_schedule_batch rows).
+            Empty list when no data is available yet.
+        """
+
+    @abstractmethod
+    def get_schedule_count(self, period_id: str | None = None) -> int:
+        """Return the total number of combined schedules or the count for one period.
+
+        Args:
+            period_id: Optional stable period ID to query a single period.
+
+        Returns:
+            Total combined schedule count if period_id is None, otherwise the
+            number of schedules available for the requested period.
+        """
+
+    @abstractmethod
+    def get_schedule_batch(self, start: int, limit: int) -> list[list[dict]]:
+        """Return a page of flattened schedules for the output calendar.
+
+        Args:
+            start: Zero-based index of the first schedule to return.
+            limit: Maximum number of schedules to return.
+
+        Returns:
+            List of schedules. Each schedule is a list of exam dictionaries.
+
+        Raises:
+            IndexError: if start is negative.
+            ValueError: if limit is negative.
+        """
 
     @abstractmethod
     def get_schedule(self, index: int) -> dict:
@@ -212,4 +252,85 @@ class IAppService(ABC):
         Raises:
             IndexError:  if index is out of range.
             IOError:     if the file cannot be written.
+        """
+
+    @abstractmethod
+    def navigate(self, period_id: str, direction: int) -> dict:
+        """Move the current schedule index for one period only.
+
+        Args:
+            period_id: Stable period ID ("FALL_Aleph", etc.).
+            direction: +1 to advance, -1 to rewind.
+
+        Returns:
+            Dict with the updated period_id, index, and schedule data.
+
+        Raises:
+            IndexError: if navigation goes out of bounds.
+            ValueError: if the period_id is unknown.
+        """
+
+    @abstractmethod
+    def navigate_global(self, direction: int) -> dict:
+        """Advance or rewind all periods together using odometer carry logic.
+
+        The rightmost period (last in insertion order) changes fastest.
+        When a period overflows (direction=+1) it resets to 0 and the carry
+        propagates left.  When it underflows (direction=-1) it is set to its
+        maximum and the borrow propagates left.
+
+        Args:
+            direction: +1 to advance to the next combination,
+                       -1 to rewind to the previous one.
+
+        Returns:
+            The new combination as {period_id: index, ...}.
+
+        Raises:
+            IndexError: if already at the first (direction=-1) or last
+                        (direction=+1) combination.
+            ValueError: if direction is not ±1, or no periods are initialised.
+        """
+
+    @abstractmethod
+    def export_current(self, path: str) -> None:
+        """Export the current schedule from each period into one combined file."""
+
+    @abstractmethod
+    def export_by_period_indices(self, period_indices: dict, path: str) -> None:
+        """Export the schedule currently shown on screen into one combined file.
+
+        Reads each period at its stored local index (the index the UI is
+        currently displaying) and merges all periods via ScheduleCombiner
+        before writing to ``path``.
+
+        Args:
+            period_indices: mapping of period_id → local_index, e.g.
+                            {"FALL_Aleph": 2, "FALL_Bet": 0, ...}
+            path:           Output file path chosen by the user.
+
+        Raises:
+            ValueError: if no period has any schedule data.
+            IOError:    if the file cannot be written.
+        """
+
+    @abstractmethod
+    def get_current_combination(self) -> list[dict]:
+        """Return the currently selected schedule combination across all periods.
+
+        In multiprocessing / disk-streaming mode the engine writes results to
+        disk rather than RAM.  This method reads the schedule for each active
+        period from the ``ResultsReader`` (using the current per-period index
+        stored in ``_current_indices``) and flattens everything into a single
+        list of exam-row dicts suitable for passing directly to the output
+        calendar.
+
+        Returns:
+            Flat list of exam dicts (same format as one element of the list
+            returned by ``get_schedule_batch``).
+
+        Raises:
+            RuntimeError: if the ``ResultsReader`` has not been initialised
+                          (i.e. the engine has not yet written any results to
+                          disk — legacy in-memory mode is still active).
         """

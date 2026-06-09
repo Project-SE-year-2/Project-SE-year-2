@@ -18,3 +18,7 @@ class Evaluation(Enum):
     Exam = "Exam"
     Project = "Project"
     Attendance = "Attendance"
+
+class CalendarMode(str, Enum):
+    INPUT = "input"
+    OUTPUT = "output"

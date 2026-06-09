@@ -41,6 +41,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
@@ -52,6 +53,12 @@ from src.styles.calendar_table_style import (
     LEGEND_DOT_STYLE_TPL,
     LEGEND_TEXT_STYLE,
     OUTPUT_LEGEND_ITEMS,
+)
+from src.styles.output_screen_style import (
+    ALL_SESSIONS_MOED_COLORS,
+    ALL_SESSIONS_MOED_LABELS,
+    ALL_SESSIONS_MONTH_CARD_STYLE,
+    ALL_SESSIONS_SECTION_STYLE_TPL,
 )
 from src.views.shared_components.calendar_widgets import MonthGrid
 from src.views.shared_components.calendar_widgets._constants import EN_LOCALE
@@ -118,19 +125,19 @@ def _detect_semester_and_year(exams_by_date: dict) -> tuple[str, int]:
 
 # ── Page indices ──────────────────────────────────────────────────────────────
 
-_PAGE_NORMAL    = 0
-_PAGE_LOADING   = 1
-_PAGE_ERROR     = 2
-_PAGE_EMPTY     = 3
-_PAGE_NO_PERIOD = 4
+_PAGE_NORMAL       = 0
+_PAGE_LOADING      = 1
+_PAGE_ERROR        = 2
+_PAGE_EMPTY        = 3
+_PAGE_NO_PERIOD    = 4
+_PAGE_ALL_SESSIONS = 5
 
-_MONTH_CARD_STYLE = """
-    QFrame#monthCard {
-        background: #FFFFFF;
-        border: 1px solid #E5E7EB;
-        border-radius: 10px;
-    }
-"""
+# ── All-Sessions view constants (imported from styles/output_screen_style.py) ─
+# Use ALL_SESSIONS_MOED_COLORS, ALL_SESSIONS_MOED_LABELS, ALL_SESSIONS_CARD_WIDTH,
+# ALL_SESSIONS_MONTH_CARD_STYLE, ALL_SESSIONS_SECTION_STYLE_TPL from the style module.
+
+# Local alias kept for the normal month cards (shared between normal and All Sessions pages)
+_MONTH_CARD_STYLE = ALL_SESSIONS_MONTH_CARD_STYLE
 
 
 class MoedCalendarOutputWidget(QWidget):
@@ -169,11 +176,12 @@ class MoedCalendarOutputWidget(QWidget):
 
         self._stack = QStackedWidget()
         self._months_page = self._build_months_page()
-        self._stack.addWidget(self._months_page)           # 0 — normal
-        self._stack.addWidget(self._build_loading_page())   # 1 — loading
-        self._stack.addWidget(self._build_error_page())     # 2 — error
-        self._stack.addWidget(self._build_empty_page())     # 3 — empty
-        self._stack.addWidget(self._build_no_period_page()) # 4 — no period
+        self._stack.addWidget(self._months_page)              # 0 — normal
+        self._stack.addWidget(self._build_loading_page())     # 1 — loading
+        self._stack.addWidget(self._build_error_page())       # 2 — error
+        self._stack.addWidget(self._build_empty_page())       # 3 — empty
+        self._stack.addWidget(self._build_no_period_page())   # 4 — no period
+        self._stack.addWidget(self._build_all_sessions_page())# 5 — all sessions
         self._stack.setCurrentIndex(_PAGE_NORMAL)
         card_layout.addWidget(self._stack, stretch=1)
 
@@ -205,29 +213,36 @@ class MoedCalendarOutputWidget(QWidget):
         row.addStretch()
 
         # Centre-left: מועד א / מועד ב / מועד ג toggle
-        self._moed_aleph_btn = QPushButton("מועד א  📅")
+        self._moed_aleph_btn = QPushButton("Moed A  📅")
         self._moed_aleph_btn.setObjectName("moedBtnSelected")
         self._moed_aleph_btn.setCursor(Qt.PointingHandCursor)
         self._moed_aleph_btn.clicked.connect(lambda: self._on_moed_btn("Aleph"))
 
-        self._moed_bet_btn = QPushButton("מועד ב  📅")
+        self._moed_bet_btn = QPushButton("Moed B  📅")
         self._moed_bet_btn.setObjectName("moedBtn")
         self._moed_bet_btn.setCursor(Qt.PointingHandCursor)
         self._moed_bet_btn.clicked.connect(lambda: self._on_moed_btn("Bet"))
 
-        self._moed_gimel_btn = QPushButton("מועד ג  📅")
+        self._moed_gimel_btn = QPushButton("Moed C  📅")
         self._moed_gimel_btn.setObjectName("moedBtn")
         self._moed_gimel_btn.setCursor(Qt.PointingHandCursor)
         self._moed_gimel_btn.clicked.connect(lambda: self._on_moed_btn("Gimel"))
+
+        self._moed_all_btn = QPushButton("All Sessions  🗓")
+        self._moed_all_btn.setObjectName("moedBtn")
+        self._moed_all_btn.setCursor(Qt.PointingHandCursor)
+        self._moed_all_btn.clicked.connect(lambda: self._on_moed_btn("All"))
 
         row.addWidget(self._moed_aleph_btn)
         row.addSpacing(6)
         row.addWidget(self._moed_bet_btn)
         row.addSpacing(6)
         row.addWidget(self._moed_gimel_btn)
+        row.addSpacing(6)
+        row.addWidget(self._moed_all_btn)
         row.addSpacing(14)
 
-        # Right: navigator
+        # Right: schedule navigator (hidden automatically in All Sessions mode)
         self.navigator = ScheduleNavigatorWidget()
         row.addWidget(self.navigator)
 
@@ -347,6 +362,8 @@ class MoedCalendarOutputWidget(QWidget):
             return
         self._current_moed = moed
         self._apply_moed_style()
+        # Hide the navigator in All Sessions mode (read-only overview, no pagination)
+        self.navigator.setVisible(moed != "All")
         self.moed_changed.emit(moed)
 
     def _apply_moed_style(self) -> None:
@@ -354,7 +371,9 @@ class MoedCalendarOutputWidget(QWidget):
         self._moed_aleph_btn.setObjectName("moedBtnSelected" if moed == "Aleph" else "moedBtn")
         self._moed_bet_btn.setObjectName("moedBtnSelected"   if moed == "Bet"   else "moedBtn")
         self._moed_gimel_btn.setObjectName("moedBtnSelected" if moed == "Gimel" else "moedBtn")
-        for btn in (self._moed_aleph_btn, self._moed_bet_btn, self._moed_gimel_btn):
+        self._moed_all_btn.setObjectName("moedBtnSelected"   if moed == "All"   else "moedBtn")
+        for btn in (self._moed_aleph_btn, self._moed_bet_btn,
+                    self._moed_gimel_btn, self._moed_all_btn):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
             btn.update()
@@ -422,6 +441,176 @@ class MoedCalendarOutputWidget(QWidget):
         else:
             self._semester_subtitle.setText("")
 
+    # ── All-Sessions builders ──────────────────────────────────────────────────
+
+    def _build_all_sessions_page(self) -> QScrollArea:
+        """Outer scrollable container for the grouped moed sections."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("background: transparent;")
+
+        self._all_sessions_content = QWidget()
+        self._all_sessions_content.setStyleSheet("background: transparent;")
+        self._all_sessions_vbox = QVBoxLayout(self._all_sessions_content)
+        self._all_sessions_vbox.setSpacing(16)
+        self._all_sessions_vbox.setContentsMargins(0, 4, 0, 4)
+        self._all_sessions_vbox.addStretch()
+
+        scroll.setWidget(self._all_sessions_content)
+        return scroll
+
+    def _build_moed_section(
+        self,
+        moed:       str,
+        semester:   str,
+        year:       int,
+        exams:      list[dict],
+        start_date,
+        end_date,
+    ) -> QFrame:
+        """One horizontal row for a single moed inside the All Sessions page."""
+        label = ALL_SESSIONS_MOED_LABELS.get(moed, moed)
+        color = ALL_SESSIONS_MOED_COLORS.get(moed, "#64748B")
+
+        # Section frame with thick left accent border (style from output_screen_style.py)
+        section = QFrame()
+        section.setStyleSheet(ALL_SESSIONS_SECTION_STYLE_TPL.format(color=color))
+
+        outer_row = QHBoxLayout(section)
+        outer_row.setContentsMargins(0, 0, 0, 0)
+        outer_row.setSpacing(0)
+
+        # ── Left info panel ──────────────────────────────────────────────────
+        info_w = QWidget()
+        info_w.setFixedWidth(145)
+        info_w.setStyleSheet("background: transparent; border: none;")
+        info_col = QVBoxLayout(info_w)
+        info_col.setContentsMargins(16, 16, 12, 16)
+        info_col.setSpacing(4)
+        info_col.setAlignment(Qt.AlignTop)
+
+        moed_lbl = QLabel(label)
+        moed_lbl.setStyleSheet(
+            f"color: {color}; font-size: 14px; font-weight: 700;"
+            " background: transparent; border: none;"
+        )
+        info_col.addWidget(moed_lbl)
+
+        months = _months_from_range(start_date, end_date) if (start_date and end_date) else []
+        n = len(months)
+        dur_lbl = QLabel(f"{n} month{'s' if n != 1 else ''}" if n else "—")
+        dur_lbl.setStyleSheet(
+            "color: #64748B; font-size: 11px; background: transparent; border: none;"
+        )
+        info_col.addWidget(dur_lbl)
+
+        if start_date and end_date:
+            qs = QDate(start_date.year, start_date.month, start_date.day)
+            qe = QDate(end_date.year,   end_date.month,   end_date.day)
+            rng = QLabel(
+                f"{EN_LOCALE.toString(qs, 'MMM yyyy')}"
+                f" – {EN_LOCALE.toString(qe, 'MMM yyyy')}"
+            )
+            rng.setStyleSheet(
+                "color: #94A3B8; font-size: 10px; background: transparent; border: none;"
+            )
+            info_col.addWidget(rng)
+
+        info_col.addStretch()
+        outer_row.addWidget(info_w)
+
+        # Thin vertical separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setFixedWidth(1)
+        sep.setStyleSheet("background: #E5E7EB; border: none;")
+        outer_row.addWidget(sep)
+
+        # ── Content area: month cards OR empty state ─────────────────────────
+        if not exams:
+            empty_w = QWidget()
+            empty_w.setStyleSheet("background: transparent; border: none;")
+            empty_col = QVBoxLayout(empty_w)
+            empty_col.setAlignment(Qt.AlignCenter)
+            empty_col.setContentsMargins(24, 24, 24, 24)
+
+            icon_e = QLabel("📅")
+            icon_e.setAlignment(Qt.AlignCenter)
+            icon_e.setStyleSheet("font-size: 26px; background: transparent; border: none;")
+            empty_col.addWidget(icon_e)
+            empty_col.addSpacing(8)
+
+            msg = QLabel(
+                f"No exams scheduled for {label} in {semester} {year}."
+            )
+            msg.setAlignment(Qt.AlignCenter)
+            msg.setWordWrap(True)
+            msg.setStyleSheet(
+                "color: #94A3B8; font-size: 13px; font-weight: 600;"
+                " background: transparent; border: none;"
+            )
+            empty_col.addWidget(msg)
+
+            sub = QLabel("There are no exam dates in this session.")
+            sub.setAlignment(Qt.AlignCenter)
+            sub.setStyleSheet(
+                "color: #CBD5E1; font-size: 11px; background: transparent; border: none;"
+            )
+            empty_col.addWidget(sub)
+            empty_w.setMinimumHeight(140)
+            outer_row.addWidget(empty_w, stretch=1)
+
+        else:
+            # Build exams-by-date index
+            exams_by_date: dict = {}
+            for exam in exams:
+                qd = _to_qdate(exam.get("exam_date"))
+                if qd.isValid():
+                    exams_by_date.setdefault(qd, []).append(exam)
+
+            pstart = QDate(start_date.year, start_date.month, start_date.day) if start_date else None
+            pend   = QDate(end_date.year,   end_date.month,   end_date.day)   if end_date   else None
+
+            months_w = QWidget()
+            months_w.setStyleSheet("background: transparent; border: none;")
+            months_row = QHBoxLayout(months_w)
+            months_row.setSpacing(12)
+            months_row.setContentsMargins(12, 12, 12, 12)
+
+            for yr_m, mo_m in months:
+                card = QFrame()
+                card.setObjectName("monthCard")
+                card.setStyleSheet(ALL_SESSIONS_MONTH_CARD_STYLE)
+                card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+                cl = QVBoxLayout(card)
+                cl.setContentsMargins(10, 10, 10, 10)
+                cl.setSpacing(6)
+
+                title = QLabel(EN_LOCALE.toString(QDate(yr_m, mo_m, 1), "MMMM yyyy"))
+                title.setAlignment(Qt.AlignCenter)
+                title.setStyleSheet(
+                    "color: #111827; font-size: 12px; font-weight: 700;"
+                    " background: transparent; border: none;"
+                )
+                cl.addWidget(title)
+
+                mg = MonthGrid(CalendarMode.OUTPUT)
+                mg.output_exam_clicked.connect(self._on_cell_clicked)
+                mg.populate_output(
+                    yr_m, mo_m, exams_by_date, set(),
+                    period_start=pstart, period_end=pend,
+                )
+                cl.addWidget(mg, stretch=1)
+                months_row.addWidget(card)
+
+            months_row.addStretch()
+            outer_row.addWidget(months_w, stretch=1)
+
+        return section
+
     def _compute_months_from_exams(self, semester: str) -> list[tuple[int, int]]:
         """Fallback: derive months from exam dates when no date range is given."""
         if not self._exams_by_date:
@@ -479,6 +668,78 @@ class MoedCalendarOutputWidget(QWidget):
         self._semester_title.setText(f"{semester}" if semester else "—")
         self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_EMPTY)
+
+    def show_all_sessions(self, semester: str, sections: list[dict]) -> None:
+        """Render the All Sessions overview grouped by moed.
+
+        Each entry in *sections* is a dict:
+            {
+                "moed":       str,           # "Aleph" | "Bet" | "Gimel"
+                "exams":      list[dict],    # exam rows (may be empty)
+                "start_date": date | None,
+                "end_date":   date | None,
+            }
+        """
+        # ── Detect year from any available exam data ──────────────────────────
+        year = QDate.currentDate().year()
+        for sec in sections:
+            for exam in (sec.get("exams") or []):
+                qd = _to_qdate(exam.get("exam_date"))
+                if qd.isValid():
+                    year = qd.year()
+                    break
+            if year != QDate.currentDate().year():
+                break
+
+        # ── Update header ─────────────────────────────────────────────────────
+        icon = _SEMESTER_ICONS.get(semester, "📅")
+        self._icon_lbl.setText(icon)
+        self._semester_title.setText(f"{semester} {year}")
+
+        # Compute overall date range across all moeds for the subtitle
+        earliest: _date | None = None
+        latest:   _date | None = None
+        for sec in sections:
+            sd, ed = sec.get("start_date"), sec.get("end_date")
+            if sd and ed:
+                if earliest is None or sd < earliest:
+                    earliest = sd
+                if latest is None or ed > latest:
+                    latest = ed
+
+        if earliest and latest:
+            qs = QDate(earliest.year, earliest.month, earliest.day)
+            qe = QDate(latest.year,   latest.month,   latest.day)
+            self._semester_subtitle.setText(
+                f"{EN_LOCALE.toString(qs, 'd MMM yyyy')}"
+                f" – {EN_LOCALE.toString(qe, 'd MMM yyyy')}"
+            )
+        else:
+            self._semester_subtitle.setText("All Exam Sessions Overview")
+
+        # ── Rebuild section rows ──────────────────────────────────────────────
+        # Clear existing widgets from the vbox (keep final stretch)
+        while self._all_sessions_vbox.count() > 1:
+            item = self._all_sessions_vbox.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        for sec in sections:
+            section_widget = self._build_moed_section(
+                moed       = sec["moed"],
+                semester   = semester,
+                year       = year,
+                exams      = sec.get("exams") or [],
+                start_date = sec.get("start_date"),
+                end_date   = sec.get("end_date"),
+            )
+            # Insert before the trailing stretch
+            self._all_sessions_vbox.insertWidget(
+                self._all_sessions_vbox.count() - 1, section_widget
+            )
+
+        self._stack.setCurrentIndex(_PAGE_ALL_SESSIONS)
 
     # ──────────────────────────────────────────────────────────────────────────
     # Public API — data loading

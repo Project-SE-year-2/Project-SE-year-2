@@ -344,13 +344,60 @@ class OutputScreen(QWidget):
         self._refresh_screen_display()
 
     def _on_moed_changed(self, moed: str) -> None:
-        """Switch moed — restore the stored index for the new period."""
+        """Switch moed, or switch to the read-only All Sessions overview."""
         self._current_moed = moed
+        self._hide_conflict_banner()
+
+        if moed == "All":
+            # All Sessions is read-only: no navigation, no conflict checks.
+            self._refresh_all_sessions_display()
+            return
+
         self._global_index = self._period_indices.get(self._active_period_id(), 0)
         self._check_conflicts_next = True
         self._refresh_screen_display()
 
     # ── Central display refresh ───────────────────────────────────────────────
+
+    def _refresh_all_sessions_display(self) -> None:
+        """Fetch and render the read-only All Sessions overview for the active semester.
+
+        Shows one grouped section per moed (A/B/C), each displaying the currently
+        selected schedule index for that period.  No navigation is shown.
+        """
+        sem      = self._current_semester
+        sem_code = _SEMESTER_TO_ID.get(sem, sem)
+        sections: list[dict] = []
+
+        for moed in ["Aleph", "Bet", "Gimel"]:
+            pid  = f"{sem_code}_{moed}"
+            idx  = self._period_indices.get(pid, 0)
+            exams: list = []
+            start_date: _date | None = None
+            end_date:   _date | None = None
+
+            try:
+                exams = self.service.get_period_schedule(pid, idx) or []
+            except Exception:
+                pass
+
+            try:
+                for p in self.service.get_periods():
+                    if p.get("id") == pid:
+                        start_date = _to_date(p.get("start_date"))
+                        end_date   = _to_date(p.get("end_date"))
+                        break
+            except Exception:
+                pass
+
+            sections.append({
+                "moed":       moed,
+                "exams":      exams,
+                "start_date": start_date,
+                "end_date":   end_date,
+            })
+
+        self.four_month.show_all_sessions(sem, sections)
 
     def _refresh_screen_display(self) -> None:
         """Fetch and render the isolated schedule for the active (semester, moed).
@@ -359,6 +406,11 @@ class OutputScreen(QWidget):
         directly from the period's own file (disk mode) or from the in-memory
         per-period cache (legacy mode).  No Cartesian-product mixing occurs.
         """
+        # Guard: if "All Sessions" is active, delegate to the dedicated method.
+        if self._current_moed == "All":
+            self._refresh_all_sessions_display()
+            return
+
         sem  = self._current_semester
         moed = self._current_moed
         pid  = self._active_period_id()
@@ -481,7 +533,13 @@ class OutputScreen(QWidget):
         When the period has no schedules (total == 0) the navigator shows
         "— of —" and both NEXT and PREV are disabled automatically by
         ScheduleNavigatorWidget.set_state(total=0).
+
+        Guard: in "All Sessions" mode the navigator is always hidden and
+        must not be touched — the overview panel replaces it.
         """
+        if self._current_moed == "All":
+            return
+
         pid         = self._active_period_id()
         current_idx = self._period_indices.get(pid, 0)
 
@@ -510,7 +568,13 @@ class OutputScreen(QWidget):
 
         Checks whether per-period data has arrived since the last poll.
         When data first appears, re-renders so the loading indicator clears.
+
+        Guard: in "All Sessions" mode no polling is needed — the view is
+        read-only and contains no live navigation counter.
         """
+        if self._current_moed == "All":
+            return
+
         pid = self._active_period_id()
 
         try:

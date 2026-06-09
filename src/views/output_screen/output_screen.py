@@ -443,7 +443,7 @@ class OutputScreen(QWidget):
     }
 
     def connect_listener(self, listener) -> None:
-        listener.period_ready.connect(self._on_period_ready)
+        זז
         listener.finished.connect(self._on_generation_finished)
         listener.error.connect(self._on_generation_error)
 

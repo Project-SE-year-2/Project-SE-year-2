@@ -71,9 +71,9 @@ class PeriodRowWidget(QPushButton):
                     text-align: left;
                     padding: {th.SPACING_SMALL}px {th.SPACING_MEDIUM}px;
                     border-radius: {th.BADGE_RADIUS}px;
-                    background-color: {th.PRIMARY_COLOR};
-                    color: white;
-                    border: 1.5px solid {th.PRIMARY_DARK};
+                    background-color: {th.PRIMARY_SOFT};
+                    color: {th.TEXT_PRIMARY};
+                    border: 1px solid {th.BORDER_LIGHT};
                     font-family: {th.FONT_FAMILY};
                     font-size: {th.FONT_SIZE_SM}px;
                     font-weight: {th.FONT_WEIGHT_BOLD};

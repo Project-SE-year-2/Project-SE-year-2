@@ -184,25 +184,25 @@ UNAVAIL_CIRCLE_TEXT   = "#DC2626"
 # ── SAVE button (INPUT mode) ─────────────────────────────────────────────────
 SAVE_BTN_STYLE = """
     QPushButton {
-        background: #4338CA;
-        color: #FFFFFF;
+        background-color: #2563EB;
+        color: white;
         border: none;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
-        font-family: 'Segoe UI';
-        padding: 4px 14px;
-        min-height: 26px;
+        border-radius: 8px;
+        padding: 6px 24px;
+        font-family: Segoe UI, sans-serif;
+        font-weight: 700;
+        font-size: 14px;
+        min-height: 32px;
     }
     QPushButton:hover {
-        background: #3730A3;
+        background-color: #1D4ED8;
     }
     QPushButton:pressed {
-        background: #312E81;
+        background-color: #1E40AF;
     }
     QPushButton:disabled {
-        background: #A5B4FC;
-        color: #E0E7FF;
+        background-color: #F3F4F6;
+        color: #9CA3AF;
     }
 """
 

@@ -90,11 +90,20 @@ class InputScreen(QWidget):
     # Handles successful file loading by clearing old UI state and showing the program list.
     def _on_files_loaded(self):
         self._generate_state.reset_after_file_load()
-        # Clear any state from previous file loads
+
+        # Clear selected programs in the service
+        self.service.select_programs([])
+
+        # Clear selected programs UI
         self.selected_panel.clear_cache()
         self.selected_panel.clear()
         self.selected_panel.setVisible(False)
 
+        # Clear program list selection state
+        if hasattr(self.program_list, "clear_selection"):
+            self.program_list.clear_selection()
+
+        # Clear period selection/editor
         self.period_list.clear_selection()
         self.period_list.setVisible(False)
 
@@ -105,6 +114,7 @@ class InputScreen(QWidget):
         self.program_list.refresh()
         self.program_list.setVisible(True)
 
+        self.file_loader.update_validation(programs=False, period=False)
         self._sync_generate_button_state()
 
     # Handles program selection changes and shows dependent widgets only when needed.

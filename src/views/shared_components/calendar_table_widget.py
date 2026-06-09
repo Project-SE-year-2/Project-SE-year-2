@@ -51,6 +51,7 @@ from PyQt5.QtWidgets import (
 )
 
 from src.models.enums import CalendarMode
+import src.styles.theme as th
 from src.styles.calendar_table_style import (
     CALENDAR_CARD_STYLE,
     DATE_EDIT_STYLE,
@@ -172,11 +173,12 @@ class CalendarTableWidget(QWidget):
         self._start_edit.dateChanged.connect(self._on_start_changed)
         self._end_edit.dateChanged.connect(self._on_end_changed)
 
+        left.addSpacing(th.SPACING_SMALL)
         self.save_btn = QPushButton("Save")
         self.save_btn.setStyleSheet(SAVE_BTN_STYLE)
         self.save_btn.setCursor(Qt.PointingHandCursor)
         self.save_btn.clicked.connect(self._on_save_clicked)
-        self.save_btn.setMinimumWidth(140)
+        self.save_btn.setMinimumWidth(80)
         left.addWidget(self.save_btn)
         left.addStretch()
 

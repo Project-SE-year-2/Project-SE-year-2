@@ -17,11 +17,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Schedule Generator System")
         self.resize(1024, 768)
         
-        # Apply dark mode styling for a consistent application theme
         self.setStyleSheet("""
-            QMainWindow {
-                background-color: #121212;
-            }
+            QMainWindow    { background-color: #F8FAFC; }
+            QStackedWidget { background-color: #F8FAFC; }
         """)
 
         # Instantiate AppService.getInstance() exactly once

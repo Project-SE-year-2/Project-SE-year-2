@@ -37,22 +37,13 @@ class EditablePeriodFormatter:
         end_date = period["end_date"]
         forbidden_days = tuple(period.get("forbidden_days", []) or [])
 
-        title = (
-            f"{semester} — {moed} | "
-            f"{self._format_date(start_date)} to {self._format_date(end_date)}"
-        )
-
         return EditablePeriod(
             period_id=period_id,
-            title=title,
+            title=f"{semester} — {moed}",
             start_date=start_date,
             end_date=end_date,
             forbidden_days=forbidden_days,
         )
-
-    # Formats a date value for display in the period title.
-    def _format_date(self, value: date) -> str:
-        return value.strftime("%d-%m-%Y") if hasattr(value, "strftime") else str(value)
 
 
 class PeriodEditorWidget(QWidget):
@@ -118,11 +109,13 @@ class PeriodEditorWidget(QWidget):
         )
 
         self._hint_label = QLabel(
-            "Edit the selected period range and click days to mark them as unavailable."
+            "Select a period above, then click calendar days to mark them as unavailable."
         )
+        self._hint_label.setWordWrap(True)
         self._hint_label.setStyleSheet(
             f"color: {th.TEXT_TERTIARY}; "
-            f"font-family: {th.FONT_FAMILY};"
+            f"font-family: {th.FONT_FAMILY}; "
+            f"font-size: {th.FONT_SIZE_SM}px;"
         )
 
         self._calendar = CalendarTableWidget(CalendarMode.INPUT)
@@ -130,10 +123,12 @@ class PeriodEditorWidget(QWidget):
         self._status_label = QLabel("")
         self._status_label.setStyleSheet(
             f"color: {th.TEXT_TERTIARY}; "
-            f"font-family: {th.FONT_FAMILY};"
+            f"font-family: {th.FONT_FAMILY}; "
+            f"font-size: {th.FONT_SIZE_SM}px;"
         )
 
         layout = QVBoxLayout(self)
+        layout.setSpacing(th.SPACING_SMALL)
         layout.addWidget(self._title_label)
         layout.addWidget(self._hint_label)
         layout.addWidget(self._calendar)

@@ -85,6 +85,18 @@ class PeriodResultsWriter:
         except Exception:
             return {}
 
+    def clear_period(self, period_id: str) -> None:
+        """Delete all batch files for a period and reset its manifest count to 0.
+
+        Called at the start of every generate run so that stale results from a
+        previous run never mix with the current one.
+        """
+        period_dir = self._root / period_id
+        if period_dir.exists():
+            for batch_file in period_dir.glob("batch_*.pkl"):
+                batch_file.unlink()
+        self.update_manifest(period_id, 0)
+
     # Saves the manifest to disk, ensuring that the directory structure exists
     def _save_manifest(self, manifest: dict) -> None:
         # Atomic-like write of the manifest JSON file

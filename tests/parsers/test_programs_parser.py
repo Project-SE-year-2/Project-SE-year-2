@@ -64,3 +64,44 @@ def test_parse_programs_file_removes_duplicate_program_ids(tmp_path):
     programs = parser.parse(str(file_path))
 
     assert programs == ["83101", "83108"]
+
+
+def test_parse_programs_file_rejects_non_numeric_program_id(tmp_path):
+    """Non-numeric program IDs should be rejected."""
+    content = "ABCDE, 83108"
+
+    file_path = tmp_path / "programs.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = ProgramSelectionParser()
+
+    with pytest.raises(ValueError, match="Invalid program ID"):
+        parser.parse(str(file_path))
+
+
+def test_parse_programs_file_single_program(tmp_path):
+    """A single program ID is valid (boundary for ≤5 rule)."""
+    content = "83101"
+
+    file_path = tmp_path / "programs.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = ProgramSelectionParser()
+    programs = parser.parse(str(file_path))
+
+    assert programs == ["83101"]
+
+
+def test_parse_programs_file_six_with_duplicates_reduces_to_five(tmp_path):
+    """Six program IDs with one duplicate should reduce to 5 and pass validation."""
+    content = "83101, 83102, 83104, 83107, 83108, 83101"
+
+    file_path = tmp_path / "programs.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = ProgramSelectionParser()
+    programs = parser.parse(str(file_path))
+
+    assert len(programs) == 5
+    assert programs == ["83101", "83102", "83104", "83107", "83108"]
+

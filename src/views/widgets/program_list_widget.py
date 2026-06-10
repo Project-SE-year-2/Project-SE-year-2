@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QSize
+from PyQt5.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PyQt5.QtWidgets import (
     QWidget,
     QLabel,
@@ -18,6 +19,26 @@ from PyQt5.QtWidgets import (
 from src.presenter.i_app_service import IAppService
 import src.styles.theme as th
 from src.styles.study_programs_style import STUDY_PROGRAMS_STYLE
+
+# ── Add/remove button icon ──────────────────────
+def _make_btn_icon(plus: bool, size: int = 18) -> QIcon:
+    """Draw a white + or − on a transparent pixmap."""
+    pix = QPixmap(size, size)
+    pix.fill(Qt.transparent)
+    p = QPainter(pix)
+    p.setRenderHint(QPainter.Antialiasing)
+    pen = QPen(QColor("#FFFFFF"))
+    pen.setWidth(2)
+    pen.setCapStyle(Qt.RoundCap)
+    p.setPen(pen)
+    cx = cy = size // 2
+    arm = int(size * 0.38)
+    p.drawLine(cx - arm, cy, cx + arm, cy)
+    if plus:
+        p.drawLine(cx, cy - arm, cx, cy + arm)
+    p.end()
+    return QIcon(pix)
+
 
 # ── Badge metrics ───────────────────────────────
 _BADGE_SIZE = 28
@@ -86,25 +107,15 @@ class ProgramRowWidget(QWidget):
 
         self._id_lbl = QLabel(program.program_id)
         self._id_lbl.setStyleSheet(
-            f"color: {th.TEXT_MUTED}; font-size: 21px;"
+            f"color: {th.TEXT_MUTED}; font-size: 14px;"
             f" font-weight: 700; font-family: {th.FONT_FAMILY}; background: transparent;"
         )
         self._id_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        # Course count label — gray pill badge
-        self._count_lbl = QLabel("")
-        self._count_lbl.setAlignment(Qt.AlignCenter)
-        self._count_lbl.setStyleSheet(
-            "background-color: #E5E7EB;"
-            " color: #374151;"
-            " font-size: 16px;"
-            " font-weight: 700;"
-            " border-radius: 8px;"
-            " padding: 6px 14px;"
-        )
-
         # Add / Remove button
-        self._action_btn = QPushButton("+ Add")
+        self._action_btn = QPushButton()
+        self._action_btn.setIcon(_make_btn_icon(plus=True))
+        self._action_btn.setIconSize(QSize(18, 18))
         self._action_btn.setObjectName("addBtn")
         self._action_btn.setCursor(Qt.PointingHandCursor)
         self._action_btn.setFocusPolicy(Qt.NoFocus)
@@ -113,7 +124,6 @@ class ProgramRowWidget(QWidget):
         layout.addWidget(self._name_lbl)
         layout.addWidget(self._id_lbl)
         layout.addStretch()
-        layout.addWidget(self._count_lbl)
         layout.addWidget(self._action_btn)
 
         self._apply_style()
@@ -130,7 +140,7 @@ class ProgramRowWidget(QWidget):
     # ── Public state API ──────────────────────────────────────────────────────
 
     def set_course_count(self, count: int) -> None:
-        self._count_lbl.setText(f"{count} Courses")
+        pass
 
     def set_viewed(self, viewed: bool) -> None:
         """Highlight this row as the currently viewed program."""
@@ -140,7 +150,7 @@ class ProgramRowWidget(QWidget):
     def set_selected(self, selected: bool) -> None:
         self._selected = selected
         self._action_btn.setObjectName("addBtnSelected" if selected else "addBtn")
-        self._action_btn.setText("- Remove" if selected else "+ Add")
+        self._action_btn.setIcon(_make_btn_icon(plus=not selected))
         self._action_btn.style().unpolish(self._action_btn)
         self._action_btn.style().polish(self._action_btn)
         self._apply_style()
@@ -181,7 +191,7 @@ class ProgramRowWidget(QWidget):
     def _apply_style(self) -> None:
         if not self.isEnabled():
             self._name_lbl.setStyleSheet(
-                f"color: {th.DISABLED_TEXT}; font-size: 21px;"
+                f"color: {th.DISABLED_TEXT}; font-size: 17px;"
                 f" font-weight: 700; font-family: {th.FONT_FAMILY}; background: transparent;"
             )
             self.setStyleSheet(
@@ -193,7 +203,7 @@ class ProgramRowWidget(QWidget):
 
         if self._viewed:
             self._name_lbl.setStyleSheet(
-                f"color: {th.PRIMARY_COLOR}; font-size: 21px;"
+                f"color: {th.PRIMARY_COLOR}; font-size: 17px;"
                 f" font-weight: 700; font-family: {th.FONT_FAMILY};"
                 f" background: transparent;"
             )
@@ -208,7 +218,7 @@ class ProgramRowWidget(QWidget):
 
     def _apply_normal_style(self) -> None:
         self._name_lbl.setStyleSheet(
-            f"color: {th.TEXT_SECONDARY}; font-size: 21px;"
+            f"color: {th.TEXT_SECONDARY}; font-size: 17px;"
             f" font-weight: 700; font-family: {th.FONT_FAMILY}; background: transparent;"
         )
         self.setStyleSheet(
@@ -297,6 +307,7 @@ class ProgramListWidget(QWidget):
 
         self._subtitle_label = QLabel("Select a study program to view its courses  ·  Add up to 5 programs")
         self._subtitle_label.setObjectName("programsPanelSubtitle")
+        self._subtitle_label.setWordWrap(True)
         self._subtitle_label.setStyleSheet(
             STUDY_PROGRAMS_STYLE +
             f"QLabel#programsPanelSubtitle {{ font-family: {th.FONT_FAMILY}; }}"
@@ -347,6 +358,7 @@ class ProgramListWidget(QWidget):
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QFrame.NoFrame)
+        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._scroll_area.setStyleSheet(
             f"QScrollArea {{ background: transparent;"
             f" border: 1px solid {th.BORDER_LIGHT};"

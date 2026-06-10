@@ -75,11 +75,11 @@ QPushButton#addBtn {
     color:            #FFFFFF;
     border:           none;
     border-radius:    7px;
-    padding:          8px 18px;
-    font-size:        16px;
+    padding:          4px 10px;
+    font-size:        18px;
     font-weight:      600;
-    min-width:        90px;
-    min-height:       38px;
+    min-width:        36px;
+    min-height:       36px;
 }
 QPushButton#addBtn:hover {
     background-color: #1D4ED8;
@@ -95,11 +95,11 @@ QPushButton#addBtnSelected {
     color:            #FFFFFF;
     border:           none;
     border-radius:    7px;
-    padding:          8px 18px;
-    font-size:        16px;
+    padding:          4px 10px;
+    font-size:        18px;
     font-weight:      600;
-    min-width:        90px;
-    min-height:       38px;
+    min-width:        36px;
+    min-height:       36px;
 }
 QPushButton#addBtnSelected:hover {
     background-color: #B91C1C;
@@ -168,8 +168,8 @@ QLabel#typeBadgeObligatory {
     color:            #4338CA;
     border:           1px solid #C7D2FE;
     border-radius:    5px;
-    padding:          5px 14px;
-    font-size:        15px;
+    padding:          3px 10px;
+    font-size:        13px;
     font-weight:      600;
 }
 QLabel#typeBadgeElective {
@@ -177,8 +177,8 @@ QLabel#typeBadgeElective {
     color:            #92400E;
     border:           1px solid #FDE68A;
     border-radius:    5px;
-    padding:          5px 14px;
-    font-size:        15px;
+    padding:          3px 10px;
+    font-size:        13px;
     font-weight:      600;
 }
 

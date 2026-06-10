@@ -122,7 +122,8 @@ class CourseTableWidget(QWidget):
         hh.setSectionResizeMode(_COL_YEAR,     QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(_COL_SEMESTER, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(_COL_EXAM,     QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(_COL_TYPE,     QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(_COL_TYPE,     QHeaderView.Fixed)
+        self._table.setColumnWidth(_COL_TYPE,  140)
 
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)

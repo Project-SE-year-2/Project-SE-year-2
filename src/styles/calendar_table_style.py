@@ -93,7 +93,7 @@ NAV_BTN_STYLE = """
         background: transparent;
         border: 1px solid #E2E8F0;
         border-radius: 6px;
-        font-size: 14px;
+        font-size: 21px;
         font-weight: 600;
         padding: 4px 10px;
         min-width: 32px;

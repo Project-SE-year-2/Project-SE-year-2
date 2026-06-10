@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (
 import src.styles.theme as th
 from src.styles.study_programs_style import STUDY_PROGRAMS_STYLE
 from src.presenter.i_app_service import IAppService
+from src.styles.icons import load_pixmap, ICON_CALENDAR
 
 _ROWS_PER_PAGE = 10
 
@@ -162,12 +163,21 @@ class CourseTableWidget(QWidget):
         self._empty_w.setStyleSheet("background: transparent;")
         el = QVBoxLayout(self._empty_w)
         el.setAlignment(Qt.AlignCenter)
+        el.setSpacing(12)
+
+        icon_lbl = QLabel()
+        icon_lbl.setAlignment(Qt.AlignCenter)
+        icon_lbl.setPixmap(load_pixmap(ICON_CALENDAR, size=56))
+        icon_lbl.setStyleSheet("background: transparent;")
+
         lbl = QLabel("Select a program to view its courses")
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setStyleSheet(
-            f"color: {th.TEXT_MUTED}; font-size: {th.FONT_SIZE_MD}px;"
+            f"color: {th.TEXT_MUTED}; font-size: 28px;"
             f" font-family: {th.FONT_FAMILY};"
         )
+
+        el.addWidget(icon_lbl)
         el.addWidget(lbl)
         layout.addWidget(self._empty_w, stretch=1)
 
@@ -215,10 +225,10 @@ class CourseTableWidget(QWidget):
         self._table.setRowCount(len(page))
 
         for i, course in enumerate(page):
-            self._table.setRowHeight(i, 44)
+            self._table.setRowHeight(i, 56)
 
             def _item(text: str, align=Qt.AlignLeft | Qt.AlignVCenter,
-                      color: str = th.TEXT_SECONDARY) -> QTableWidgetItem:
+                      color: str = "#111827") -> QTableWidgetItem:
                 it = QTableWidgetItem(text)
                 it.setTextAlignment(align)
                 it.setForeground(QColor(color))
@@ -226,29 +236,29 @@ class CourseTableWidget(QWidget):
 
             # # — row number
             self._table.setItem(i, _COL_NUM,
-                _item(str(start + i + 1), Qt.AlignCenter, th.TEXT_MUTED))
+                _item(str(start + i + 1), Qt.AlignCenter, "#111827"))
 
             # Course Code
             self._table.setItem(i, _COL_CODE,
-                _item(str(course.get("number", "")), Qt.AlignLeft | Qt.AlignVCenter, th.TEXT_SECONDARY))
+                _item(str(course.get("number", "")), Qt.AlignLeft | Qt.AlignVCenter, "#111827"))
 
             # Course Name — explicit left alignment so text sits under the header
             name_item = QTableWidgetItem(str(course.get("name", "")))
             name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            name_item.setForeground(QColor(th.TEXT_PRIMARY))
+            name_item.setForeground(QColor("#111827"))
             self._table.setItem(i, _COL_NAME, name_item)
 
             # Year
             self._table.setItem(i, _COL_YEAR,
-                _item(str(course.get("year", "")), Qt.AlignCenter, th.TEXT_SECONDARY))
+                _item(str(course.get("year", "")), Qt.AlignCenter, "#111827"))
 
             # Semester
             self._table.setItem(i, _COL_SEMESTER,
-                _item(str(course.get("semester", "")), Qt.AlignCenter, th.TEXT_SECONDARY))
+                _item(str(course.get("semester", "")), Qt.AlignCenter, "#111827"))
 
             # Exam (evaluation field)
             self._table.setItem(i, _COL_EXAM,
-                _item(str(course.get("evaluation", "")), Qt.AlignCenter, th.TEXT_SECONDARY))
+                _item(str(course.get("evaluation", "")), Qt.AlignCenter, "#111827"))
 
             # Type badge widget
             type_str  = str(course.get("type", ""))
@@ -293,7 +303,7 @@ class CourseTableWidget(QWidget):
         self._pag_l.addWidget(self._next_btn)
         self._pag_l.addStretch()
         self._info_lbl.setText(f"Showing {s} to {e} of {total}")
-        self._pag_l.addWidget(self._info_lbl)
+        self._info_lbl.hide()
 
         self._prev_btn.setEnabled(self._current_page > 0)
         self._next_btn.setEnabled(self._current_page < total_pages - 1)

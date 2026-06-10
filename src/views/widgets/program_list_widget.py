@@ -86,15 +86,22 @@ class ProgramRowWidget(QWidget):
 
         self._id_lbl = QLabel(program.program_id)
         self._id_lbl.setStyleSheet(
-            f"color: {th.TEXT_MUTED}; font-size: {th.FONT_SIZE_XS}px;"
-            f" font-family: {th.FONT_FAMILY}; background: transparent;"
+            f"color: {th.TEXT_MUTED}; font-size: 21px;"
+            f" font-weight: 700; font-family: {th.FONT_FAMILY}; background: transparent;"
         )
         self._id_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        # Course count label
+        # Course count label — gray pill badge
         self._count_lbl = QLabel("")
-        self._count_lbl.setObjectName("courseCountLabel")
-        self._count_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self._count_lbl.setAlignment(Qt.AlignCenter)
+        self._count_lbl.setStyleSheet(
+            "background-color: #E5E7EB;"
+            " color: #374151;"
+            " font-size: 16px;"
+            " font-weight: 700;"
+            " border-radius: 8px;"
+            " padding: 6px 14px;"
+        )
 
         # Add / Remove button
         self._action_btn = QPushButton("+ Add")
@@ -174,8 +181,8 @@ class ProgramRowWidget(QWidget):
     def _apply_style(self) -> None:
         if not self.isEnabled():
             self._name_lbl.setStyleSheet(
-                f"color: {th.DISABLED_TEXT}; font-size: {th.FONT_SIZE_MD}px;"
-                f" font-family: {th.FONT_FAMILY}; background: transparent;"
+                f"color: {th.DISABLED_TEXT}; font-size: 21px;"
+                f" font-weight: 700; font-family: {th.FONT_FAMILY}; background: transparent;"
             )
             self.setStyleSheet(
                 STUDY_PROGRAMS_STYLE +
@@ -186,8 +193,8 @@ class ProgramRowWidget(QWidget):
 
         if self._viewed:
             self._name_lbl.setStyleSheet(
-                f"color: {th.PRIMARY_COLOR}; font-size: {th.FONT_SIZE_MD}px;"
-                f" font-weight: {th.FONT_WEIGHT_MEDIUM}; font-family: {th.FONT_FAMILY};"
+                f"color: {th.PRIMARY_COLOR}; font-size: 21px;"
+                f" font-weight: 700; font-family: {th.FONT_FAMILY};"
                 f" background: transparent;"
             )
             self.setStyleSheet(
@@ -201,8 +208,8 @@ class ProgramRowWidget(QWidget):
 
     def _apply_normal_style(self) -> None:
         self._name_lbl.setStyleSheet(
-            f"color: {th.TEXT_SECONDARY}; font-size: {th.FONT_SIZE_MD}px;"
-            f" font-family: {th.FONT_FAMILY}; background: transparent;"
+            f"color: {th.TEXT_SECONDARY}; font-size: 21px;"
+            f" font-weight: 700; font-family: {th.FONT_FAMILY}; background: transparent;"
         )
         self.setStyleSheet(
             STUDY_PROGRAMS_STYLE +

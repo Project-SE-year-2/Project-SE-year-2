@@ -1,13 +1,17 @@
 # src/styles/input_screen_style.py
 
 # ── Tab panel constants ───────────────────────────────────────────────────────
-TAB_BAR_HEIGHT    = 52          # px — height of the tab button row
-TAB_BTN_PADDING   = "14px 22px" # vertical / horizontal padding inside tab button
+TAB_BAR_HEIGHT    = 72          # px — height of the tab button row
+TAB_BTN_PADDING   = "20px 36px" # vertical / horizontal padding inside tab button
 
 INPUT_SCREEN_STYLE = """
-/* ── App background ─────────────────────────────────────────────────────── */
+/* ── App background + global font ───────────────────────────────────────── */
 QWidget#inputScreen {
     background-color: #F8FAFC;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+QWidget#inputScreen * {
+    font-family: "Segoe UI", Arial, sans-serif;
 }
 
 /* ── Section card (col 1 – Data Input) ──────────────────────────────────── */
@@ -22,14 +26,14 @@ QFrame#sectionCard QWidget {
 
 QLabel#sectionTitle {
     color: #111827;
-    font-size: 15px;
+    font-size: 22px;
     font-weight: bold;
     background: transparent;
 }
 
 QLabel#sectionSubtitle {
     color: #9CA3AF;
-    font-size: 12px;
+    font-size: 16px;
     background: transparent;
 }
 
@@ -56,12 +60,12 @@ QPushButton#tabBtn {
     background:            transparent;
     border-left:           none;
     border-right:          none;
-    border-top:            2px solid transparent;
-    border-bottom:         2px solid transparent;
+    border-top:            3px solid transparent;
+    border-bottom:         3px solid transparent;
     color:                 #6B7280;
-    font-size:             14px;
+    font-size:             18px;
     font-weight:           500;
-    padding:               14px 22px;
+    padding:               20px 36px;
 }
 QPushButton#tabBtn:hover {
     color: #374151;
@@ -73,12 +77,12 @@ QPushButton#tabBtnActive {
     background:            transparent;
     border-left:           none;
     border-right:          none;
-    border-top:            2px solid transparent;
-    border-bottom:         2px solid #2563EB;
+    border-top:            3px solid transparent;
+    border-bottom:         3px solid #2563EB;
     color:                 #2563EB;
-    font-size:             14px;
-    font-weight:           600;
-    padding:               14px 22px;
+    font-size:             18px;
+    font-weight:           700;
+    padding:               20px 36px;
 }
 
 /* ── Tab content page wrapper ────────────────────────────────────────────── */

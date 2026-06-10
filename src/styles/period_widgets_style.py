@@ -8,9 +8,9 @@ import src.styles.theme as th
 
 # ── Period row ────────────────────────────────────────────────────────────────
 
-ROW_PADDING_H   = 16   # px — left/right inner padding
-ROW_PADDING_V   = 14   # px — top/bottom inner padding
-ROW_SPACING     = 16   # px — spacing between row columns
+ROW_PADDING_H   = 24   # px — left/right inner padding
+ROW_PADDING_V   = 24   # px — top/bottom inner padding
+ROW_SPACING     = 24   # px — spacing between row columns
 ROW_RADIUS      = 10   # px — border-radius of each row card
 ROW_BORDER_W    = 1    # px — border width (normal)
 ROW_SEL_BORDER_W = 2   # px — border width (selected)
@@ -21,15 +21,15 @@ ROW_BORDER_NORMAL   = "#E5E7EB"
 ROW_BORDER_SELECTED = th.PRIMARY_COLOR   # "#2563EB"
 
 ROW_TITLE_COLOR    = th.TEXT_PRIMARY     # "#111827"
-ROW_TITLE_SIZE     = 13
+ROW_TITLE_SIZE     = 26
 ROW_SUBTITLE_COLOR = th.TEXT_TERTIARY    # "#6B7280"
-ROW_SUBTITLE_SIZE  = 11
+ROW_SUBTITLE_SIZE  = 22
 ROW_DATE_COLOR     = "#374151"
-ROW_DATE_SIZE      = 12
+ROW_DATE_SIZE      = 16
 ROW_PROG_NUM_COLOR = th.TEXT_PRIMARY
-ROW_PROG_NUM_SIZE  = 15
+ROW_PROG_NUM_SIZE  = 30
 ROW_PROG_LBL_COLOR = th.TEXT_TERTIARY
-ROW_PROG_LBL_SIZE  = 10
+ROW_PROG_LBL_SIZE  = 20
 
 # Selection indicator
 IND_SIZE        = 20    # px — fixed width/height of the indicator circle
@@ -70,8 +70,8 @@ ROW_FRAME_STYLE_SELECTED = f"""
 
 # ── Period list header / info panel ──────────────────────────────────────────
 
-LIST_TITLE_SIZE  = 15
-LIST_HINT_SIZE   = 12
+LIST_TITLE_SIZE  = 30
+LIST_HINT_SIZE   = 24
 
 INFO_PANEL_STYLE = f"""
     QFrame#infoPanelRow {{
@@ -88,9 +88,9 @@ INFO_TEXT_STYLE  = (
 
 # ── Period editor header ──────────────────────────────────────────────────────
 
-EDITOR_SECTION_TITLE_SIZE    = 11   # "EDIT EXAM PERIOD" small caps label
+EDITOR_SECTION_TITLE_SIZE    = 17   # "EDIT EXAM PERIOD" small caps label
 EDITOR_SECTION_TITLE_COLOR   = th.TEXT_TERTIARY
-EDITOR_SECTION_HINT_SIZE     = 12
+EDITOR_SECTION_HINT_SIZE     = 18
 EDITOR_SECTION_HINT_COLOR    = th.TEXT_TERTIARY
 
 EDITOR_PERIOD_TITLE_SIZE     = 22   # large "FALL — Aleph"

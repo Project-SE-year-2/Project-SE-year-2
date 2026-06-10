@@ -156,8 +156,8 @@ class _ProgramTag(QWidget):
         )
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(6, 4, 6, 4)
-        row.setSpacing(6)
+        row.setContentsMargins(9, 6, 9, 6)
+        row.setSpacing(9)
 
         # Program ID label
         id_lbl = QLabel(program_id)
@@ -167,7 +167,7 @@ class _ProgramTag(QWidget):
             f"  background-color: transparent;"
             f"  color: {th.TEXT_MUTED};"
             f"  border: none;"
-            f"  font-size: {th.FONT_SIZE_XS}px;"
+            f"  font-size: 15px;"
             f"  font-weight: {th.FONT_WEIGHT_BOLD};"
             f"  font-family: {th.FONT_FAMILY};"
             f"  padding: 2px 4px;"
@@ -178,7 +178,7 @@ class _ProgramTag(QWidget):
         name_lbl = QLabel(name)
         name_lbl.setStyleSheet(
             f"color: {th.TEXT_PRIMARY};"
-            f" font-size: {th.FONT_SIZE_SM}px;"
+            f" font-size: 18px;"
             f" font-family: {th.FONT_FAMILY};"
             f" background: transparent; border: none;"
         )
@@ -186,17 +186,17 @@ class _ProgramTag(QWidget):
 
         # Remove ×
         remove_btn = QPushButton("×")
-        remove_btn.setFixedSize(16, 16)
+        remove_btn.setFixedSize(24, 24)
         remove_btn.setCursor(Qt.PointingHandCursor)
         remove_btn.setStyleSheet(
             f"QPushButton {{"
             f"  background: transparent; border: none;"
-            f"  color: {th.TEXT_MUTED};"
-            f"  font-size: {th.FONT_SIZE_MD}px;"
+            f"  color: {th.DANGER_COLOR};"
+            f"  font-size: 21px;"
             f"  font-weight: {th.FONT_WEIGHT_BOLD};"
             f"  padding: 0px;"
             f"}}"
-            f"QPushButton:hover {{ color: {th.DANGER_COLOR}; }}"
+            f"QPushButton:hover {{ color: #991B1B; }}"
         )
         remove_btn.clicked.connect(lambda: self.remove_clicked.emit(self.program_id))
 
@@ -263,7 +263,7 @@ class SelectedProgramsPanel(QWidget):
         self._title_lbl = QLabel(f"Selected Program (0 / {_MAX_PROGRAMS})")
         self._title_lbl.setStyleSheet(
             f"color: {th.TEXT_PRIMARY};"
-            f" font-size: {th.FONT_SIZE_MD}px;"
+            f" font-size: 28px;"
             f" font-weight: {th.FONT_WEIGHT_BOLD};"
             f" font-family: {th.FONT_FAMILY};"
         )

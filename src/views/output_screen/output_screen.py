@@ -225,6 +225,14 @@ class OutputScreen(QWidget):
         self._conflict_banner.setVisible(False)
         main_layout.addWidget(self._conflict_banner)
 
+        # Success banner (hidden by default, auto-hides after 5 s)
+        self._success_banner = self._build_success_banner()
+        self._success_banner.setVisible(False)
+        main_layout.addWidget(self._success_banner)
+        self._success_timer = QTimer(self)
+        self._success_timer.setSingleShot(True)
+        self._success_timer.timeout.connect(lambda: self._success_banner.setVisible(False))
+
         # MoedCalendarOutputWidget
         self.four_month = MoedCalendarOutputWidget()
         self.four_month.exam_day_clicked.connect(self._on_exam_day_clicked)
@@ -295,6 +303,37 @@ class OutputScreen(QWidget):
     def _hide_conflict_banner(self) -> None:
         self._conflict_banner.setVisible(False)
         self._conflict_text.setText("")
+
+    def _build_success_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setObjectName("successBanner")
+        banner.setStyleSheet("""
+            QFrame#successBanner {
+                background: #F0FDF4;
+                border: 1.5px solid #BBF7D0;
+                border-radius: 10px;
+            }
+        """)
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(16, 12, 16, 12)
+        row.setSpacing(12)
+
+        icon = QLabel("✓")
+        icon.setStyleSheet("color: #16A34A; font-size: 18px; font-weight: 700;")
+        row.addWidget(icon)
+
+        self._success_text = QLabel("")
+        self._success_text.setStyleSheet(
+            "color: #16A34A; font-size: 13px; font-weight: 700; letter-spacing: 0.3px;"
+        )
+        row.addWidget(self._success_text, stretch=1)
+
+        return banner
+
+    def _show_success_banner(self, message: str) -> None:
+        self._success_text.setText(message)
+        self._success_banner.setVisible(True)
+        self._success_timer.start(5000)
 
     def _setup_polling(self) -> None:
         self.poll_timer = QTimer(self)
@@ -763,7 +802,7 @@ class OutputScreen(QWidget):
 
         try:
             self.service.export_by_period_indices(self._period_indices, file_path)
-            QMessageBox.information(self, "Success", "Schedule exported successfully.")
+            self._show_success_banner("Schedule exported successfully.")
         except Exception as exc:
             QMessageBox.critical(
                 self, "Export Failed", f"Could not export schedule:\n{exc}"

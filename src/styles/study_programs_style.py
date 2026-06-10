@@ -10,16 +10,16 @@ STUDY_PROGRAMS_STYLE = """
 /* ── Programs panel header ───────────────────────────────────────────────── */
 QLabel#programsPanelTitle {
     color:       #111827;
-    font-size:   16px;
+    font-size:   26px;
     font-weight: 700;
 }
 QLabel#programsPanelSubtitle {
     color:     #6B7280;
-    font-size: 13px;
+    font-size: 18px;
 }
 QLabel#programsFoundLabel {
     color:     #6B7280;
-    font-size: 13px;
+    font-size: 18px;
 }
 
 /* ── Search bar ──────────────────────────────────────────────────────────── */
@@ -27,10 +27,11 @@ QLineEdit#programSearchInput {
     background-color: #FFFFFF;
     border:           1px solid #E5E7EB;
     border-radius:    8px;
-    padding:          7px 12px;
-    font-size:        13px;
+    padding:          10px 16px;
+    font-size:        18px;
+    font-weight:      700;
     color:            #111827;
-    min-height:       34px;
+    min-height:       44px;
 }
 QLineEdit#programSearchInput:focus {
     border-color: #2563EB;
@@ -74,11 +75,11 @@ QPushButton#addBtn {
     color:            #FFFFFF;
     border:           none;
     border-radius:    7px;
-    padding:          5px 12px;
-    font-size:        12px;
+    padding:          8px 18px;
+    font-size:        16px;
     font-weight:      600;
-    min-width:        70px;
-    min-height:       28px;
+    min-width:        90px;
+    min-height:       38px;
 }
 QPushButton#addBtn:hover {
     background-color: #1D4ED8;
@@ -94,11 +95,11 @@ QPushButton#addBtnSelected {
     color:            #FFFFFF;
     border:           none;
     border-radius:    7px;
-    padding:          5px 12px;
-    font-size:        12px;
+    padding:          8px 18px;
+    font-size:        16px;
     font-weight:      600;
-    min-width:        70px;
-    min-height:       28px;
+    min-width:        90px;
+    min-height:       38px;
 }
 QPushButton#addBtnSelected:hover {
     background-color: #B91C1C;
@@ -107,13 +108,13 @@ QPushButton#addBtnSelected:hover {
 /* ── Course count label inside program row ───────────────────────────────── */
 QLabel#courseCountLabel {
     color:     #6B7280;
-    font-size: 12px;
+    font-size: 16px;
 }
 
 /* ── Selected Programs section title ─────────────────────────────────────── */
 QLabel#selectedPanelTitle {
     color:       #2563EB;
-    font-size:   13px;
+    font-size:   18px;
     font-weight: 600;
 }
 
@@ -122,12 +123,12 @@ QLabel#selectedPanelTitle {
 /* ── Section header ──────────────────────────────────────────────────────── */
 QLabel#coursesTableTitle {
     color:       #111827;
-    font-size:   16px;
+    font-size:   26px;
     font-weight: 700;
 }
 QLabel#coursesFoundLabel {
     color:     #6B7280;
-    font-size: 13px;
+    font-size: 18px;
 }
 
 /* ── Table ───────────────────────────────────────────────────────────────── */
@@ -138,13 +139,14 @@ QTableWidget#coursesTable {
     gridline-color:   #F3F4F6;
     selection-background-color: #EFF6FF;
     selection-color:  #111827;
-    font-size:        13px;
-    color:            #374151;
+    font-size:        18px;
+    color:            #111827;
     outline:          none;
 }
 QTableWidget#coursesTable::item {
-    padding:       10px 10px;
+    padding:       14px 10px;
     border-bottom: 1px solid #F3F4F6;
+    color:         #111827;
 }
 QTableWidget#coursesTable::item:selected {
     background-color: #EFF6FF;
@@ -152,10 +154,10 @@ QTableWidget#coursesTable::item:selected {
 }
 QHeaderView::section {
     background-color: #F9FAFB;
-    color:            #6B7280;
-    font-weight:      600;
-    font-size:        12px;
-    padding:          10px 10px;
+    color:            #111827;
+    font-weight:      700;
+    font-size:        16px;
+    padding:          14px 10px;
     border:           none;
     border-bottom:    1px solid #E5E7EB;
 }
@@ -166,8 +168,8 @@ QLabel#typeBadgeObligatory {
     color:            #4338CA;
     border:           1px solid #C7D2FE;
     border-radius:    5px;
-    padding:          3px 10px;
-    font-size:        11px;
+    padding:          5px 14px;
+    font-size:        15px;
     font-weight:      600;
 }
 QLabel#typeBadgeElective {
@@ -175,8 +177,8 @@ QLabel#typeBadgeElective {
     color:            #92400E;
     border:           1px solid #FDE68A;
     border-radius:    5px;
-    padding:          3px 10px;
-    font-size:        11px;
+    padding:          5px 14px;
+    font-size:        15px;
     font-weight:      600;
 }
 
@@ -186,10 +188,10 @@ QPushButton#pageNavBtn {
     border:           1px solid #E5E7EB;
     border-radius:    6px;
     color:            #374151;
-    font-size:        14px;
-    min-width:        32px;
-    min-height:       32px;
-    padding:          0 6px;
+    font-size:        18px;
+    min-width:        40px;
+    min-height:       40px;
+    padding:          0 8px;
 }
 QPushButton#pageNavBtn:hover    { background-color: #F3F4F6; }
 QPushButton#pageNavBtn:disabled { color: #D1D5DB; border-color: #F3F4F6; }
@@ -199,9 +201,9 @@ QPushButton#pageNumBtn {
     border:           1px solid transparent;
     border-radius:    6px;
     color:            #6B7280;
-    font-size:        13px;
-    min-width:        32px;
-    min-height:       32px;
+    font-size:        16px;
+    min-width:        40px;
+    min-height:       40px;
     padding:          0 4px;
 }
 QPushButton#pageNumBtn:hover { background-color: #F3F4F6; }
@@ -211,15 +213,15 @@ QPushButton#pageNumBtnActive {
     border:           none;
     border-radius:    6px;
     color:            #FFFFFF;
-    font-size:        13px;
+    font-size:        16px;
     font-weight:      600;
-    min-width:        32px;
-    min-height:       32px;
+    min-width:        40px;
+    min-height:       40px;
     padding:          0 4px;
 }
 
 QLabel#paginationInfoLabel {
     color:     #6B7280;
-    font-size: 13px;
+    font-size: 16px;
 }
 """

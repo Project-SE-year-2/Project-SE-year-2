@@ -168,7 +168,7 @@ class PeriodRowWidget(QFrame):
 
         icon_lbl = QLabel("📅")
         icon_lbl.setStyleSheet(
-            f"font-size: 12px; background: transparent;"
+            f"font-size: 14px; background: transparent;"
         )
         icon_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 

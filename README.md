@@ -1,5 +1,11 @@
 # Schedule Generator System – Version 2.0
 
+This repository contains the final implementation developed during Milestone 2.
+
+Documentation for Milestone 1 is available under:
+
+docs/Milestone1/README_Milestone_1.md
+
 ## Overview
 
 Schedule Generator System is a university exam scheduling system developed in Python.

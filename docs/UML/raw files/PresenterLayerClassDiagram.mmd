@@ -10,7 +10,7 @@ classDiagram
         -_wipe_results()
         +closeEvent(event)
     }
-    note for MainWindow "_wipe_results(): stops engine + shutil.rmtree(data/results/)\nCalled on Back navigation and app close"
+
 
     class InputScreen {
         -service: IAppService
@@ -36,7 +36,7 @@ classDiagram
         +__init__(service)
         +run()
     }
-    note for EngineListener "Re-exported as GenerateWorker\nfor backward compatibility"
+
 
     %% ===== Presenter Interface =====
     class IAppService {
@@ -143,7 +143,7 @@ classDiagram
         +get_notification() dict
         +stop()
     }
-    note for EngineProcess "Internal: one Thread per period inside subprocess\nNotifies: period_ready (1st batch), period_done (finish), all_done"
+
 
     %% ===== External Subsystems (abbreviated) =====
     class ExamPeriodFileParser {

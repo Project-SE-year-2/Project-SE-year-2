@@ -30,7 +30,7 @@ classDiagram
         +_on_period_ready(period_id)
         +_on_error(message)
     }
-    note for InputScreen "Contains FileLoaderWidget, ProgramListWidget,\nPeriodListWidget, PeriodEditorWidget,\nSelectedProgramsPanel — see InputScreenDiagram"
+
 
     class OutputScreen {
         -service: IAppService
@@ -39,7 +39,7 @@ classDiagram
         +_on_period_ready(period_id)
         +_on_generation_finished(total)
     }
-    note for OutputScreen "Contains FourMonthOutputWidget,\nSemesterTabsWidget, ScheduleNavigatorWidget,\nDayDetailDialog — see OutputScreenDiagram"
+
 
     %% ===== Background Thread =====
     class EngineListener {
@@ -50,7 +50,7 @@ classDiagram
         +__init__(service)
         +run()
     }
-    note for EngineListener "QThread — runs on worker thread.\nRe-exported as GenerateWorker."
+
 
     %% ===== Shared Components =====
     class ErrorBanner {
@@ -106,8 +106,6 @@ classDiagram
     }
 
     %% ===== Threading Model =====
-    note for MainWindow "All classes run on the Qt main thread\nexcept EngineListener.run() which runs\non a background QThread."
-
     %% ===== Relationships =====
     MainWindow --> InputScreen : creates and injects service
     MainWindow --> OutputScreen : creates and injects service

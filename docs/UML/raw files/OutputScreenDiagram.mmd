@@ -4,12 +4,11 @@ classDiagram
     class OutputScreen {
         -service: IAppService
         -_semester_tabs: SemesterTabsWidget
-        -four_month: FourMonthOutputWidget
+        -moed_calendar: MoedCalendarOutputWidget
         -_period_indices: Dict~str,int~
         -_active_period_id: str
+        +POLL_INTERVAL_MS: int = 150
         +switch_to_input: pyqtSignal
-        +current_index: int
-        +total_schedules: int
         +connect_listener(listener)
         +_on_period_ready(period_id)
         +_on_generation_finished(total)
@@ -43,7 +42,7 @@ classDiagram
     }
 
     %% ===== Calendar Display =====
-    class FourMonthOutputWidget {
+    class MoedCalendarOutputWidget {
         +exam_day_clicked: pyqtSignal
         +moed_changed: pyqtSignal(str)
         +show_loading(semester)
@@ -51,6 +50,7 @@ classDiagram
         +show_empty(semester)
         +show_schedule()
         +show_no_period(semester, moed)
+        +show_all_sessions(semester, sections)
         +update_schedule(rows, unavailable_dates, semester, start_date, end_date)
         -_rebuild_month_cards()
         -_on_cell_clicked(exams, anchor)
@@ -96,15 +96,15 @@ classDiagram
 
     %% ===== Relationships =====
     OutputScreen --> SemesterTabsWidget : contains
-    OutputScreen --> FourMonthOutputWidget : contains
+    OutputScreen --> MoedCalendarOutputWidget : contains
     OutputScreen --> ScheduleNavigatorWidget : contains
     OutputScreen --> DayDetailDialog : creates on cell click
     OutputScreen --> CalendarTableWidget : uses
 
     SemesterTabsWidget --> _SemesterTabCard : creates per semester
 
-    FourMonthOutputWidget --> MonthGrid : creates 4 grids
-    FourMonthOutputWidget --> ScheduleNavigatorWidget : contains
+    MoedCalendarOutputWidget --> MonthGrid : creates grids per period
+    MoedCalendarOutputWidget --> ScheduleNavigatorWidget : contains
 
     MonthGrid --> OutputDayCell : creates per day
 

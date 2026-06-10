@@ -29,7 +29,7 @@ classDiagram
         -_make_section(number, title, widgets, subtitle) QFrame
         -_sync_generate_button_state()
     }
-    note for InputScreen "3-column layout: col1=Data Input, col2=Study Programs,\ncol3=Exam Period. Bottom bar has fixed-height generate bar.\nWidgets start hidden; shown progressively as user advances.\nprogram_removed signal wired: selected_panel → program_list.remove_selection"
+
 
     %% ===== File Loading =====
     class FileLoaderWidget {
@@ -84,7 +84,7 @@ classDiagram
         +set_selected(selected)
         +setDisabled(disabled)
     }
-    note for ProgramRowWidget "Badge shows 2-letter abbreviation.\nColor determined by badge_color_for(program_id).\nExposes text()/click() for test compatibility."
+
 
     class ProgramItem {
         <<dataclass>>
@@ -171,7 +171,7 @@ classDiagram
         +clear_cache()
         +cached_program_ids() list[str]
     }
-    note for SelectedProgramsPanel "Chip-style expandable cards.\nprogram_removed → ProgramListWidget.remove_selection"
+
 
     class ProgramChip {
         <<QFrame>>
@@ -181,7 +181,7 @@ classDiagram
         +remove_clicked: pyqtSignal(str)
         -_toggle_expand()
     }
-    note for ProgramChip "Header: badge + program ID + name + chevron + × remove btn.\nBody: collapsible course table grouped by year/semester."
+
 
     class CourseItem {
         <<dataclass>>

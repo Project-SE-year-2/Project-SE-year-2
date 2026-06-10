@@ -17,6 +17,8 @@ classDiagram
 
     class OutputScreen {
         -service: IAppService
+        -_period_indices: Dict~str,int~
+        +POLL_INTERVAL_MS: int = 150
         +switch_to_input: pyqtSignal
         +connect_listener(listener)
     }
@@ -30,7 +32,7 @@ classDiagram
         +__init__(service)
         +run()
     }
-    note for EngineListener "Re-exported as GenerateWorker\nfor backward compatibility"
+
 
     %% ===== Presenter Interface =====
     class IAppService {
@@ -131,11 +133,12 @@ classDiagram
     class EngineProcess {
         -_task_queue: mp.Queue
         -_notify_queue: mp.Queue
-        -_process: mp.Process
-        +submit(engine, tasks)
+        -_process: mp.Process~daemon=True~
+        +start(engine, tasks)
         +get_notification() dict
         +stop()
     }
+
 
     %% ===== External Subsystems (abbreviated) =====
     class ExamPeriodFileParser {

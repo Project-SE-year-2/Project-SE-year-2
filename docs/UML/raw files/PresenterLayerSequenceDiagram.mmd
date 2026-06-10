@@ -34,14 +34,16 @@ sequenceDiagram
     AppService->>EngineProcess: submit(engine, scheduling_tasks)
     Note over EngineProcess: sends {type:solve} via task_queue
 
-    loop for each exam period (inside subprocess)
-        EngineSubprocess->>SchedulingEngine: solve_to_disk(period, courses_dict, writer)
+    Note over EngineSubprocess: Spawns one Thread per period (parallel)
+    par for each exam period (parallel threads inside subprocess)
+        EngineSubprocess->>SchedulingEngine: solve_to_disk(period, courses_dict, writer, on_batch_written)
         SchedulingEngine->>PeriodResultsWriter: write_batch(period_id, schedules)
         PeriodResultsWriter->>PeriodResultsWriter: update_manifest(period_id, count)
         Note over PeriodResultsWriter: writes batch_0000.pkl …<br/>to data/results/<period_id>/
-        EngineSubprocess-->>AppService: notify_queue: {type:period_done, period_id}
-        AppService-->>EngineListener: yield (period_id, [])
-        EngineListener-->>InputScreen: period_ready(period_id)
+        EngineSubprocess-->>AppService: notify_queue: {type:period_ready, period_id} (1st batch)
+        AppService-->>EngineListener: yield (period_id)
+        EngineListener-->>OutputScreen: period_ready(period_id) → show partial results
+        EngineSubprocess-->>AppService: notify_queue: {type:period_done, period_id} (finished)
     end
 
     EngineSubprocess-->>AppService: notify_queue: {type:all_done}

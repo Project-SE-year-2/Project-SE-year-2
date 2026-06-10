@@ -1,0 +1,111 @@
+classDiagram
+    direction TB
+
+    class OutputScreen {
+        -service: IAppService
+        -_semester_tabs: SemesterTabsWidget
+        -moed_calendar: MoedCalendarOutputWidget
+        -_period_indices: Dict~str,int~
+        -_active_period_id: str
+        +POLL_INTERVAL_MS: int = 150
+        +switch_to_input: pyqtSignal
+        +connect_listener(listener)
+        +_on_period_ready(period_id)
+        +_on_generation_finished(total)
+        +_on_generation_error(message)
+        +_on_semester_changed(semester)
+        +_on_moed_changed(moed)
+        +_on_navigator_index_changed(index)
+        +_on_prefetch_needed(loaded_so_far)
+        +_on_exam_day_clicked(exams, anchor)
+        +_on_back_clicked()
+        +_on_download_clicked()
+        -_refresh_screen_display()
+        -_update_navigator()
+        -_poll_schedule_count()
+        -_get_program_names() dict
+    }
+
+    %% ===== Semester Navigation =====
+    class SemesterTabsWidget {
+        -_selected: str
+        +semester_changed: pyqtSignal(str)
+        +set_selected(semester)
+        +current_semester() str
+        +set_enabled_all(enabled)
+    }
+
+    class _SemesterTabCard {
+        +clicked: pyqtSignal
+        +set_selected(selected)
+        +set_card_enabled(enabled)
+    }
+
+    %% ===== Calendar Display =====
+    class MoedCalendarOutputWidget {
+        +exam_day_clicked: pyqtSignal
+        +moed_changed: pyqtSignal(str)
+        +show_loading(semester)
+        +show_error(message)
+        +show_empty(semester)
+        +show_schedule()
+        +show_no_period(semester, moed)
+        +show_all_sessions(semester, sections)
+        +update_schedule(rows, unavailable_dates, semester, start_date, end_date)
+        -_rebuild_month_cards()
+        -_on_cell_clicked(exams, anchor)
+    }
+
+    class MonthGrid {
+        +update_month(year, month, exams, unavailable)
+    }
+
+    class OutputDayCell {
+        -exams: list
+        -is_exam_day: bool
+    }
+
+    %% ===== Schedule Navigation =====
+    class ScheduleNavigatorWidget {
+        +navigate_to: pyqtSignal(int)
+        +prefetch_needed: pyqtSignal(int)
+        +current_index: int
+        +set_state(current, total, loaded)
+    }
+
+    %% ===== Day Detail =====
+    class DayDetailDialog {
+        -exams: list[dict]
+        -program_names: dict[str, str]
+        +_build_ui()
+    }
+
+    class _ExamRow {
+        -exam: dict
+        -program_names: dict
+    }
+
+    %% ===== Shared Calendar Widget =====
+    class CalendarTableWidget {
+        -mode: CalendarMode
+        +exams_day_clicked: pyqtSignal
+        +exam_clicked: pyqtSignal
+        +update_schedule(schedule_data, unavailable_dates)
+        +set_month_schedule(year, month, exams, unavailable_dates)
+    }
+
+    %% ===== Relationships =====
+    OutputScreen --> SemesterTabsWidget : contains
+    OutputScreen --> MoedCalendarOutputWidget : contains
+    OutputScreen --> ScheduleNavigatorWidget : contains
+    OutputScreen --> DayDetailDialog : creates on cell click
+    OutputScreen --> CalendarTableWidget : uses
+
+    SemesterTabsWidget --> _SemesterTabCard : creates per semester
+
+    MoedCalendarOutputWidget --> MonthGrid : creates grids per period
+    MoedCalendarOutputWidget --> ScheduleNavigatorWidget : contains
+
+    MonthGrid --> OutputDayCell : creates per day
+
+    DayDetailDialog --> _ExamRow : creates per exam

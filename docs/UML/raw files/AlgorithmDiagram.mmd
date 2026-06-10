@@ -9,6 +9,8 @@ classDiagram
         -solver: BacktrackingSolver
         -combiner: ScheduleCombiner
         +generateAll(scheduling_tasks) Tuple~List, Map~
+        +iterPeriodResults(scheduling_tasks) Generator
+        +solve_to_disk(period, courses_dict, writer) int
     }
 
     %% ===== Constraint & Index Management =====
@@ -19,6 +21,7 @@ classDiagram
         +build(courses, programs) void
         +obligatoryGroups() Map
         +groupKeyFor(course) Tuple
+        +examCoursesInPrograms() List~Course~
     }
 
     class ConstraintValidator {
@@ -52,7 +55,9 @@ classDiagram
         -heuristic: CourseOrderingHeuristic
         -forward_checker: ForwardChecker
         +solve(courses, period, validator) List~ExamSchedule~
+        +solve_stream(courses, period, validator) Generator
         -_backtrack(remaining, partial, period, validator, results) void
+        -_backtrack_stream(remaining, partial, period, validator) Generator
     }
 
     %% ===== Optimization & Heuristics =====
@@ -71,14 +76,43 @@ classDiagram
         +combineSubResults(sub_results) List~ExamSchedule~
     }
 
+    %% ===== Disk I/O =====
+    class PeriodResultsWriter {
+        -_root: Path
+        +BATCH_SIZE: int
+        +write_batch(period_id, schedules)
+        +update_manifest(period_id, count)
+    }
+
     %% ===== Result Objects =====
     class ExamSchedule {
         -period: ExamPeriod
         -assignments: Map~tuple, Date~
         +assign(course, date) void
         +unassign(course) void
-        +sortByDate() List
+        +copy() ExamSchedule
         +merge(other) ExamSchedule
+        +sortByDate() List
+        +groupBySemesterAndMoed() dict
+        +sort_key: str
+    }
+
+    class PeriodGenerationResult {
+        <<dataclass>>
+        +period: ExamPeriod
+        +schedules: list
+        +metadata: dict
+    }
+
+    class ExamPeriod {
+        -semester: Semester
+        -moed: Moed
+        -start_date: date
+        -end_date: date
+        +period_id: str
+        +getAvailableDates() list
+        +toggle_day(day)
+        +shift_dates(start, end)
     }
 
     %% ===== Relationships =====
@@ -87,7 +121,9 @@ classDiagram
     SchedulingEngine --> ConstraintIndex : uses
     SchedulingEngine --> BacktrackingSolver : runs
     SchedulingEngine --> ScheduleCombiner : combines
+    SchedulingEngine --> PeriodResultsWriter : writes to disk
     SchedulingEngine ..> ExamSchedule : produces
+    SchedulingEngine ..> PeriodGenerationResult : yields
 
     ConstraintValidator --> ConstraintIndex : queries
     ConstraintValidator --> ICollisionValidator : delegates

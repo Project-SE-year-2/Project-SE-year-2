@@ -1,0 +1,262 @@
+classDiagram
+    direction TB
+
+    class InputScreen {
+        -service: IAppService
+        +file_loader: FileLoaderWidget
+        +program_list: ProgramListWidget
+        +period_list: PeriodListWidget
+        +period_editor: PeriodEditorWidget
+        +selected_panel: SelectedProgramsPanel
+        +course_table: CourseTableWidget
+        +generate_btn: QPushButton
+        +spinner: LoadingSpinner
+        +error_banner: ErrorBanner
+        -_generate_state: GenerateButtonState
+        -_worker: EngineListener
+        +switch_to_output: pyqtSignal
+        +_on_files_loaded()
+        +_on_programs_selected(selected_programs)
+        +_on_period_selected(period_id)
+        +_on_generate_clicked()
+        +_on_generation_finished(count)
+        +_on_period_ready(period_id)
+        +_on_error(message)
+        -_make_section(number, title, widgets, subtitle) QFrame
+        -_sync_generate_button_state()
+    }
+
+    %% ===== File Loading =====
+    class FileLoaderWidget {
+        -_service: IAppService
+        -_validator: FilePathValidator
+        -_courses_paths: list[str]
+        -_dates_path: str
+        +files_loaded: pyqtSignal
+        +update_validation(programs, period)
+        -_load_files()
+        -_get_mode() str
+        -_set_loading_state(is_loading)
+    }
+
+    class DropZoneCard {
+        -_paths: list[str]
+        -_replace_mode: bool
+        -_single_file: bool
+        +file_added: pyqtSignal(str)
+    }
+
+    class FilePathValidator {
+        +validate(courses_paths, dates_path)
+    }
+
+    %% ===== Program Selection =====
+    class ProgramListWidget {
+        -_service: IAppService
+        -_max_selection: int
+        -_selected_ids: set[str]
+        -_rows_by_id: dict[str, ProgramRowWidget]
+        -_search_input: QLineEdit
+        +programs_selected: pyqtSignal(list)
+        +program_view_requested: pyqtSignal(str, str)
+        +refresh()
+        +selected_programs() list[str]
+        +clear_selection()
+        +remove_selection(program_id)
+        -_on_program_clicked(program_id)
+        -_update_row_states()
+        -_apply_search_filter(text)
+    }
+
+    class ProgramRowWidget {
+        <<QWidget>>
+        -program: ProgramItem
+        -_selected: bool
+        -_badge: QLabel
+        -_name_lbl: QLabel
+        +clicked: pyqtSignal
+        +text() str
+        +click()
+        +set_selected(selected)
+        +setDisabled(disabled)
+    }
+
+
+    class ProgramItem {
+        <<dataclass>>
+        +program_id: str
+        +name: str
+    }
+
+    %% ===== Period Selection =====
+    class PeriodListWidget {
+        -_service: IAppService
+        -_formatter: PeriodFormatter
+        -_selected_period_id: str
+        -_rows_by_id: dict[str, PeriodRowWidget]
+        +period_selected: pyqtSignal(str)
+        +refresh()
+        +selected_period_id() str
+        +clear_selection()
+        -_on_period_clicked(period_id)
+        -_update_row_states()
+    }
+
+    class PeriodRowWidget {
+        -period: PeriodItem
+        -_selected: bool
+        +set_selected(selected)
+    }
+
+    class PeriodItem {
+        <<dataclass>>
+        +period_id: str
+        +title: str
+        +start_date: date
+        +end_date: date
+    }
+
+    class PeriodFormatter {
+        +format(period_dict) PeriodItem
+        -_format_date(value) str
+    }
+
+    %% ===== Period Editor =====
+    class PeriodEditorWidget {
+        -_service: IAppService
+        -_formatter: EditablePeriodFormatter
+        -_current_period_id: str
+        +load_period(period_id)
+        +clear()
+        +current_period_id() str
+        -_on_day_clicked(qdate)
+        -_on_save_requested(start, end, unavailable_days)
+    }
+
+    class EditablePeriod {
+        <<dataclass>>
+        +period_id: str
+        +title: str
+        +start_date: date
+        +end_date: date
+        +forbidden_days: set
+    }
+
+    class EditablePeriodFormatter {
+        +format(period_dict) EditablePeriod
+        -_format_date(value) str
+    }
+
+    class CalendarTableWidget {
+        -mode: CalendarMode
+        +day_clicked: pyqtSignal
+        +save_requested: pyqtSignal
+        +update_schedule(schedule_data, unavailable_dates)
+        +set_date_range(start, end)
+        +set_unavailable_days(days)
+        +get_unavailable_days() list
+    }
+
+    %% ===== Selected Programs Panel =====
+    class SelectedProgramsPanel {
+        -_service: IAppService
+        -_formatter: CourseFormatter
+        +program_removed: pyqtSignal(str)
+        +refresh(program_ids)
+        +clear()
+        +clear_cache()
+        +cached_program_ids() list[str]
+    }
+
+
+    class ProgramChip {
+        <<QFrame>>
+        -program_id: str
+        +remove_clicked: pyqtSignal(str)
+    }
+
+
+    class CourseItem {
+        <<dataclass>>
+        +number: str
+        +name: str
+        +year: int
+        +semester: str
+        +course_type: str
+        +evaluation: str
+    }
+
+    class CourseFormatter {
+        +format(course_dict) CourseItem
+    }
+
+    %% ===== Course Table =====
+    class CourseTableWidget {
+        -_service: IAppService
+        -_all_courses: list[dict]
+        -_current_page: int
+        -_semester_filter: str
+        +course_selected: pyqtSignal(dict)
+        +load_program(program_id, program_name)
+        +set_semester_filter(value)
+        +clear()
+    }
+
+
+    %% ===== State & Shared Components =====
+    class GenerateButtonState {
+        +has_selected_programs: bool
+        +has_viewed_period: bool
+        +is_generating: bool
+        +reset_after_file_load()
+        +set_program_selection(has_selection)
+        +set_period_viewed(has_period)
+        +start_generation()
+        +finish_generation()
+        +should_show_button() bool
+        +should_enable_button() bool
+    }
+
+    class ErrorBanner {
+        +dismissed: pyqtSignal
+        +show_error(message)
+        +hide_error()
+    }
+
+    class LoadingSpinner {
+        +start()
+        +stop()
+    }
+
+    %% ===== Relationships =====
+    InputScreen --> FileLoaderWidget : col 1
+    InputScreen --> ProgramListWidget : tab 0 left
+    InputScreen --> SelectedProgramsPanel : tab 0 left
+    InputScreen --> CourseTableWidget : tab 0 right
+    InputScreen --> PeriodListWidget : tab 1 left
+    InputScreen --> PeriodEditorWidget : tab 1 right
+    InputScreen --> ErrorBanner : bottom bar
+    InputScreen --> LoadingSpinner : bottom bar
+    InputScreen --> GenerateButtonState : owns
+    ProgramListWidget ..> CourseTableWidget : program_view_requested → load_program
+
+    FileLoaderWidget --> DropZoneCard : contains (courses + dates)
+    FileLoaderWidget --> FilePathValidator : uses
+
+    ProgramListWidget --> ProgramRowWidget : creates per program
+    ProgramRowWidget --> ProgramItem : displays
+    SelectedProgramsPanel ..> ProgramListWidget : program_removed → remove_selection
+
+    PeriodListWidget --> PeriodRowWidget : creates per period
+    PeriodListWidget --> PeriodFormatter : uses
+    PeriodFormatter --> PeriodItem : creates
+    PeriodRowWidget --> PeriodItem : displays
+
+    PeriodEditorWidget --> EditablePeriodFormatter : uses
+    PeriodEditorWidget --> CalendarTableWidget : contains
+    EditablePeriodFormatter --> EditablePeriod : creates
+
+    SelectedProgramsPanel --> CourseFormatter : uses
+    SelectedProgramsPanel --> ProgramChip : creates per program
+    CourseFormatter --> CourseItem : creates
+    ProgramChip --> CourseItem : displays

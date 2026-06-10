@@ -393,7 +393,7 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        QTimer.singleShot(500, self.switch_to_output.emit)
+        QTimer.singleShot(500, lambda: self.switch_to_output.emit())
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
@@ -403,7 +403,7 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        QTimer.singleShot(500, self.switch_to_output.emit)
+        QTimer.singleShot(500, lambda: self.switch_to_output.emit())
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

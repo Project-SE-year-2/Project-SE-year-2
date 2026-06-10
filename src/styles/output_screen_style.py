@@ -53,9 +53,9 @@ CARD_RADIUS        = 16          # px
 
 # ── Semester header (inside the card) ───────────────────────────────────────
 SEMESTER_TITLE_COLOR    = "#1E293B"   # "FALL 2026"
-SEMESTER_TITLE_SIZE     = 22
+SEMESTER_TITLE_SIZE     = 33
 SEMESTER_SUBTITLE_COLOR = "#64748B"   # "September 2026 – December 2026"
-SEMESTER_SUBTITLE_SIZE  = 12
+SEMESTER_SUBTITLE_SIZE  = 18
 SEMESTER_ICON_COLOR     = "#4338CA"   # leaf / feather icon colour
 
 # ── Schedule navigator (‹ N of M ›) ─────────────────────────────────────────
@@ -162,7 +162,7 @@ QPushButton#backBtn {{
     border: 1px solid #E2E8F0;
     border-radius: 8px;
     padding: 8px 18px;
-    font-size: 13px;
+    font-size: 20px;
     font-weight: 600;
 }}
 QPushButton#backBtn:hover  {{ background: #F1F5F9; }}
@@ -174,7 +174,7 @@ QPushButton#downloadBtn {{
     border: none;
     border-radius: 8px;
     padding: 8px 20px;
-    font-size: 13px;
+    font-size: 20px;
     font-weight: 700;
 }}
 QPushButton#downloadBtn:hover  {{ background: #3730A3; }}
@@ -185,7 +185,7 @@ QPushButton#navArrowBtn {{
     border: 1px solid #E2E8F0;
     border-radius: 8px;
     color: #475569;
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 600;
     min-width: 36px;
     min-height: 36px;
@@ -199,7 +199,7 @@ QLabel#navCounter {{
     border: 1px solid #E2E8F0;
     border-radius: 8px;
     color: #1E293B;
-    font-size: 13px;
+    font-size: 20px;
     font-weight: 600;
     padding: 4px 14px;
     min-height: 36px;
@@ -211,7 +211,7 @@ QPushButton#moedBtn {{
     border: 1.5px solid #CBD5E1;
     border-radius: 10px;
     color: #475569;
-    font-size: 13px;
+    font-size: 20px;
     font-weight: 600;
     padding: 6px 16px;
     min-height: 36px;
@@ -223,7 +223,7 @@ QPushButton#moedBtnSelected {{
     border: 1.5px solid #1E3A8A;
     border-radius: 10px;
     color: #FFFFFF;
-    font-size: 13px;
+    font-size: 20px;
     font-weight: 700;
     padding: 6px 16px;
     min-height: 36px;

@@ -106,7 +106,7 @@ class _SemesterTabCard(QFrame):
         # Semester name — uses accent colour
         self._name_lbl = QLabel(meta["id"])
         self._name_lbl.setStyleSheet(
-            f"font-size: 16px; font-weight: 800; color: {meta['color']};"
+            f"font-size: 24px; font-weight: 800; color: {meta['color']};"
             f" letter-spacing: 1px; background: transparent;"
         )
         self._name_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)

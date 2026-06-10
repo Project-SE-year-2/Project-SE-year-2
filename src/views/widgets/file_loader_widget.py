@@ -3,7 +3,7 @@ from pathlib import Path
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtWidgets import (
     QWidget, QPushButton, QLabel, QFileDialog,
-    QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy,
+    QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy, QScrollArea,
 )
 
 import src.styles.theme as th
@@ -11,9 +11,78 @@ from src.presenter.i_app_service import IAppService
 from src.styles.icons import load_pixmap, ICON_FILE, ICON_CALENDAR
 from src.views.shared_components.buttons import PrimaryButton
 
+
+class LoadedFilesPanel(QFrame):
+    """Shows the list of successfully loaded files with a file icon."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._file_rows: list[QWidget] = []
+        self.setStyleSheet("""
+            QFrame {
+                background-color: #F8FAFF;
+                border: 1.5px solid #DBEAFE;
+                border-radius: 10px;
+            }
+        """)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(20, 16, 20, 16)
+        self._layout.setSpacing(12)
+        self.setVisible(False)
+
+    def set_files(self, paths: list[str]) -> None:
+        # clear old rows
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._file_rows.clear()
+
+        for path in paths:
+            row = QWidget()
+            row.setStyleSheet("background: transparent; border: none;")
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(0, 0, 0, 0)
+            rl.setSpacing(10)
+
+            icon_lbl = QLabel()
+            icon_lbl.setStyleSheet("background: transparent; border: none;")
+            pix = load_pixmap(ICON_FILE, size=42)
+            if not pix.isNull():
+                icon_lbl.setPixmap(pix)
+            else:
+                icon_lbl.setText("📄")
+            icon_lbl.setFixedSize(48, 48)
+            icon_lbl.setAlignment(Qt.AlignCenter)
+
+            name_lbl = QLabel(Path(path).name)
+            name_lbl.setStyleSheet(
+                f"color: {th.TEXT_PRIMARY}; font-size: 24px;"
+                f" font-weight: 600; background: transparent; border: none;"
+            )
+
+            ok_lbl = QLabel("Uploaded successfully")
+            ok_lbl.setStyleSheet(
+                f"color: {th.SUCCESS_COLOR}; font-size: 21px;"
+                " background: transparent; border: none;"
+            )
+
+            rl.addWidget(icon_lbl)
+            rl.addWidget(name_lbl, stretch=1)
+            rl.addWidget(ok_lbl)
+
+            self._layout.addWidget(row)
+            self._file_rows.append(row)
+
+        self.setVisible(bool(paths))
+
+    def clear(self) -> None:
+        self.set_files([])
+        self.setVisible(False)
+
 _FILE_FILTER = "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
 _DROP_ZONE_MIN_HEIGHT = 155
-_TOGGLE_BTN_MIN_WIDTH = 72
+_TOGGLE_BTN_MIN_WIDTH = 144
 
 
 class FilePathValidator:
@@ -79,7 +148,7 @@ class DropZoneCard(QFrame):
         self._title_lbl = QLabel(title)
         self._title_lbl.setAlignment(Qt.AlignCenter)
         self._title_lbl.setStyleSheet(
-            f"color: {th.PRIMARY_COLOR}; font-size: {th.FONT_SIZE_MD}px;"
+            f"color: {th.PRIMARY_COLOR}; font-size: {th.FONT_SIZE_XL}px;"
             f" font-weight: {th.FONT_WEIGHT_BOLD}; background: transparent; border: none;"
         )
 
@@ -87,7 +156,7 @@ class DropZoneCard(QFrame):
         self._hint_lbl.setAlignment(Qt.AlignCenter)
         self._hint_lbl.setWordWrap(True)
         self._hint_lbl.setStyleSheet(
-            f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_SM}px;"
+            f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_MD}px;"
             " background: transparent; border: none;"
         )
 
@@ -95,7 +164,7 @@ class DropZoneCard(QFrame):
         self._file_lbl.setAlignment(Qt.AlignCenter)
         self._file_lbl.setWordWrap(True)
         self._file_lbl.setStyleSheet(
-            f"color: {th.TEXT_MUTED}; font-size: {th.FONT_SIZE_XS}px;"
+            f"color: {th.TEXT_MUTED}; font-size: {th.FONT_SIZE_SM}px;"
             " background: transparent; border: none;"
         )
 
@@ -224,23 +293,20 @@ class ValidationPanel(QFrame):
         self.setStyleSheet(
             f"""
             QFrame {{
-                background-color: {th.BG_CARD};
-                border: 1px solid {th.BORDER_LIGHT};
+                background-color: #F8FAFF;
+                border: 1.5px solid #DBEAFE;
                 border-radius: {th.BUTTON_BORDER_RADIUS}px;
             }}
             """
         )
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(
-            th.SPACING_MEDIUM, th.SPACING_MEDIUM,
-            th.SPACING_MEDIUM, th.SPACING_MEDIUM,
-        )
-        layout.setSpacing(th.SPACING_SMALL)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(10)
 
         header_lbl = QLabel("Checklist")
         header_lbl.setStyleSheet(
-            f"color: {th.TEXT_PRIMARY}; font-size: {th.FONT_SIZE_SM}px;"
+            f"color: {th.TEXT_PRIMARY}; font-size: 28px;"
             f" font-weight: {th.FONT_WEIGHT_BOLD}; background: transparent; border: none;"
         )
         layout.addWidget(header_lbl)
@@ -248,17 +314,17 @@ class ValidationPanel(QFrame):
         self._item_rows: list[tuple[QLabel, QLabel]] = []
         for text in self._ITEMS:
             row = QHBoxLayout()
-            row.setSpacing(th.SPACING_SMALL)
+            row.setSpacing(10)
 
             dot = QLabel("○")
-            dot.setFixedWidth(16)
+            dot.setFixedWidth(28)
             dot.setStyleSheet(
-                f"color: {th.DANGER_COLOR}; font-size: {th.FONT_SIZE_MD}px;"
+                f"color: {th.DANGER_COLOR}; font-size: 22px;"
                 " background: transparent; border: none;"
             )
             lbl = QLabel(text)
             lbl.setStyleSheet(
-                f"color: {th.TEXT_SECONDARY}; font-size: {th.FONT_SIZE_SM}px;"
+                f"color: {th.TEXT_SECONDARY}; font-size: 22px;"
                 " background: transparent; border: none;"
             )
 
@@ -274,21 +340,21 @@ class ValidationPanel(QFrame):
             if done:
                 dot.setText("●")
                 dot.setStyleSheet(
-                    f"color: {th.SUCCESS_COLOR}; font-size: {th.FONT_SIZE_MD}px;"
+                    f"color: {th.SUCCESS_COLOR}; font-size: 22px;"
                     " background: transparent; border: none;"
                 )
                 lbl.setStyleSheet(
-                    f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_SM}px;"
+                    f"color: {th.TEXT_TERTIARY}; font-size: 22px;"
                     " text-decoration: line-through; background: transparent; border: none;"
                 )
             else:
                 dot.setText("○")
                 dot.setStyleSheet(
-                    f"color: {th.DANGER_COLOR}; font-size: {th.FONT_SIZE_MD}px;"
+                    f"color: {th.DANGER_COLOR}; font-size: 22px;"
                     " background: transparent; border: none;"
                 )
                 lbl.setStyleSheet(
-                    f"color: {th.TEXT_SECONDARY}; font-size: {th.FONT_SIZE_SM}px;"
+                    f"color: {th.TEXT_SECONDARY}; font-size: 22px;"
                     " background: transparent; border: none;"
                 )
 
@@ -368,6 +434,10 @@ class FileLoaderWidget(QWidget):
         # ── load button ────────────────────────────────────────────────────
         self._load_button = PrimaryButton("Load Files")
         self._load_button.setFixedHeight(32)
+        self._load_button.setStyleSheet(
+            self._load_button.styleSheet() +
+            "QPushButton { font-size: 14px; padding: 7px 21px; }"
+        )
         load_row = QHBoxLayout()
         load_row.addStretch()
         load_row.addWidget(self._load_button)
@@ -378,9 +448,13 @@ class FileLoaderWidget(QWidget):
         self._message_label = QLabel("")
         self._message_label.setWordWrap(True)
         self._message_label.setStyleSheet(
-            f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_SM}px;"
+            f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_MD}px;"
         )
         layout.addWidget(self._message_label)
+
+        # ── loaded files panel ─────────────────────────────────────────────
+        self._loaded_files_panel = LoadedFilesPanel()
+        layout.addWidget(self._loaded_files_panel)
 
         # ── validation panel ───────────────────────────────────────────────
         self.validation_panel = ValidationPanel()
@@ -408,6 +482,7 @@ class FileLoaderWidget(QWidget):
     # Refreshes the status message and validation panel when a file is selected.
     def _on_file_selected(self, _path: str) -> None:
         self._message_label.setText("")
+        self._loaded_files_panel.clear()
         self._sync_validation()
 
     # Loads all queued courses files against the single dates file.
@@ -426,6 +501,8 @@ class FileLoaderWidget(QWidget):
                 effective_mode = mode if i == 0 else "append"
                 self._service.load_data(courses_path, dates_path, effective_mode)
 
+            all_loaded = courses_paths + ([dates_path] if dates_path else [])
+            self._loaded_files_panel.set_files(all_loaded)
             self._show_success("Files loaded successfully.")
             self.files_loaded.emit()
             self._sync_validation(courses=True, dates=True)
@@ -445,13 +522,13 @@ class FileLoaderWidget(QWidget):
 
     def _show_success(self, message: str) -> None:
         self._message_label.setStyleSheet(
-            f"color: {th.SUCCESS_COLOR}; font-size: {th.FONT_SIZE_SM}px;"
+            f"color: {th.SUCCESS_COLOR}; font-size: 19px; font-weight: 700;"
         )
         self._message_label.setText(message)
 
     def _show_error(self, message: str) -> None:
         self._message_label.setStyleSheet(
-            f"color: {th.DANGER_COLOR}; font-size: {th.FONT_SIZE_SM}px;"
+            f"color: {th.DANGER_COLOR}; font-size: 19px; font-weight: 700;"
         )
         self._message_label.setText(f"Error: {message}")
 
@@ -480,12 +557,12 @@ class FileLoaderWidget(QWidget):
                 background-color: transparent;
                 color: {th.TEXT_TERTIARY};
                 border: none;
-                padding: {th.BUTTON_PADDING_VERTICAL_SM}px {th.SPACING_XL}px;
+                padding: 7px 21px;
                 font-family: {th.FONT_FAMILY};
-                font-size: {th.FONT_SIZE_SM}px;
+                font-size: 16px;
                 font-weight: {th.FONT_WEIGHT_MEDIUM};
                 border-radius: {th.PILL_BORDER_RADIUS}px;
-                min-width: {_TOGGLE_BTN_MIN_WIDTH}px;
+                min-width: 96px;
             }}
             QPushButton#toggleLeft:checked, QPushButton#toggleRight:checked {{
                 background-color: {th.PRIMARY_COLOR};

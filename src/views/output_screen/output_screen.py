@@ -110,7 +110,7 @@ class OutputScreen(QWidget):
     switch_to_input = pyqtSignal()
 
     BATCH_SIZE       = 10
-    POLL_INTERVAL_MS = 500
+    POLL_INTERVAL_MS = 150
 
     def __init__(self, service, parent=None):
         super().__init__(parent)
@@ -135,9 +135,28 @@ class OutputScreen(QWidget):
         self._current_moed:     str = "Aleph"
         self._check_conflicts_next: bool = False
         self._day_dialog: DayDetailDialog | None = None
+        # True only when the calendar is actually rendering a real schedule.
+        # Used by the poll timer to know when a re-render is still needed.
+        self._calendar_displaying_data: bool = False
+
+        # Delayed empty-state: fires 2 s after we decide there's no data,
+        # but is cancelled immediately if real data arrives first.
+        self._empty_timer = QTimer(self)
+        self._empty_timer.setSingleShot(True)
+        self._empty_timer.setInterval(2000)
+        self._empty_semester: str = ""
+
+        # Delayed loading-state: fires 2 s after the first show_loading call,
+        # but is cancelled immediately if real data arrives first.
+        self._loading_timer = QTimer(self)
+        self._loading_timer.setSingleShot(True)
+        self._loading_timer.setInterval(2000)
+        self._loading_semester: str = ""
 
         self._setup_ui()
         self._setup_polling()
+        self._empty_timer.timeout.connect(self._on_empty_timeout)
+        self._loading_timer.timeout.connect(self._on_loading_timeout)
 
     # ── Active period ID ──────────────────────────────────────────────────────
 
@@ -222,6 +241,14 @@ class OutputScreen(QWidget):
         self._conflict_banner.setVisible(False)
         main_layout.addWidget(self._conflict_banner)
 
+        # Success banner (hidden by default, auto-hides after 5 s)
+        self._success_banner = self._build_success_banner()
+        self._success_banner.setVisible(False)
+        main_layout.addWidget(self._success_banner)
+        self._success_timer = QTimer(self)
+        self._success_timer.setSingleShot(True)
+        self._success_timer.timeout.connect(lambda: self._success_banner.setVisible(False))
+
         # MoedCalendarOutputWidget
         self.four_month = MoedCalendarOutputWidget()
         self.four_month.exam_day_clicked.connect(self._on_exam_day_clicked)
@@ -293,6 +320,37 @@ class OutputScreen(QWidget):
         self._conflict_banner.setVisible(False)
         self._conflict_text.setText("")
 
+    def _build_success_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setObjectName("successBanner")
+        banner.setStyleSheet("""
+            QFrame#successBanner {
+                background: #F0FDF4;
+                border: 1.5px solid #BBF7D0;
+                border-radius: 10px;
+            }
+        """)
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(16, 12, 16, 12)
+        row.setSpacing(12)
+
+        icon = QLabel("✓")
+        icon.setStyleSheet("color: #16A34A; font-size: 18px; font-weight: 700;")
+        row.addWidget(icon)
+
+        self._success_text = QLabel("")
+        self._success_text.setStyleSheet(
+            "color: #16A34A; font-size: 13px; font-weight: 700; letter-spacing: 0.3px;"
+        )
+        row.addWidget(self._success_text, stretch=1)
+
+        return banner
+
+    def _show_success_banner(self, message: str) -> None:
+        self._success_text.setText(message)
+        self._success_banner.setVisible(True)
+        self._success_timer.start(5000)
+
     def _setup_polling(self) -> None:
         self.poll_timer = QTimer(self)
         self.poll_timer.timeout.connect(self._poll_schedule_count)
@@ -302,6 +360,13 @@ class OutputScreen(QWidget):
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
+
+        # Always reset to FALL — Moed Aleph as the default view.
+        self._current_semester = "FALL"
+        self._current_moed     = "Aleph"
+        self.semester_tabs.set_selected("FALL")
+        self.four_month.set_active_moed("Aleph")
+        self._hide_conflict_banner()
 
         # Guard: on Windows a modal QMessageBox (e.g. the "download success"
         # popup) re-fires showEvent on the active QStackedWidget page when it
@@ -315,6 +380,7 @@ class OutputScreen(QWidget):
         #   _global_total  > 0  → data is already loaded; just refresh the
         #                         display at the stored positions and return.
         if self._global_total > 0:
+            self._calendar_displaying_data = False
             self._refresh_screen_display()
             self.poll_timer.start(self.POLL_INTERVAL_MS)
             return
@@ -323,17 +389,27 @@ class OutputScreen(QWidget):
         self._global_index = 0
         for key in self._period_indices:
             self._period_indices[key] = 0
+        self._calendar_displaying_data = False
         self.semester_tabs.set_enabled_all(False)
-        self.four_month.show_loading(self._current_semester)
+        self._loading_semester = self._current_semester
+        if not self._loading_timer.isActive():
+            self._loading_timer.start()
+
+        # Immediately check if data is already available (generation finished
+        # before the user arrived here) — render the first schedule right away.
+        pid = self._active_period_id()
+        try:
+            count = self.service.get_schedule_count(period_id=pid)
+            if isinstance(count, int) and count > 0:
+                self._global_total = count
+                self.semester_tabs.set_enabled_all(True)
+                self._refresh_screen_display()
+                self.poll_timer.start(self.POLL_INTERVAL_MS)
+                return
+        except Exception:
+            pass
+
         self._refresh_screen_display()
-        # Re-enable tabs immediately if data already exists (generation finished
-        # before the user navigated here — _on_generation_finished won't fire again).
-        has_data = any(
-            self.service.get_schedule_count(period_id=pid) > 0
-            for pid in self._period_indices
-        )
-        if has_data:
-            self.semester_tabs.set_enabled_all(True)
         self.poll_timer.start(self.POLL_INTERVAL_MS)
 
     def hideEvent(self, event) -> None:
@@ -348,12 +424,14 @@ class OutputScreen(QWidget):
         self._global_index = self._period_indices.get(self._active_period_id(), 0)
         self._hide_conflict_banner()
         self._check_conflicts_next = True
+        self._calendar_displaying_data = False
         self._refresh_screen_display()
 
     def _on_moed_changed(self, moed: str) -> None:
         """Switch moed, or switch to the read-only All Sessions overview."""
         self._current_moed = moed
         self._hide_conflict_banner()
+        self._calendar_displaying_data = False
 
         if moed == "All":
             # All Sessions is read-only: no navigation, no conflict checks.
@@ -452,7 +530,10 @@ class OutputScreen(QWidget):
 
         # ── Update calendar card ──────────────────────────────────────────────
         if exams:
+            self._empty_timer.stop()
+            self._loading_timer.stop()
             self._global_total = max(self._global_total, 1)
+            self._calendar_displaying_data = True
             self.four_month.update_schedule(
                 exams,
                 semester=sem,
@@ -463,9 +544,37 @@ class OutputScreen(QWidget):
                 self._check_conflicts_next = False
                 self._check_cross_moed_conflicts(sem, moed, exams)
         else:
-            self.four_month.show_empty(sem)
+            # Only show "no schedules" if we are certain there are none.
+            # If count > 0 the data simply isn't ready yet — keep loading.
+            self._calendar_displaying_data = False
+            try:
+                period_count = self.service.get_schedule_count(period_id=pid)
+            except Exception:
+                period_count = 0
+            if isinstance(period_count, int) and period_count > 0:
+                self._empty_timer.stop()
+                self._loading_semester = sem
+                if not self._loading_timer.isActive():
+                    self._loading_timer.start()
+            else:
+                # Defer the empty state by 2 s so a schedule that arrives
+                # shortly after the first poll replaces the blank screen
+                # instead of flashing the "no schedules" message first.
+                self._empty_semester = sem
+                if not self._empty_timer.isActive():
+                    self._empty_timer.start()
 
         self._update_navigator()
+
+    def _on_loading_timeout(self) -> None:
+        """Called 2 s after generation started — show the loading state if still no data."""
+        if not self._calendar_displaying_data:
+            self.four_month.show_loading(self._loading_semester)
+
+    def _on_empty_timeout(self) -> None:
+        """Called 2 s after we first detected no data — show the empty state."""
+        if not self._calendar_displaying_data:
+            self.four_month.show_empty(self._empty_semester)
 
     # ── Cross-moed conflict detection ─────────────────────────────────────────
 
@@ -587,9 +696,10 @@ class OutputScreen(QWidget):
         try:
             count = self.service.get_schedule_count(period_id=pid)
             if isinstance(count, int) and count > 0:
-                was_empty = self._global_total == 0
                 self._global_total = max(self._global_total, count)
-                if was_empty:
+                if not self._calendar_displaying_data:
+                    # Calendar is showing empty/loading but data is available —
+                    # re-render immediately so the first schedule appears.
                     self.semester_tabs.set_enabled_all(True)
                     self._refresh_screen_display()
                     return
@@ -730,7 +840,7 @@ class OutputScreen(QWidget):
 
         try:
             self.service.export_by_period_indices(self._period_indices, file_path)
-            QMessageBox.information(self, "Success", "Schedule exported successfully.")
+            self._show_success_banner("Schedule exported successfully.")
         except Exception as exc:
             QMessageBox.critical(
                 self, "Export Failed", f"Could not export schedule:\n{exc}"

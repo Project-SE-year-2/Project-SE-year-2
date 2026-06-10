@@ -60,11 +60,23 @@ class ExamPeriodFileParser(IFileParser):
                 
             # extract Semester and Moed
             sem_moed = lines[0].split(',')
+            if len(sem_moed) < 2:
+                raise ValueError(
+                    f"Invalid exam period header (expected 'Semester,Moed'): '{lines[0]}'"
+                )
             semester = sem_moed[0].strip()
             moed = sem_moed[1].strip()
 
             # extract start and end dates of the exam period
+            if len(lines) < 2:
+                raise ValueError(
+                    f"Missing dates line in exam period record for '{lines[0]}'"
+                )
             start_end = lines[1].split(',')
+            if len(start_end) < 2:
+                raise ValueError(
+                    f"Invalid dates line (expected 'start,end'): '{lines[1]}'"
+                )
             period = ExamPeriod(Semester(semester), Moed(moed), start_end[0].strip(), start_end[1].strip())
             
             # Use self. to call class helper methods

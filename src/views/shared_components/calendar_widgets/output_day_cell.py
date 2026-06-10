@@ -171,7 +171,7 @@ class OutputDayCell(QFrame):
         self._more_lbl = QLabel(f"+{count}")
         self._more_lbl.setAlignment(Qt.AlignCenter)
         self._more_lbl.setStyleSheet(
-            f"font-size: 9px; font-weight: 700; color: {color}; background: transparent;"
+            f"font-size: 18px; font-weight: 700; color: {color}; background: transparent;"
         )
         self._badges_layout.addWidget(self._more_lbl)
 

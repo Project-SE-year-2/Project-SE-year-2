@@ -207,36 +207,35 @@ class TestDayDetailDialogProgramNames(unittest.TestCase):
         """Return all label texts that contain 'Programs Affected'."""
         return [t for t in _all_label_texts(dlg) if "Programs Affected" in t]
 
-    def test_programs_show_abbreviated_id_when_no_mapping(self):
-        """Without program_names the bullet must show 2-char abbreviation of the raw ID."""
+    def test_programs_show_id_when_no_mapping(self):
+        """Without program_names the bullet must show the raw program ID."""
         dlg   = _make_dialog(exams=[_make_exam({"programs": ["83101"]})],
                              program_names=None)
         texts = _all_label_texts(dlg)
-        # _abbrev("83101") == "83"
-        self.assertTrue(any("83" in t for t in texts), "'83' abbreviation not found")
+        self.assertTrue(any("83101" in t for t in texts), "'83101' not found in labels")
 
-    def test_programs_show_abbreviated_display_name_when_mapping_provided(self):
-        """When a mapping is given, the label must show initials of the display name."""
+    def test_programs_show_display_name_when_mapping_provided(self):
+        """When a mapping is given, the bullet must show the full display name."""
         mapping = {"83101": "Computer Science", "83104": "Software Engineering"}
         dlg  = _make_dialog(
             exams=[_make_exam({"programs": ["83101", "83104"]})],
             program_names=mapping,
         )
         texts = _all_label_texts(dlg)
-        # _abbrev("Computer Science") == "CS", _abbrev("Software Engineering") == "SE"
-        self.assertTrue(any("CS" in t for t in texts), "'CS' abbreviation not found")
-        self.assertTrue(any("SE" in t for t in texts), "'SE' abbreviation not found")
+        self.assertTrue(any("Computer Science" in t for t in texts),
+                        "'Computer Science' not found in labels")
+        self.assertTrue(any("Software Engineering" in t for t in texts),
+                        "'Software Engineering' not found in labels")
 
-    def test_programs_fall_back_to_id_abbreviation_for_unmapped_entry(self):
-        """An unmapped program ID must fall back to 2-char abbreviation of the raw ID."""
+    def test_programs_fall_back_to_id_for_unmapped_entry(self):
+        """An unmapped program ID must appear as the raw ID in the bullet."""
         mapping = {"83101": "Computer Science"}
         dlg   = _make_dialog(
             exams=[_make_exam({"programs": ["83101", "99999"]})],
             program_names=mapping,
         )
         texts = _all_label_texts(dlg)
-        # "99999" → "99"
-        self.assertTrue(any("99" in t for t in texts), "'99' abbreviation not found")
+        self.assertTrue(any("99999" in t for t in texts), "'99999' not found in labels")
 
     def test_multiple_programs_appear_in_bullets(self):
         """Each program must produce a bullet row visible as a QLabel."""
@@ -247,10 +246,9 @@ class TestDayDetailDialogProgramNames(unittest.TestCase):
             program_names=mapping,
         )
         texts = _all_label_texts(dlg)
-        # initials: CS, EE, IE
-        for abbr in ["CS", "EE", "IE"]:
-            self.assertTrue(any(abbr in t for t in texts),
-                            f"Abbreviation '{abbr}' not found in dialog labels")
+        for name in ["Computer Science", "Electrical Engineering", "Industrial Engineering"]:
+            self.assertTrue(any(name in t for t in texts),
+                            f"Program name '{name}' not found in dialog labels")
 
     def test_empty_programs_shows_count_zero(self):
         """An empty programs list must show 'Programs Affected (0)' without crashing."""

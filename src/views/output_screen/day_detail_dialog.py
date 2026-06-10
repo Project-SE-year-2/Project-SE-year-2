@@ -17,8 +17,9 @@ from __future__ import annotations
 
 from datetime import date as date_type
 
-from PyQt5.QtCore import QPoint, Qt
+from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer
 from PyQt5.QtWidgets import (
+    QApplication,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -41,7 +42,6 @@ from src.styles.day_detail_dialog_style import (
     FOOTER_STYLE,
     MINI_BADGE_ELECTIVE_STYLE,
     MINI_BADGE_REQUIRED_STYLE,
-    PROGRAM_ABBR_RIGHT_STYLE,
     PROGRAM_BULLET_STYLE,
     PROGRAMS_COUNT_STYLE,
     TITLE_STYLE,
@@ -58,18 +58,6 @@ def _format_date(value) -> str:
     if isinstance(value, date_type):
         return value.strftime("%d/%m/%Y")
     return str(value) if value else "—"
-
-
-def _abbrev(name: str) -> str:
-    """
-    Build a short abbreviation from a program name.
-    Multi-word names → initials ('Computer Science' → 'CS').
-    Single-word / numeric IDs → first 2 chars ('83101' → '83').
-    """
-    words = name.split()
-    if len(words) >= 2:
-        return "".join(w[0].upper() for w in words if w)
-    return name[:2].upper() if name else "?"
 
 
 def _is_elective(exam: dict) -> bool:
@@ -140,23 +128,10 @@ class _ExamRow(QFrame):
         # ── Program bullet list (always visible) ──────────────────────
         for pid in programs:
             display_full = program_names.get(str(pid), str(pid))
-            abbr         = _abbrev(display_full)
 
-            item_row = QHBoxLayout()
-            item_row.setContentsMargins(0, 0, 0, 0)
-            item_row.setSpacing(4)
-
-            bullet = QLabel(f"• {display_full} ({abbr})")
+            bullet = QLabel(f"• {display_full}")
             bullet.setStyleSheet(PROGRAM_BULLET_STYLE)
-
-            right = QLabel(abbr)
-            right.setStyleSheet(PROGRAM_ABBR_RIGHT_STYLE)
-            right.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-
-            item_row.addWidget(bullet)
-            item_row.addStretch()
-            item_row.addWidget(right)
-            outer.addLayout(item_row)
+            outer.addWidget(bullet)
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +167,8 @@ class DayDetailDialog(QDialog):
         if anchor_pos is not None:
             self.move(anchor_pos)
 
+        QTimer.singleShot(0, lambda: QApplication.instance().installEventFilter(self))
+
     # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------
@@ -199,7 +176,7 @@ class DayDetailDialog(QDialog):
     def _build_ui(self) -> None:
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setModal(True)
+        self.setModal(False)
         self.setMinimumWidth(340)
         self.setMaximumWidth(440)
 
@@ -257,11 +234,28 @@ class DayDetailDialog(QDialog):
         # ── Footer: "🔗  N exams on this day" ────────────────────────
         n     = len(self._exams)
         noun  = "exam" if n == 1 else "exams"
-        footer = QLabel(f"🔗  {n} {noun} on this day")
+        footer = QLabel(f"{n} {noun} on this day")
         footer.setStyleSheet(FOOTER_STYLE)
         card_layout.addWidget(footer)
 
         outer.addWidget(card)
+
+    # ------------------------------------------------------------------
+    # Outside-click / close handling
+    # ------------------------------------------------------------------
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.MouseButtonPress:
+            global_pos = event.globalPos()
+            # Close if click is outside this dialog's geometry
+            if not self.geometry().contains(global_pos):
+                self.close()
+                return False
+        return super().eventFilter(obj, event)
+
+    def closeEvent(self, event) -> None:
+        QApplication.instance().removeEventFilter(self)
+        super().closeEvent(event)
 
     # ------------------------------------------------------------------
     # Helpers (static so tests can call DayDetailDialog._format_date)

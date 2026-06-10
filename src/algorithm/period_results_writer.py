@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import time
 from pathlib import Path
 
 from src.models.exam_schedule import ExamSchedule
@@ -23,6 +24,18 @@ class PeriodResultsWriter:
         # Set base directory for data storage
         self._root = Path(root_path) if root_path else Path(__file__).parents[2] / "data" / "results"
         self._root.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _safe_replace(src: Path, dst: Path, retries: int = 5, delay: float = 0.1) -> None:
+        """Rename src -> dst, retrying on WinError 5 (Access is denied)."""
+        for attempt in range(retries):
+            try:
+                src.replace(dst)
+                return
+            except PermissionError:
+                if attempt == retries - 1:
+                    raise
+                time.sleep(delay)
 
     def write_batch(self, period_id: str, schedules: list[ExamSchedule]) -> None:
         if not schedules:
@@ -53,7 +66,7 @@ class PeriodResultsWriter:
             temp_batch_file = batch_file.with_suffix(".tmp")
             with open(temp_batch_file, "wb") as f:
                 pickle.dump(partial_batch, f)
-            temp_batch_file.replace(batch_file)
+            self._safe_replace(temp_batch_file, batch_file)
             
             written += len(to_add)
             existing_count += len(to_add)
@@ -69,7 +82,7 @@ class PeriodResultsWriter:
             temp_batch_file = batch_file.with_suffix(".tmp")
             with open(temp_batch_file, "wb") as f:
                 pickle.dump(batch, f)
-            temp_batch_file.replace(batch_file)
+            self._safe_replace(temp_batch_file, batch_file)
 
             written += len(batch)
             existing_count += len(batch)
@@ -83,7 +96,7 @@ class PeriodResultsWriter:
         temp_path = manifest_path.with_suffix(".tmp")
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump({"count": count}, f)
-        temp_path.replace(manifest_path)
+        self._safe_replace(temp_path, manifest_path)
 
     # Generate formatted filename: batch_0000.pkl, batch_0001.pkl, etc
     def _batch_path(self, period_id: str, batch_index: int) -> Path:

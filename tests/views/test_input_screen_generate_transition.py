@@ -297,16 +297,18 @@ def test_files_loaded_resets_screen_state(qtbot):
 
     screen._on_programs_selected(["83101"])
     screen._on_period_selected("FALL_Aleph")
-    
+
     assert not screen.selected_panel.isHidden()
-    assert not screen.period_list.isHidden()
+    # period_list lives in the Exam Periods tab and is shown after file load,
+    # not after program selection — so it may still be hidden at this point.
     assert not screen.period_editor.isHidden()
     assert not screen.generate_btn.isHidden()
 
     screen._on_files_loaded()
 
     assert screen.selected_panel.isHidden()
-    assert screen.period_list.isHidden()
+    # After file load the period list is refreshed and shown (always accessible).
+    assert not screen.period_list.isHidden()
     assert screen.period_editor.isHidden()
     assert screen.generate_btn.isHidden()
     assert screen._generate_state.has_selected_programs is False

@@ -169,8 +169,8 @@ class TestOutputScreen(unittest.TestCase):
         passed_exams = call_kwargs.kwargs.get("exams", [])
         self.assertIn(exam_data, passed_exams)
 
-        # Verify the dialog was displayed modally
-        MockDialog.return_value.exec_.assert_called_once()
+        # Verify the dialog was displayed
+        MockDialog.return_value.show.assert_called_once()
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
     def test_on_exam_clicked_passes_program_names_to_dialog(self, MockDialog):
@@ -319,13 +319,14 @@ class TestOutputScreen(unittest.TestCase):
         self.assertIsNone(kw["anchor_pos"])
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
-    def test_exams_day_clicked_opens_dialog_modally(self, MockDialog):
-        """DayDetailDialog.exec_() must be called so the dialog is modal."""
+    def test_exams_day_clicked_opens_dialog(self, MockDialog):
+        """DayDetailDialog.show() must be called to display the dialog."""
         self.mock_service.get_available_programs.return_value = []
         # Emit the signal with a dummy exam list and anchor point
         self.screen._on_exam_day_clicked([_make_minimal_exam()], QPoint(0, 0))
-        # Verify that exec_() was called to display the dialog modally
-        MockDialog.return_value.exec_.assert_called_once()
+        
+        # Verify that show() was called (since it's a non-blocking dialog)
+        MockDialog.return_value.show.assert_called_once()
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
     def test_exams_day_clicked_opens_dialog_with_list(self, MockDialog):

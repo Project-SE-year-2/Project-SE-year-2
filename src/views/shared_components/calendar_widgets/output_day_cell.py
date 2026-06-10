@@ -171,7 +171,7 @@ class OutputDayCell(QFrame):
         self._more_lbl = QLabel(f"+{count}")
         self._more_lbl.setAlignment(Qt.AlignCenter)
         self._more_lbl.setStyleSheet(
-            f"font-size: 9px; font-weight: 700; color: {color}; background: transparent;"
+            f"font-size: 18px; font-weight: 700; color: {color}; background: transparent;"
         )
         self._badges_layout.addWidget(self._more_lbl)
 
@@ -240,6 +240,16 @@ class OutputDayCell(QFrame):
         self._pill_widgets.append(pill)
         self._badges_layout.addWidget(pill)
         self._badges_area.setVisible(True)
+        self.setCursor(Qt.ArrowCursor)
+
+    def set_out_of_range(self) -> None:
+        """Gray out a day that is within the displayed month but outside the period range."""
+        self._exam_data   = None
+        self._unavailable = False
+        self._all_exams   = []
+        self._day_num.setStyleSheet(self._day_num_style(DAY_COLOR_OTHER))
+        self._clear_badges()
+        self._badges_area.setVisible(False)
         self.setCursor(Qt.ArrowCursor)
 
     def clear(self) -> None:

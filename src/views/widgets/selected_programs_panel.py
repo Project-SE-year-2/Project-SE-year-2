@@ -1,66 +1,125 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Iterable
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, QRect, QSize, pyqtSignal
 from PyQt5.QtWidgets import (
     QWidget,
     QLabel,
     QVBoxLayout,
     QHBoxLayout,
+    QLayout,
     QFrame,
     QPushButton,
-    QScrollArea,
+    QSizePolicy,
 )
 
+
+# ── Flow layout (wraps chips to the next line when width runs out) ────────────
+
+class _FlowLayout(QLayout):
+    """A layout that arranges items left-to-right and wraps to new lines."""
+
+    def __init__(self, parent=None, h_spacing: int = 6, v_spacing: int = 6):
+        super().__init__(parent)
+        self._items: list = []
+        self._h_spacing = h_spacing
+        self._v_spacing = v_spacing
+
+    # ── QLayout interface ─────────────────────────────────────────────────────
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int):
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index: int):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def expandingDirections(self):
+        return Qt.Orientations(Qt.Orientation(0))
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect: QRect) -> None:
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self) -> QSize:
+        return self.minimumSize()
+
+    def minimumSize(self) -> QSize:
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        size += QSize(margins.left() + margins.right(),
+                      margins.top()  + margins.bottom())
+        return size
+
+    # ── Layout logic ──────────────────────────────────────────────────────────
+
+    def _do_layout(self, rect: QRect, test_only: bool) -> int:
+        margins = self.contentsMargins()
+        x = rect.x() + margins.left()
+        y = rect.y() + margins.top()
+        line_height = 0
+        right_edge  = rect.right() - margins.right()
+
+        for item in self._items:
+            w = item.widget()
+            hint = item.sizeHint()
+            next_x = x + hint.width()
+            if next_x > right_edge and line_height > 0:
+                x           = rect.x() + margins.left()
+                y          += line_height + self._v_spacing
+                next_x      = x + hint.width()
+                line_height = 0
+            if not test_only:
+                item.setGeometry(QRect(x, y, hint.width(), hint.height()))
+            x           = next_x + self._h_spacing
+            line_height = max(line_height, hint.height())
+
+        return y + line_height - rect.y() + margins.bottom()
+
 from src.presenter.i_app_service import IAppService
-from src.views.widgets.program_list_widget import badge_color_for, abbreviate_name
-from src.views.shared_components.type_badge import TypeBadge
+from src.views.widgets.program_list_widget import abbreviate_name
 import src.styles.theme as th
 
-# minimum visible height for the selected-programs scroll area
-_CHIPS_SCROLL_MIN_HEIGHT = 100
-
-# badge metrics — must match ProgramRowWidget for visual consistency
-_BADGE_SIZE = 28
-_BADGE_RADIUS = 4
-
-# chip header buttons
-_CHEVRON_BTN_SIZE = 20
-_REMOVE_BTN_SIZE = 22
-
-# course body layout
-_COURSE_BODY_SPACING = 4
-_COURSE_GROUP_PADDING_TOP = 4
-_COURSE_ROW_V_MARGIN = 2
-_COURSE_NUM_WIDTH = 56
+_MAX_PROGRAMS = 5
 _ABBREV_FALLBACK_LEN = 2
 
-# border
-_CHIP_BORDER_WIDTH = 1
-
-# scrollbar
-_SCROLLBAR_WIDTH = 6
-_SCROLLBAR_RADIUS = 3
-_SCROLLBAR_HANDLE_MIN_HEIGHT = 20
+# badge metrics
+_BADGE_SIZE   = 24
+_BADGE_RADIUS = 4
 
 
 @dataclass(frozen=True)
 class CourseItem:
-    """View model for one course row inside a selected program card."""
-
-    number: str
-    name: str
-    year: int | str
-    semester: str
+    """View model for one course row (kept for API compatibility)."""
+    number:      str
+    name:        str
+    year:        int | str
+    semester:    str
     course_type: str
-    evaluation: str
+    evaluation:  str
 
 
 class CourseFormatter:
-    """Converts raw course dictionaries from IAppService into CourseItem objects."""
+    """Converts raw course dicts → CourseItem (kept for API compatibility)."""
 
     def format(self, course: dict) -> CourseItem:
         return CourseItem(
@@ -73,193 +132,88 @@ class CourseFormatter:
         )
 
 
-class ProgramChip(QFrame):
+# ── Horizontal chip tag ───────────────────────────────────────────────────────
+
+class _ProgramTag(QWidget):
     """
-    Expandable card: header shows badge + program ID + name + chevron + ×.
-    Clicking the chevron reveals a course list grouped by year and semester,
-    each row showing the course number, name, mandatory/elective type, and evaluation method.
+    Compact horizontal chip: [colored badge] Program Name  [×]
     """
 
-    remove_clicked = pyqtSignal(str)
+    remove_clicked = pyqtSignal(str)   # emits program_id
 
-    def __init__(self, program_id: str, name: str,
-                 courses: list[CourseItem] | None = None, parent=None):
+    def __init__(self, program_id: str, name: str, parent=None):
         super().__init__(parent)
         self.program_id = program_id
-        self._courses = courses or []
-        self._expanded = False
+        self.setAttribute(Qt.WA_StyledBackground, True)
 
+        # Chip container style
         self.setStyleSheet(
-            f"""
-            QFrame#programChip {{
-                background-color: {th.BG_CARD};
-                border: {_CHIP_BORDER_WIDTH}px solid {th.BORDER_LIGHT};
-                border-radius: {th.BUTTON_BORDER_RADIUS}px;
-            }}
-            """
-        )
-        self.setObjectName("programChip")
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(
-            th.SPACING_SMALL, th.SPACING_SMALL,
-            th.SPACING_SMALL, th.SPACING_SMALL,
-        )
-        outer.setSpacing(0)
-
-        # ── header row ─────────────────────────────────────────────────────
-        header = QHBoxLayout()
-        header.setSpacing(th.SPACING_SMALL)
-
-        abbrev = abbreviate_name(name) or program_id[:_ABBREV_FALLBACK_LEN]
-        badge = QLabel(abbrev)
-        badge.setFixedSize(_BADGE_SIZE, _BADGE_SIZE)
-        badge.setAlignment(Qt.AlignCenter)
-        badge.setStyleSheet(
-            f"QLabel {{"
-            f" background-color: {th.PRIMARY_LIGHT}; color: {th.PRIMARY_COLOR};"
-            f" border-radius: {_BADGE_RADIUS}px;"
-            f" font-size: {th.FONT_SIZE_XS}px; font-weight: {th.FONT_WEIGHT_BOLD};"
-            f" font-family: {th.FONT_FAMILY};"
+            f"QWidget {{"
+            f"  background-color: #FFFFFF;"
+            f"  border: 1px solid #E5E7EB;"
+            f"  border-radius: 8px;"
             f"}}"
         )
 
-        id_name_lbl = QLabel(f"{program_id}  {name}")
-        id_name_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        id_name_lbl.setStyleSheet(
-            f"color: {th.TEXT_PRIMARY}; font-size: {th.FONT_SIZE_MD}px;"
-            f" font-weight: {th.FONT_WEIGHT_MEDIUM}; font-family: {th.FONT_FAMILY};"
+        row = QHBoxLayout(self)
+        row.setContentsMargins(9, 6, 9, 6)
+        row.setSpacing(9)
+
+        # Program ID label
+        id_lbl = QLabel(program_id)
+        id_lbl.setAlignment(Qt.AlignCenter)
+        id_lbl.setStyleSheet(
+            f"QLabel {{"
+            f"  background-color: transparent;"
+            f"  color: {th.TEXT_MUTED};"
+            f"  border: none;"
+            f"  font-size: 15px;"
+            f"  font-weight: {th.FONT_WEIGHT_BOLD};"
+            f"  font-family: {th.FONT_FAMILY};"
+            f"  padding: 2px 4px;"
+            f"}}"
+        )
+
+        # Program name
+        name_lbl = QLabel(name)
+        name_lbl.setStyleSheet(
+            f"color: {th.TEXT_PRIMARY};"
+            f" font-size: 18px;"
+            f" font-family: {th.FONT_FAMILY};"
             f" background: transparent; border: none;"
         )
+        name_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        self._chevron = QPushButton("▼")
-        self._chevron.setFixedSize(_CHEVRON_BTN_SIZE, _CHEVRON_BTN_SIZE)
-        self._chevron.setCursor(Qt.PointingHandCursor)
-        self._chevron.setVisible(bool(self._courses))
-        self._chevron.setStyleSheet(
-            f"QPushButton {{ background: transparent; color: {th.TEXT_MUTED};"
-            f" border: none; font-size: {th.FONT_SIZE_XS}px;"
-            f" font-family: {th.FONT_FAMILY}; padding: 0px; }}"
-            f"QPushButton:hover {{ color: {th.PRIMARY_COLOR}; }}"
-        )
-        self._chevron.clicked.connect(self._toggle_expand)
-
+        # Remove ×
         remove_btn = QPushButton("×")
-        remove_btn.setFixedSize(_REMOVE_BTN_SIZE, _REMOVE_BTN_SIZE)
+        remove_btn.setFixedSize(24, 24)
         remove_btn.setCursor(Qt.PointingHandCursor)
         remove_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                background: transparent;
-                color: {th.TEXT_MUTED};
-                border: none;
-                font-size: {th.FONT_SIZE_LG}px;
-                font-weight: {th.FONT_WEIGHT_BOLD};
-                font-family: {th.FONT_FAMILY};
-                padding: 0px;
-            }}
-            QPushButton:hover {{ color: {th.DANGER_COLOR}; }}
-            """
+            f"QPushButton {{"
+            f"  background: transparent; border: none;"
+            f"  color: {th.DANGER_COLOR};"
+            f"  font-size: 21px;"
+            f"  font-weight: {th.FONT_WEIGHT_BOLD};"
+            f"  padding: 0px;"
+            f"}}"
+            f"QPushButton:hover {{ color: #991B1B; }}"
         )
         remove_btn.clicked.connect(lambda: self.remove_clicked.emit(self.program_id))
 
-        header.addWidget(badge)
-        header.addWidget(id_name_lbl, stretch=1)
-        header.addWidget(self._chevron)
-        header.addWidget(remove_btn)
-        outer.addLayout(header)
+        row.addWidget(id_lbl)
+        row.addWidget(name_lbl)
+        row.addWidget(remove_btn)
 
-        # ── expandable course body ─────────────────────────────────────────
-        self._body = self._build_course_body()
-        self._body.setVisible(False)
-        outer.addWidget(self._body)
 
-    def _toggle_expand(self) -> None:
-        self._expanded = not self._expanded
-        self._body.setVisible(self._expanded)
-        self._chevron.setText("▲" if self._expanded else "▼")
-
-    def _build_course_body(self) -> QWidget:
-        body = QWidget()
-        body.setStyleSheet("background: transparent; border: none;")
-        layout = QVBoxLayout(body)
-        layout.setContentsMargins(0, th.SPACING_SMALL, 0, 0)
-        layout.setSpacing(_COURSE_BODY_SPACING)
-
-        divider = QFrame()
-        divider.setFrameShape(QFrame.HLine)
-        divider.setStyleSheet(f"color: {th.BORDER_LIGHT}; border: none; border-top: {_CHIP_BORDER_WIDTH}px solid {th.BORDER_LIGHT};")
-        layout.addWidget(divider)
-
-        if not self._courses:
-            empty = QLabel("No courses found.")
-            empty.setStyleSheet(
-                f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_SM}px;"
-                f" font-family: {th.FONT_FAMILY}; background: transparent; border: none;"
-            )
-            layout.addWidget(empty)
-            return body
-
-        # Group by (year, semester) and sort
-        groups: dict[tuple, list[CourseItem]] = defaultdict(list)
-        for c in self._courses:
-            groups[(c.year, c.semester)].append(c)
-
-        for (year, semester), courses in sorted(groups.items(), key=lambda x: (str(x[0][0]), str(x[0][1]))):
-            group_lbl = QLabel(f"Year {year}  ·  Semester {semester}")
-            group_lbl.setStyleSheet(
-                f"color: {th.TEXT_TERTIARY}; font-size: {th.FONT_SIZE_SM}px;"
-                f" font-weight: {th.FONT_WEIGHT_BOLD}; font-family: {th.FONT_FAMILY};"
-                f" background: transparent; border: none;"
-                f" padding-top: {_COURSE_GROUP_PADDING_TOP}px;"
-            )
-            layout.addWidget(group_lbl)
-
-            for course in courses:
-                layout.addWidget(self._make_course_row(course))
-
-        return body
-
-    def _make_course_row(self, course: CourseItem) -> QWidget:
-        row = QWidget()
-        row.setStyleSheet("background: transparent; border: none;")
-        rl = QHBoxLayout(row)
-        rl.setContentsMargins(th.SPACING_SMALL, _COURSE_ROW_V_MARGIN, 0, _COURSE_ROW_V_MARGIN)
-        rl.setSpacing(th.SPACING_SMALL)
-
-        num_lbl = QLabel(course.number)
-        num_lbl.setFixedWidth(_COURSE_NUM_WIDTH)
-        num_lbl.setStyleSheet(
-            f"color: {th.TEXT_MUTED}; font-size: {th.FONT_SIZE_SM}px;"
-            f" font-family: {th.FONT_FAMILY}; background: transparent; border: none;"
-        )
-
-        name_lbl = QLabel(course.name)
-        name_lbl.setStyleSheet(
-            f"color: {th.TEXT_SECONDARY}; font-size: {th.FONT_SIZE_SM}px;"
-            f" font-family: {th.FONT_FAMILY}; background: transparent; border: none;"
-        )
-
-        type_badge = TypeBadge(course.course_type or "—")
-
-        eval_lbl = QLabel(course.evaluation or "—")
-        eval_lbl.setStyleSheet(
-            f"color: {th.TEXT_MUTED}; font-size: {th.FONT_SIZE_SM}px;"
-            f" font-family: {th.FONT_FAMILY}; background: transparent; border: none;"
-        )
-
-        rl.addWidget(num_lbl)
-        rl.addWidget(name_lbl, stretch=1)
-        rl.addWidget(type_badge)
-        rl.addWidget(eval_lbl)
-
-        return row
-
+# ── Panel ─────────────────────────────────────────────────────────────────────
 
 class SelectedProgramsPanel(QWidget):
-    """Displays the selected programs as chip cards with a remove button."""
+    """
+    Shows selected programs as horizontal chips.
+    Header: "Selected Program (X / 5)"
+    Body:   one row of compact chip tags.
+    """
 
-    # Emitted when the user clicks × on a chip - carries the removed program id
     program_removed = pyqtSignal(str)
 
     def __init__(
@@ -269,148 +223,108 @@ class SelectedProgramsPanel(QWidget):
         parent=None,
     ):
         super().__init__(parent)
-
-        self._service = service
+        self._service   = service
         self._formatter = formatter or CourseFormatter()
-        self._courses_cache: dict[str, list[CourseItem]] = {}
-        self._cards_by_program_id: dict[str, ProgramChip] = {}
-
-        # InputScreen should call refresh(selected_program_ids) whenever
-        # ProgramListWidget emits programs_selected.
+        self._courses_cache:       dict[str, list[CourseItem]] = {}
+        self._cards_by_program_id: dict[str, _ProgramTag]      = {}
+        self._program_ids:         list[str]                    = []
         self._build_ui()
 
-    # The refresh method is called with the currently selected program ids,
-    # and it rebuilds the display to show a chip for each program
+    # ── Public API ────────────────────────────────────────────────────────────
+
     def refresh(self, program_ids: list[str]) -> None:
-        """Rebuild the panel for the currently selected program ids."""
-        self._clear_cards()
+        self._program_ids = list(program_ids)
+        self._rebuild_chips()
 
-        if not program_ids:
-            self._show_empty_state("No programs selected yet.")
-            return
-
-        for program_id in program_ids:
-            courses = self._get_courses_for_program(program_id)
-            name = self._resolve_name(program_id)
-            chip = ProgramChip(program_id, name, courses)
-            chip.remove_clicked.connect(self.program_removed.emit)
-            self._cards_by_program_id[program_id] = chip
-            self._cards_layout.addWidget(chip)
-
-        self._cards_layout.addStretch()
-
-    # The clear method removes all program chips from the display
     def clear(self) -> None:
-        """Clear the selected programs display without clearing cached courses."""
-        self._clear_cards()
-        self._show_empty_state("No programs selected yet.")
+        self._program_ids = []
+        self._rebuild_chips()
 
-    # The clear_cache method empties the internal cache of courses
     def clear_cache(self) -> None:
-        """Clear cached courses, useful after loading new files."""
         self._courses_cache.clear()
 
-    # The cached_program_ids method returns a list of program ids in the cache
     def cached_program_ids(self) -> list[str]:
-        """Return program ids currently stored in the internal course cache."""
         return list(self._courses_cache.keys())
+
+    # ── Build UI ──────────────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, th.SPACING_SMALL, 0, th.SPACING_SMALL)
         layout.setSpacing(th.SPACING_SMALL)
 
-        # Header
-        header_row = QHBoxLayout()
-        title = QLabel("Selected Programs")
-        title.setStyleSheet(
-            f"color: {th.TEXT_PRIMARY}; "
-            f"font-family: {th.FONT_FAMILY}; "
-            f"font-size: {th.FONT_SIZE_MD}px; "
-            f"font-weight: {th.FONT_WEIGHT_BOLD};"
+        # Divider on top
+        top_line = QFrame()
+        top_line.setFrameShape(QFrame.HLine)
+        top_line.setStyleSheet(f"color: {th.BORDER_LIGHT};")
+        layout.addWidget(top_line)
+
+        # Title "Selected Program (X / 5)"
+        self._title_lbl = QLabel(f"Selected Program (0 / {_MAX_PROGRAMS})")
+        self._title_lbl.setStyleSheet(
+            f"color: {th.TEXT_PRIMARY};"
+            f" font-size: 28px;"
+            f" font-weight: {th.FONT_WEIGHT_BOLD};"
+            f" font-family: {th.FONT_FAMILY};"
         )
-        header_row.addWidget(title)
-        header_row.addStretch()
-        layout.addLayout(header_row)
+        layout.addWidget(self._title_lbl)
 
-        self._empty_label = QLabel("No programs selected yet.")
-        self._empty_label.setAlignment(Qt.AlignCenter)
-        self._empty_label.setStyleSheet(
-            f"color: {th.TEXT_TERTIARY}; "
-            f"padding: {th.SPACING_MEDIUM}px; "
-            f"font-family: {th.FONT_FAMILY};"
+        # Chips area — uses FlowLayout so chips wrap onto a second line
+        self._chips_row = QWidget()
+        self._chips_row.setStyleSheet("background: transparent;")
+        self._chips_layout = _FlowLayout(
+            self._chips_row,
+            h_spacing=th.SPACING_SMALL,
+            v_spacing=th.SPACING_SMALL,
         )
+        self._chips_layout.setContentsMargins(0, 0, 0, 0)
 
-        self._cards_container = QWidget()
-        self._cards_layout = QVBoxLayout(self._cards_container)
-        self._cards_layout.setContentsMargins(0, 0, 0, 0)
-        self._cards_layout.setSpacing(th.SPACING_SMALL)
-        self._cards_layout.addWidget(self._empty_label)
-        self._cards_layout.addStretch()
+        layout.addWidget(self._chips_row, stretch=1)
 
-        self._scroll_area = QScrollArea()
-        self._scroll_area.setWidgetResizable(True)
-        self._scroll_area.setFrameShape(QFrame.NoFrame)
-        self._scroll_area.setMinimumHeight(_CHIPS_SCROLL_MIN_HEIGHT)
-        self._scroll_area.setStyleSheet(
-            f"QScrollArea {{ background: transparent; border: none; }}"
-            f"QScrollBar:vertical {{ width: {_SCROLLBAR_WIDTH}px; background: {th.BG_HOVER}; border-radius: {_SCROLLBAR_RADIUS}px; }}"
-            f"QScrollBar::handle:vertical {{ background: #CBD5E1; border-radius: {_SCROLLBAR_RADIUS}px; min-height: {_SCROLLBAR_HANDLE_MIN_HEIGHT}px; }}"
-            f"QScrollBar::add-line:vertical {{ height: 0px; }}"
-            f"QScrollBar::sub-line:vertical {{ height: 0px; }}"
-        )
-        self._scroll_area.setWidget(self._cards_container)
+    # ── Internal ──────────────────────────────────────────────────────────────
 
-        layout.addWidget(self._scroll_area)
+    def _rebuild_chips(self) -> None:
+        # Remove existing chips
+        for tag in self._cards_by_program_id.values():
+            self._chips_layout.removeWidget(tag)
+            tag.deleteLater()
+        self._cards_by_program_id.clear()
 
-    # Looks up the human-readable program name from the service; falls back to the id.
-    # Uses hasattr so the panel stays usable when the service mock omits this method.
+        # Remove stretch
+        while self._chips_layout.count():
+            self._chips_layout.takeAt(0)
+
+        count = len(self._program_ids)
+        self._title_lbl.setText(f"Selected Program ({count} / {_MAX_PROGRAMS})")
+
+        for pid in self._program_ids:
+            # Populate cache (so cached_program_ids() is accurate after refresh)
+            self._get_courses_for_program(pid)
+            name = self._resolve_name(pid)
+            tag  = _ProgramTag(pid, name)
+            tag.remove_clicked.connect(self.program_removed.emit)
+            self._chips_layout.addWidget(tag)
+            self._cards_by_program_id[pid] = tag
+
     def _resolve_name(self, program_id: str) -> str:
         if not hasattr(self._service, "get_available_programs"):
             return program_id
-        for program in self._service.get_available_programs():
-            if str(program.get("id", "")) == program_id:
-                name = str(program.get("name", "")).strip()
+        for p in self._service.get_available_programs():
+            if str(p.get("id", "")) == program_id:
+                name = str(p.get("name", "")).strip()
                 return name if name else program_id
         return program_id
 
-    # The get_courses_for_program method retrieves the list of CourseItem objects for a given program id,
-    # using the internal cache to avoid redundant calls to the service
     def _get_courses_for_program(self, program_id: str) -> list[CourseItem]:
         if program_id not in self._courses_cache:
-            raw_courses = self._service.get_courses(program_id)
-            self._courses_cache[program_id] = self._to_course_items(raw_courses)
+            raw = self._service.get_courses(program_id)
+            self._courses_cache[program_id] = self._to_course_items(raw)
         return self._courses_cache[program_id]
 
-    # The to_course_items method converts a list of raw course dictionaries into CourseItem objects
     def _to_course_items(self, courses: Iterable[dict]) -> list[CourseItem]:
-        items: list[CourseItem] = []
-
-        for course in courses:
-            item = self._formatter.format(course)
+        items = []
+        for c in courses:
+            item = self._formatter.format(c)
             if item.number:
                 items.append(item)
-
         return items
-
-    # The clear_cards method removes all chips and clears the internal mapping.
-    def _clear_cards(self) -> None:
-        self._cards_by_program_id.clear()
-
-        while self._cards_layout.count():
-            item = self._cards_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
-
-    # The show_empty_state method displays a placeholder message
-    def _show_empty_state(self, message: str) -> None:
-        self._empty_label = QLabel(message)
-        self._empty_label.setAlignment(Qt.AlignCenter)
-        self._empty_label.setStyleSheet(
-            f"color: {th.TEXT_TERTIARY}; "
-            f"padding: {th.SPACING_MEDIUM}px; "
-            f"font-family: {th.FONT_FAMILY};"
-        )
-        self._cards_layout.addWidget(self._empty_label)
-        self._cards_layout.addStretch()

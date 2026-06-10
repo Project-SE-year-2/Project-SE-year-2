@@ -93,7 +93,7 @@ NAV_BTN_STYLE = """
         background: transparent;
         border: 1px solid #E2E8F0;
         border-radius: 6px;
-        font-size: 14px;
+        font-size: 21px;
         font-weight: 600;
         padding: 4px 10px;
         min-width: 32px;
@@ -166,11 +166,11 @@ OUTPUT_LEGEND_ITEMS = [
     ("#CBD5E1",          "No Exam"),
 ]
 
-LEGEND_DOT_STYLE_TPL = "color: {color}; font-size: 14px; background: transparent;"
+LEGEND_DOT_STYLE_TPL = "color: {color}; font-size: 28px; background: transparent;"
 LEGEND_TEXT_STYLE = """
     QLabel {
         color: #64748B;
-        font-size: 11px;
+        font-size: 22px;
         font-family: 'Segoe UI';
         background: transparent;
     }

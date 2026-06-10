@@ -21,7 +21,7 @@ CARD_STYLE = f"""
 
 # ── Title  "Exams on DD/MM/YYYY" ─────────────────────────────────────
 TITLE_STYLE = (
-    "color: #1E293B; font-size: 16px; font-weight: 700; background: transparent;"
+    "color: #1E293B; font-size: 21px; font-weight: 700; background: transparent;"
 )
 
 # ── Close button  ✕ ──────────────────────────────────────────────────
@@ -30,7 +30,7 @@ CLOSE_BTN_STYLE = """
         background: transparent;
         color: #94A3B8;
         border: none;
-        font-size: 16px;
+        font-size: 21px;
         border-radius: 4px;
     }
     QPushButton:hover {
@@ -49,12 +49,11 @@ EXAM_ROW_ELECTIVE_BORDER = "#16A34A"   # green
 
 
 def exam_row_style(border_color: str) -> str:
-    """QSS for an exam-row QFrame with a coloured left border."""
+    """QSS for an exam-row QFrame (no coloured border)."""
     return (
         f"QFrame {{"
         f" background: {EXAM_ROW_BG};"
-        f" border: 1px solid {EXAM_ROW_BORDER};"
-        f" border-left: 4px solid {border_color};"
+        f" border: none;"
         f" border-radius: {EXAM_ROW_BORDER_RADIUS};"
         f"}}"
     )
@@ -62,23 +61,23 @@ def exam_row_style(border_color: str) -> str:
 
 # ── Course code  (bold, type-coloured, same line as name) ────────────
 COURSE_CODE_REQUIRED_STYLE = (
-    "color: #4338CA; font-size: 13px; font-weight: 700; background: transparent;"
+    "color: #4338CA; font-size: 17px; font-weight: 700; background: transparent;"
 )
 COURSE_CODE_ELECTIVE_STYLE = (
-    "color: #16A34A; font-size: 13px; font-weight: 700; background: transparent;"
+    "color: #16A34A; font-size: 17px; font-weight: 700; background: transparent;"
 )
 
 # ── Course name  (gray, same line as code) ────────────────────────────
 COURSE_NAME_INLINE_STYLE = (
-    "color: #64748B; font-size: 13px; font-weight: 400; background: transparent;"
+    "color: #64748B; font-size: 17px; font-weight: 400; background: transparent;"
 )
 
 # ── Mini type-badge chip  (right of top row) ─────────────────────────
 def _mini_badge(bg: str, text_color: str, border: str) -> str:
     return (
         f"background: {bg}; color: {text_color}; border: 1px solid {border};"
-        " border-radius: 6px; padding: 2px 10px;"
-        " font-size: 11px; font-weight: 600;"
+        " border-radius: 6px; padding: 2px 13px;"
+        " font-size: 15px; font-weight: 600;"
     )
 
 
@@ -87,30 +86,30 @@ MINI_BADGE_ELECTIVE_STYLE = _mini_badge("#F0FDF4", "#16A34A", "#BBF7D0")
 
 # ── "Programs Affected (N)"  header line ─────────────────────────────
 PROGRAMS_COUNT_STYLE = (
-    "color: #94A3B8; font-size: 11px; font-weight: 500; background: transparent;"
+    "color: #94A3B8; font-size: 15px; font-weight: 500; background: transparent;"
 )
 
 # ── Toggle arrow  ▲ / ▼ ──────────────────────────────────────────────
 TOGGLE_ARROW_STYLE = (
-    "color: #94A3B8; font-size: 11px; background: transparent;"
+    "color: #94A3B8; font-size: 15px; background: transparent;"
 )
 
 # ── Bullet program line  "• Full Name (AB)" ───────────────────────────
 PROGRAM_BULLET_STYLE = (
-    "color: #64748B; font-size: 11px; font-weight: 400; background: transparent;"
+    "color: #64748B; font-size: 15px; font-weight: 400; background: transparent;"
 )
 
 # ── Abbreviation on the right  "AB" ──────────────────────────────────
 PROGRAM_ABBR_RIGHT_STYLE = (
-    "color: #94A3B8; font-size: 11px; font-weight: 500; background: transparent;"
+    "color: #94A3B8; font-size: 15px; font-weight: 500; background: transparent;"
 )
 
 # ── Thin gap between exam rows ────────────────────────────────────────
 ROW_DIVIDER_STYLE = "background: transparent; border: none;"
 
-# ── Footer  "🔗  N exams on this day" ────────────────────────────────
+# ── Footer  "N exams on this day" (no icon) ──────────────────────────
 FOOTER_STYLE = (
-    "color: #4338CA; font-size: 12px; font-weight: 600; background: transparent;"
+    "color: #4338CA; font-size: 16px; font-weight: 600; background: transparent;"
 )
 
 # kept for backward compat with old tests

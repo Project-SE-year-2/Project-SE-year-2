@@ -139,8 +139,24 @@ class OutputScreen(QWidget):
         # Used by the poll timer to know when a re-render is still needed.
         self._calendar_displaying_data: bool = False
 
+        # Delayed empty-state: fires 2 s after we decide there's no data,
+        # but is cancelled immediately if real data arrives first.
+        self._empty_timer = QTimer(self)
+        self._empty_timer.setSingleShot(True)
+        self._empty_timer.setInterval(2000)
+        self._empty_semester: str = ""
+
+        # Delayed loading-state: fires 2 s after the first show_loading call,
+        # but is cancelled immediately if real data arrives first.
+        self._loading_timer = QTimer(self)
+        self._loading_timer.setSingleShot(True)
+        self._loading_timer.setInterval(2000)
+        self._loading_semester: str = ""
+
         self._setup_ui()
         self._setup_polling()
+        self._empty_timer.timeout.connect(self._on_empty_timeout)
+        self._loading_timer.timeout.connect(self._on_loading_timeout)
 
     # ── Active period ID ──────────────────────────────────────────────────────
 
@@ -375,7 +391,9 @@ class OutputScreen(QWidget):
             self._period_indices[key] = 0
         self._calendar_displaying_data = False
         self.semester_tabs.set_enabled_all(False)
-        self.four_month.show_loading(self._current_semester)
+        self._loading_semester = self._current_semester
+        if not self._loading_timer.isActive():
+            self._loading_timer.start()
 
         # Immediately check if data is already available (generation finished
         # before the user arrived here) — render the first schedule right away.
@@ -512,6 +530,8 @@ class OutputScreen(QWidget):
 
         # ── Update calendar card ──────────────────────────────────────────────
         if exams:
+            self._empty_timer.stop()
+            self._loading_timer.stop()
             self._global_total = max(self._global_total, 1)
             self._calendar_displaying_data = True
             self.four_month.update_schedule(
@@ -532,11 +552,29 @@ class OutputScreen(QWidget):
             except Exception:
                 period_count = 0
             if isinstance(period_count, int) and period_count > 0:
-                self.four_month.show_loading(sem)
+                self._empty_timer.stop()
+                self._loading_semester = sem
+                if not self._loading_timer.isActive():
+                    self._loading_timer.start()
             else:
-                self.four_month.show_empty(sem)
+                # Defer the empty state by 2 s so a schedule that arrives
+                # shortly after the first poll replaces the blank screen
+                # instead of flashing the "no schedules" message first.
+                self._empty_semester = sem
+                if not self._empty_timer.isActive():
+                    self._empty_timer.start()
 
         self._update_navigator()
+
+    def _on_loading_timeout(self) -> None:
+        """Called 2 s after generation started — show the loading state if still no data."""
+        if not self._calendar_displaying_data:
+            self.four_month.show_loading(self._loading_semester)
+
+    def _on_empty_timeout(self) -> None:
+        """Called 2 s after we first detected no data — show the empty state."""
+        if not self._calendar_displaying_data:
+            self.four_month.show_empty(self._empty_semester)
 
     # ── Cross-moed conflict detection ─────────────────────────────────────────
 

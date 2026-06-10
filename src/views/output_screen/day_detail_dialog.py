@@ -234,7 +234,7 @@ class DayDetailDialog(QDialog):
         # ── Footer: "🔗  N exams on this day" ────────────────────────
         n     = len(self._exams)
         noun  = "exam" if n == 1 else "exams"
-        footer = QLabel(f"🔗  {n} {noun} on this day")
+        footer = QLabel(f"{n} {noun} on this day")
         footer.setStyleSheet(FOOTER_STYLE)
         card_layout.addWidget(footer)
 

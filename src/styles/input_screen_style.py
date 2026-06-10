@@ -100,11 +100,11 @@ QPushButton#generateBtn {
     background-color: #2563EB;
     color:            white;
     border-radius:    8px;
-    padding:          10px 28px;
+    padding:          13px 37px;
     font-weight:      bold;
-    font-size:        14px;
+    font-size:        19px;
     border:           none;
-    min-width:        200px;
+    min-width:        267px;
 }
 QPushButton#generateBtn:hover    { background-color: #1D4ED8; }
 QPushButton#generateBtn:disabled { background-color: #9CA3AF; color: #F9FAFB; }

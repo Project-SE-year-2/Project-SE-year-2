@@ -1,4 +1,4 @@
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QColor, QIcon
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
@@ -54,7 +54,7 @@ class InputScreen(QWidget):
         self.file_loader    = FileLoaderWidget(self.service)
         self.program_list   = ProgramListWidget(self.service)
         self.selected_panel = SelectedProgramsPanel(self.service)
-        self.selected_panel.setFixedHeight(180)  # divider + title + up to two rows of chips
+        self.selected_panel.setFixedHeight(280)  # divider + title + up to three rows of chips
         self.course_table   = CourseTableWidget(self.service)
         self.period_list    = PeriodListWidget(self.service)
         self.period_editor  = PeriodEditorWidget(self.service)
@@ -393,7 +393,7 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        self.switch_to_output.emit()
+        QTimer.singleShot(500, self.switch_to_output.emit)
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
@@ -403,7 +403,7 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        self.switch_to_output.emit()
+        QTimer.singleShot(500, self.switch_to_output.emit)
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

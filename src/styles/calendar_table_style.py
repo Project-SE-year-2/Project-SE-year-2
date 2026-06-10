@@ -166,11 +166,11 @@ OUTPUT_LEGEND_ITEMS = [
     ("#CBD5E1",          "No Exam"),
 ]
 
-LEGEND_DOT_STYLE_TPL = "color: {color}; font-size: 14px; background: transparent;"
+LEGEND_DOT_STYLE_TPL = "color: {color}; font-size: 28px; background: transparent;"
 LEGEND_TEXT_STYLE = """
     QLabel {
         color: #64748B;
-        font-size: 11px;
+        font-size: 22px;
         font-family: 'Segoe UI';
         background: transparent;
     }

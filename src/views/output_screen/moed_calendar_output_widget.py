@@ -59,6 +59,9 @@ from src.styles.output_screen_style import (
     ALL_SESSIONS_MOED_LABELS,
     ALL_SESSIONS_MONTH_CARD_STYLE,
     ALL_SESSIONS_SECTION_STYLE_TPL,
+    MONTH_NAV_LABEL_SIZE,
+    MONTH_NAV_LABEL_WEIGHT,
+    SEMESTER_TITLE_COLOR,
 )
 from src.styles.icons import load_pixmap, SEMESTER_ICON, ICON_CALENDAR
 from src.views.shared_components.calendar_widgets import MonthGrid
@@ -138,6 +141,11 @@ _PAGE_ALL_SESSIONS = 5
 # Local alias kept for the normal month cards (shared between normal and All Sessions pages)
 _MONTH_CARD_STYLE = ALL_SESSIONS_MONTH_CARD_STYLE
 
+_MONTH_NAV_LABEL_STYLE = (
+    f"color: {SEMESTER_TITLE_COLOR}; font-size: {MONTH_NAV_LABEL_SIZE}px;"
+    f" font-weight: {MONTH_NAV_LABEL_WEIGHT}; background: transparent;"
+)
+
 
 class MoedCalendarOutputWidget(QWidget):
     """White card: semester header + moed toggle + horizontal months + legend."""
@@ -152,6 +160,8 @@ class MoedCalendarOutputWidget(QWidget):
         self._months: list[tuple[int, int]] = []
         self._month_grids:  list[MonthGrid] = []
         self._current_moed: str = "Aleph"
+        self._current_month_idx: int = 0
+        self._multi_month_mode: bool = False
         self._period_start: _date | None = None
         self._period_end:   _date | None = None
         self._setup_ui()
@@ -252,9 +262,47 @@ class MoedCalendarOutputWidget(QWidget):
 
     def _build_months_page(self) -> QWidget:
         page = QWidget()
-        self._months_layout = QHBoxLayout(page)
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(8)
+
+        # Month navigation bar - shown only in single-month mode when 2+ months exist
+        self._month_nav_bar = QWidget()
+        nav_row = QHBoxLayout(self._month_nav_bar)
+        nav_row.setContentsMargins(0, 0, 0, 0)
+        nav_row.setSpacing(8)
+
+        self._prev_month_btn = QPushButton("‹")
+        self._prev_month_btn.setObjectName("navArrowBtn")
+        self._prev_month_btn.setCursor(Qt.PointingHandCursor)
+        self._prev_month_btn.clicked.connect(self._on_prev_month)
+
+        self._month_nav_label = QLabel("")
+        self._month_nav_label.setAlignment(Qt.AlignCenter)
+        self._month_nav_label.setStyleSheet(_MONTH_NAV_LABEL_STYLE)
+
+        self._next_month_btn = QPushButton("›")
+        self._next_month_btn.setObjectName("navArrowBtn")
+        self._next_month_btn.setCursor(Qt.PointingHandCursor)
+        self._next_month_btn.clicked.connect(self._on_next_month)
+
+        nav_row.addStretch()
+        nav_row.addWidget(self._prev_month_btn)
+        nav_row.addSpacing(12)
+        nav_row.addWidget(self._month_nav_label)
+        nav_row.addSpacing(12)
+        nav_row.addWidget(self._next_month_btn)
+        nav_row.addStretch()
+
+        self._month_nav_bar.setVisible(False)
+        page_layout.addWidget(self._month_nav_bar)
+
+        # Month cards - added directly to the layout
+        self._months_layout = QHBoxLayout()
         self._months_layout.setSpacing(16)
         self._months_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.addLayout(self._months_layout, 1)
+
         return page
 
     # ── State pages ───────────────────────────────────────────────────────────
@@ -413,7 +461,13 @@ class MoedCalendarOutputWidget(QWidget):
         self.exam_day_clicked.emit(exams, anchor)
 
     def _rebuild_month_cards(self) -> None:
-        """Clear and recreate one MonthGrid card per month in self._months."""
+        """Clear and recreate MonthGrid cards.
+
+        In single-month mode (default) only the card for _current_month_idx is
+        rendered and the prev/next nav bar is visible when the period spans
+        multiple months.  In multi-month mode all months are rendered side-by-side
+        and the nav bar is hidden.
+        """
         # Remove all existing widgets from the horizontal layout
         while self._months_layout.count():
             item = self._months_layout.takeAt(0)
@@ -422,7 +476,19 @@ class MoedCalendarOutputWidget(QWidget):
                 w.deleteLater()
         self._month_grids.clear()
 
-        for year, month in self._months:
+        if not self._months:
+            self._month_nav_bar.setVisible(False)
+            return
+
+        # Clamp index to valid range after period changes
+        self._current_month_idx = max(0, min(self._current_month_idx, len(self._months) - 1))
+
+        months_to_show = self._months if self._multi_month_mode else [self._months[self._current_month_idx]]
+
+        pstart = QDate(self._period_start.year, self._period_start.month, self._period_start.day) if self._period_start else None
+        pend   = QDate(self._period_end.year,   self._period_end.month,   self._period_end.day)   if self._period_end   else None
+
+        for year, month in months_to_show:
             card = QFrame()
             card.setObjectName("monthCard")
             card.setStyleSheet(_MONTH_CARD_STYLE)
@@ -432,16 +498,11 @@ class MoedCalendarOutputWidget(QWidget):
             cl.setContentsMargins(14, 12, 14, 12)
             cl.setSpacing(8)
 
-            title = QLabel(EN_LOCALE.toString(QDate(year, month, 1), "MMMM yyyy"))
-            title.setAlignment(Qt.AlignCenter)
-            title.setStyleSheet(
-                "color: #111827; font-size: 13px; font-weight: 700;"
-                " background: transparent;"
-            )
-            cl.addWidget(title)
-
-            pstart = QDate(self._period_start.year, self._period_start.month, self._period_start.day) if self._period_start else None
-            pend   = QDate(self._period_end.year,   self._period_end.month,   self._period_end.day)   if self._period_end   else None
+            if self._multi_month_mode or len(self._months) <= 1:
+                title = QLabel(EN_LOCALE.toString(QDate(year, month, 1), "MMMM yyyy"))
+                title.setAlignment(Qt.AlignCenter)
+                title.setStyleSheet(_MONTH_NAV_LABEL_STYLE)
+                cl.addWidget(title)
 
             mg = MonthGrid(CalendarMode.OUTPUT)
             mg.output_exam_clicked.connect(self._on_cell_clicked)
@@ -451,6 +512,49 @@ class MoedCalendarOutputWidget(QWidget):
             cl.addWidget(mg, stretch=1)
 
             self._months_layout.addWidget(card)
+
+        self._update_month_nav_bar()
+
+    def _update_month_nav_bar(self) -> None:
+        """Refresh the prev/next buttons and month label in the nav bar.
+
+        The nav bar is hidden when in multi-month mode or when the period
+        spans only a single month (nothing to navigate to).
+        """
+        n = len(self._months)
+        if self._multi_month_mode or n <= 1:
+            self._month_nav_bar.setVisible(False)
+            return
+
+        self._month_nav_bar.setVisible(True)
+        i = self._current_month_idx
+        year, month = self._months[i]
+        self._month_nav_label.setText(
+            f"{EN_LOCALE.toString(QDate(year, month, 1), 'MMMM yyyy')}  ({i + 1} / {n})"
+        )
+        self._prev_month_btn.setEnabled(i > 0)
+        self._next_month_btn.setEnabled(i < n - 1)
+
+    def _on_prev_month(self) -> None:
+        if self._current_month_idx > 0:
+            self._current_month_idx -= 1
+            self._rebuild_month_cards()
+
+    def _on_next_month(self) -> None:
+        if self._current_month_idx < len(self._months) - 1:
+            self._current_month_idx += 1
+            self._rebuild_month_cards()
+
+    def set_display_mode(self, *, multi_month: bool) -> None:
+        """Switch between single-month (default) and multi-month display.
+
+        multi_month=False  — one month at a time with ‹ / › navigation.
+        multi_month=True   — all months side-by-side (original behaviour).
+        """
+        if multi_month == self._multi_month_mode:
+            return
+        self._multi_month_mode = multi_month
+        self._rebuild_month_cards()
 
     def _set_icon_pixmap(self, semester: str) -> None:
         """Update the header icon to the season image for *semester*."""
@@ -820,6 +924,9 @@ class MoedCalendarOutputWidget(QWidget):
             self._months = _months_from_range(start_date, end_date)
         else:
             self._months = self._compute_months_from_exams(semester)
+
+        # Reset to the first month whenever new schedule data is loaded
+        self._current_month_idx = 0
 
         # Determine semester name + year for the header
         sem, year = _detect_semester_and_year(self._exams_by_date)

@@ -1,190 +1,83 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Protocol
-
-
-class ConstraintType(str, Enum):
-    """Defines stable names for advanced constraints across the system."""
-
-    MIN_DAYS_REQUIRED = "min_days_required"
-    MIN_DAYS_ALL = "min_days_all"
-    ELECTIVE_CONFLICTS = "elective_conflicts"
-    SPAN_REQUIRED = "span_required"
-    MAX_EXAMS_PER_DAY = "max_exams_per_day"
-
-
-class KValidationRule(Protocol):
-    """Validation strategy interface for constraint k values."""
-
-    # Validates the given k value for a specific constraint name.
-    def validate(self, constraint_name: str, k: int) -> None:
-        ...
-
-
-@dataclass(frozen=True)
-class PositiveIntegerKRule:
-    """Validation rule for constraints that require k > 0."""
-
-    # Validates that k is a positive integer.
-    def validate(self, constraint_name: str, k: int) -> None:
-        if not isinstance(k, int):
-            raise ValueError(f"{constraint_name}: k must be an integer.")
-        if k <= 0:
-            raise ValueError(f"{constraint_name}: k must be a positive integer.")
-
-
-@dataclass(frozen=True)
-class NonNegativeIntegerKRule:
-    """Validation rule for constraints that allow k >= 0."""
-
-    # Validates that k is a non-negative integer.
-    def validate(self, constraint_name: str, k: int) -> None:
-        if not isinstance(k, int):
-            raise ValueError(f"{constraint_name}: k must be an integer.")
-        if k < 0:
-            raise ValueError(f"{constraint_name}: k must be a non-negative integer.")
-
-
-@dataclass(frozen=True)
-class ConstraintDefinition:
-    """
-    Static metadata for a single advanced constraint.
-
-    This class keeps validation rules outside the runtime config object,
-    so new constraints can be added by creating another definition instead
-    of changing the validation logic inside ConstraintConfig.
-    """
-
-    constraint_type: ConstraintType
-    display_name: str
-    default_k: int
-    validation_rule: KValidationRule
-
-
-@dataclass
-class ConstraintConfig:
-    """Runtime setting for one advanced scheduling constraint."""
-
-    enabled: bool = False
-    k: int = 1
-
-    # Validates this runtime config against the provided constraint definition.
-    def validate(self, definition: ConstraintDefinition) -> None:
-        if not isinstance(self.enabled, bool):
-            raise ValueError(f"{definition.constraint_type.value}: enabled must be a boolean.")
-        if self.enabled:
-            definition.validation_rule.validate(definition.constraint_type.value, self.k)
-
-
-DEFAULT_CONSTRAINT_DEFINITIONS: dict[ConstraintType, ConstraintDefinition] = {
-    ConstraintType.MIN_DAYS_REQUIRED: ConstraintDefinition(
-        constraint_type=ConstraintType.MIN_DAYS_REQUIRED,
-        display_name="Minimum days required between exams",
-        default_k=1,
-        validation_rule=PositiveIntegerKRule(),
-    ),
-    ConstraintType.MIN_DAYS_ALL: ConstraintDefinition(
-        constraint_type=ConstraintType.MIN_DAYS_ALL,
-        display_name="Minimum days between all exams in the same program and year",
-        default_k=1,
-        validation_rule=PositiveIntegerKRule(),
-    ),
-    ConstraintType.ELECTIVE_CONFLICTS: ConstraintDefinition(
-        constraint_type=ConstraintType.ELECTIVE_CONFLICTS,
-        display_name="Elective exam conflicts in the same program",
-        default_k=0,
-        validation_rule=NonNegativeIntegerKRule(),
-    ),
-    ConstraintType.SPAN_REQUIRED: ConstraintDefinition(
-        constraint_type=ConstraintType.SPAN_REQUIRED,
-        display_name="Minimum span between first and last obligatory exam",
-        default_k=1,
-        validation_rule=PositiveIntegerKRule(),
-    ),
-    ConstraintType.MAX_EXAMS_PER_DAY: ConstraintDefinition(
-        constraint_type=ConstraintType.MAX_EXAMS_PER_DAY,
-        display_name="Maximum number of exams scheduled on the same day",
-        default_k=1,
-        validation_rule=PositiveIntegerKRule(),
-    ),
-}
-
-
-# Creates a fresh default config dictionary so each settings object owns its own configs.
-def _default_configs() -> dict[ConstraintType, ConstraintConfig]:
-    return {
-        constraint_type: ConstraintConfig(enabled=False, k=definition.default_k)
-        for constraint_type, definition in DEFAULT_CONSTRAINT_DEFINITIONS.items()
-    }
+from dataclasses import asdict, dataclass, fields
+from typing import Any
 
 
 @dataclass
 class ConstraintSettings:
-    """
-    Central configuration object for all advanced scheduling constraints.
+    mandatory_gap_enabled: bool = False
+    mandatory_gap_k: int = 0
 
-    This object is designed to be shared by the scheduling engine, GUI settings
-    screen, and CLI/file-based mode.
-    """
+    all_gap_enabled: bool = False
+    all_gap_k: int = 0
 
-    configs: dict[ConstraintType, ConstraintConfig] = field(default_factory=_default_configs)
+    elective_conflicts_enabled: bool = False
+    elective_conflicts_k: int = 0
 
-    # Returns the config object for the requested constraint type.
-    def get(self, constraint_type: ConstraintType) -> ConstraintConfig:
-        self._ensure_known_constraint(constraint_type)
-        return self.configs[constraint_type]
+    spread_enabled: bool = False
+    spread_k: int = 0
 
-    # Updates one constraint setting and validates the new value immediately.
-    def set_constraint(self, constraint_type: ConstraintType, enabled: bool, k: int) -> None:
-        self._ensure_known_constraint(constraint_type)
-        new_config = ConstraintConfig(enabled=enabled, k=k)
-        new_config.validate(DEFAULT_CONSTRAINT_DEFINITIONS[constraint_type])
-        self.configs[constraint_type] = new_config
+    daily_cap_enabled: bool = False
+    daily_cap_k: int = 0
 
-    # Returns True when the requested constraint is enabled.
-    def is_enabled(self, constraint_type: ConstraintType) -> bool:
-        return self.get(constraint_type).enabled
+    # Convert the settings object into a plain dictionary.
+    def to_dict(self) -> dict:
+        return asdict(self)
 
-    # Returns the k value for the requested constraint.
-    def k_value(self, constraint_type: ConstraintType) -> int:
-        return self.get(constraint_type).k
-
-    # Validates all stored constraint settings.
-    def validate(self) -> None:
-        for constraint_type, config in self.configs.items():
-            self._ensure_known_constraint(constraint_type)
-            config.validate(DEFAULT_CONSTRAINT_DEFINITIONS[constraint_type])
-
-    # Converts the settings object into a simple dictionary for UI/file serialization.
-    def to_dict(self) -> dict[str, dict]:
-        return {
-            constraint_type.value: {
-                "enabled": config.enabled,
-                "k": config.k,
-            }
-            for constraint_type, config in self.configs.items()
-        }
-
-    # Builds a ConstraintSettings object from a dictionary loaded from UI/file input.
+    # Build a ConstraintSettings object from a dictionary while normalizing and validating field types.
     @classmethod
-    def from_dict(cls, raw: dict) -> "ConstraintSettings":
-        settings = cls()
-        for raw_key, raw_config in raw.items():
-            constraint_type = ConstraintType(raw_key)
-            settings.set_constraint(
-                constraint_type=constraint_type,
-                enabled=bool(raw_config.get("enabled", False)),
-                k=int(raw_config.get("k", DEFAULT_CONSTRAINT_DEFINITIONS[constraint_type].default_k)),
-            )
+    def from_dict(cls, data: dict[str, Any]) -> "ConstraintSettings":
+        valid_field_names = {field.name for field in fields(cls)}
+        cleaned: dict[str, Any] = {}
+
+        for field_name in valid_field_names:
+            if field_name not in data:
+                continue
+
+            value = data[field_name]
+
+            if field_name.endswith("_k"):
+                cleaned[field_name] = cls._to_int(value)
+            elif field_name.endswith("_enabled"):
+                cleaned[field_name] = cls._to_bool(value)
+            else:
+                cleaned[field_name] = value
+
+        settings = cls(**cleaned)
         settings.validate()
         return settings
 
-    # Ensures that the given constraint type exists in the definitions registry and config map.
-    def _ensure_known_constraint(self, constraint_type: ConstraintType) -> None:
-        if constraint_type not in DEFAULT_CONSTRAINT_DEFINITIONS:
-            raise ValueError(f"Unknown constraint type: {constraint_type}")
-        if constraint_type not in self.configs:
-            definition = DEFAULT_CONSTRAINT_DEFINITIONS[constraint_type]
-            self.configs[constraint_type] = ConstraintConfig(False, definition.default_k)
+    # Validate K values according to the enabled constraint rules from the requirements document.
+    def validate(self) -> None:
+        positive_k_fields = [
+            ("mandatory_gap_enabled", "mandatory_gap_k"),
+            ("all_gap_enabled", "all_gap_k"),
+            ("spread_enabled", "spread_k"),
+            ("daily_cap_enabled", "daily_cap_k"),
+        ]
+
+        for enabled_field, k_field in positive_k_fields:
+            if getattr(self, enabled_field) and getattr(self, k_field) <= 0:
+                raise ValueError(f"{k_field} must be a positive integer when enabled.")
+
+        if self.elective_conflicts_enabled and self.elective_conflicts_k < 0:
+            raise ValueError(
+                "elective_conflicts_k must be a non-negative integer when enabled."
+            )
+
+    # Convert a raw value into an integer K value.
+    @staticmethod
+    def _to_int(value: Any) -> int:
+        return int(value)
+
+    # Convert a raw value into a boolean enabled flag.
+    @staticmethod
+    def _to_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y", "on"}
+
+        return bool(value)

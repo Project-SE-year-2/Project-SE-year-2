@@ -15,7 +15,6 @@ from datetime import date
 
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
-from src.models.constraint_settings import ConstraintSettings
 
 
 # Resolve the project root once at import time.
@@ -32,7 +31,6 @@ class DataStore:
         self._periods: list[ExamPeriod] = []
         #Dictionary to map program_id -> full display name
         self._program_names: dict[str, str] = {}
-        self._constraint_settings = ConstraintSettings()
 
     # ------------------------------------------------------------------ #
     # Persistence                                                        #
@@ -47,8 +45,7 @@ class DataStore:
             pickle.dump({
                 "courses": self._courses, 
                 "periods": self._periods,
-                "program_names": self._program_names, # EP-74: Persist the mapping
-                "constraint_settings": self._constraint_settings,
+                "program_names": self._program_names # EP-74: Persist the mapping
             }, program_file)
 
     def load(self) -> bool:
@@ -68,17 +65,12 @@ class DataStore:
             self._courses = data.get("courses", [])
             self._periods = data.get("periods", [])
             self._program_names = data.get("program_names", {}) # Load the program names mapping
-            self._constraint_settings = data.get(
-                "constraint_settings",
-                ConstraintSettings()
-            )
             return True
         except Exception:
             # Corrupted file — start fresh rather than crashing.
             self._courses = []
             self._periods = []
             self._program_names = {}
-            self._constraint_settings = ConstraintSettings()
             return False
 
     def clear(self) -> None:
@@ -86,7 +78,6 @@ class DataStore:
         self._courses = []
         self._periods = []
         self._program_names = {}
-        self._constraint_settings = ConstraintSettings()
         if self._path.exists():
             self._path.unlink()
 
@@ -108,11 +99,6 @@ class DataStore:
         This is typically populated by parsing the programs definition file.
         """
         self._program_names = dict(names)
-
-    def set_constraint_settings(self, settings: ConstraintSettings) -> None:
-        """Replace the stored advanced constraint settings after validation."""
-        settings.validate()
-        self._constraint_settings = settings
 
     def merge_courses(self, new_courses: list[Course]) -> None:
         """Append courses whose course_id is not already stored."""
@@ -162,10 +148,6 @@ class DataStore:
 
     def get_periods(self) -> list[ExamPeriod]:
         return list(self._periods)
-    
-    def get_constraint_settings(self) -> ConstraintSettings:
-        """Return the current advanced constraint settings."""
-        return self._constraint_settings
 
     def get_period_by_id(self, period_id: str) -> ExamPeriod | None:
         """Look up a period by its stable string ID ("FALL_Aleph", etc.)."""

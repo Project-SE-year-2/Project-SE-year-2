@@ -33,10 +33,6 @@ class ScoreRepository:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-    # ------------------------------------------------------------------
-    # Setup
-    # ------------------------------------------------------------------
-
     def _init_db(self) -> None:
         """Create the scores table if it does not already exist."""
         with self._connect() as conn:
@@ -44,10 +40,6 @@ class ScoreRepository:
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._path)
-
-    # ------------------------------------------------------------------
-    # Write
-    # ------------------------------------------------------------------
 
     def save(self, run_id: str, schedule_idx: int, score: ScheduleScore) -> None:
         """Persist one score entry. Replaces any existing entry for the same key."""
@@ -58,22 +50,11 @@ class ScoreRepository:
                     (run_id, schedule_idx, avg_gap, min_gap, spread, collisions, max_per_day)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (
-                    run_id,
-                    schedule_idx,
-                    score.avg_gap,
-                    score.min_gap,
-                    score.spread,
-                    score.collisions,
-                    score.max_per_day,
-                ),
+                (run_id, schedule_idx, score.avg_gap, score.min_gap,
+                 score.spread, score.collisions, score.max_per_day),
             )
 
-    def save_all(
-        self,
-        run_id: str,
-        scored: list[tuple[int, ScheduleScore]],
-    ) -> None:
+    def save_all(self, run_id: str, scored: list[tuple[int, ScheduleScore]]) -> None:
         """Persist multiple scores for a run in a single transaction."""
         with self._connect() as conn:
             conn.executemany(
@@ -87,10 +68,6 @@ class ScoreRepository:
                     for idx, s in scored
                 ],
             )
-
-    # ------------------------------------------------------------------
-    # Read
-    # ------------------------------------------------------------------
 
     def load(self, run_id: str) -> list[tuple[int, ScheduleScore]]:
         """Return all scores for a run ordered by schedule_idx."""
@@ -106,16 +83,8 @@ class ScoreRepository:
             ).fetchall()
 
         return [
-            (
-                row[0],
-                ScheduleScore(
-                    avg_gap=row[1],
-                    min_gap=row[2],
-                    spread=row[3],
-                    collisions=row[4],
-                    max_per_day=row[5],
-                ),
-            )
+            (row[0], ScheduleScore(avg_gap=row[1], min_gap=row[2],
+                                   spread=row[3], collisions=row[4], max_per_day=row[5]))
             for row in rows
         ]
 
@@ -126,10 +95,6 @@ class ScoreRepository:
                 "SELECT DISTINCT run_id FROM scores ORDER BY run_id"
             ).fetchall()
         return [row[0] for row in rows]
-
-    # ------------------------------------------------------------------
-    # Cleanup
-    # ------------------------------------------------------------------
 
     def delete_run(self, run_id: str) -> None:
         """Remove all scores for a specific run."""

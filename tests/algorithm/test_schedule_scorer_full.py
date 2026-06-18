@@ -9,6 +9,10 @@ from src.models.program_requirement import ProgramRequirement
 from src.models.enums import Evaluation, Semester, Moed, ReqType
 from src.models.schedule_score import ScheduleScore
 from src.algorithm.schedule_scorer import ScheduleScorer
+from src.algorithm.calculators.min_days_calculator import MinDaysCalculator
+from src.algorithm.calculators.collision_calculator import CollisionCalculator
+from src.algorithm.calculators.spread_calculator import SpreadCalculator
+from src.algorithm.calculators.daily_cap_calculator import DailyCapCalculator
 
 
 # ------------------------------------------------------------------
@@ -34,10 +38,6 @@ def _make_course(
 
 
 def _make_schedule(assignments: list[tuple]) -> ExamSchedule:
-    """
-    assignments: list of (ExamPeriod, Course, date)
-    Returns a merged cross-period ExamSchedule.
-    """
     schedules = []
     for period, course, exam_date in assignments:
         s = ExamSchedule(period)
@@ -51,7 +51,7 @@ def _make_schedule(assignments: list[tuple]) -> ExamSchedule:
 
 
 # ------------------------------------------------------------------
-# compute_min_gap
+# MinDaysCalculator (EP-96)
 # ------------------------------------------------------------------
 
 def test_min_gap_two_obligatory_exams():
@@ -64,7 +64,7 @@ def test_min_gap_two_obligatory_exams():
         (FALL, c2, date(2026, 2, 10)),
     ])
 
-    assert ScheduleScorer().compute_min_gap(schedule, [PROGRAM]) == 7
+    assert MinDaysCalculator().compute(schedule, [PROGRAM]) == 7
 
 
 def test_min_gap_picks_smallest_gap():
@@ -75,41 +75,39 @@ def test_min_gap_picks_smallest_gap():
 
     schedule = _make_schedule([
         (FALL, c1, date(2026, 2, 3)),
-        (FALL, c2, date(2026, 2, 10)),  # gap 7
-        (FALL, c3, date(2026, 2, 13)),  # gap 3
+        (FALL, c2, date(2026, 2, 10)),
+        (FALL, c3, date(2026, 2, 13)),
     ])
 
-    assert ScheduleScorer().compute_min_gap(schedule, [PROGRAM]) == 3
+    assert MinDaysCalculator().compute(schedule, [PROGRAM]) == 3
 
 
 def test_min_gap_ignores_electives():
     """Elective exams are excluded from min_gap calculation."""
-    c_ob = _make_course("Physics 1",  "101", PROGRAM, year=1, req_type=ReqType.Obligatory)
-    c_el = _make_course("Art",        "999", PROGRAM, year=1, req_type=ReqType.Elective)
+    c_ob = _make_course("Physics 1", "101", PROGRAM, year=1, req_type=ReqType.Obligatory)
+    c_el = _make_course("Art",       "999", PROGRAM, year=1, req_type=ReqType.Elective)
 
     schedule = _make_schedule([
         (FALL, c_ob, date(2026, 2, 3)),
-        (FALL, c_el, date(2026, 2, 4)),  # 1 day — elective, should be ignored
+        (FALL, c_el, date(2026, 2, 4)),
     ])
 
-    # Only one obligatory exam → no gap possible
-    assert ScheduleScorer().compute_min_gap(schedule, [PROGRAM]) == 0
+    assert MinDaysCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 def test_min_gap_single_obligatory_returns_zero():
-    """A single obligatory exam produces no gap → 0."""
     c1 = _make_course("Physics 1", "101", PROGRAM, year=1)
     schedule = _make_schedule([(FALL, c1, date(2026, 2, 3))])
-    assert ScheduleScorer().compute_min_gap(schedule, [PROGRAM]) == 0
+    assert MinDaysCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 def test_min_gap_empty_schedule_returns_zero():
     schedule = ExamSchedule(None)
-    assert ScheduleScorer().compute_min_gap(schedule, [PROGRAM]) == 0
+    assert MinDaysCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 # ------------------------------------------------------------------
-# compute_elective_collisions
+# CollisionCalculator (EP-98)
 # ------------------------------------------------------------------
 
 def test_elective_collision_detected():
@@ -119,48 +117,46 @@ def test_elective_collision_detected():
 
     schedule = _make_schedule([
         (FALL, c_ob, date(2026, 2, 3)),
-        (FALL, c_el, date(2026, 2, 3)),  # same day → collision
+        (FALL, c_el, date(2026, 2, 3)),
     ])
 
-    assert ScheduleScorer().compute_elective_collisions(schedule, [PROGRAM]) == 1
+    assert CollisionCalculator().compute(schedule, [PROGRAM]) == 1
 
 
 def test_no_elective_collision_when_days_differ():
-    """Elective on a different day than all other exams → 0 collisions."""
     c_ob = _make_course("Physics 1", "101", PROGRAM, year=1, req_type=ReqType.Obligatory)
     c_el = _make_course("Art",       "999", PROGRAM, year=1, req_type=ReqType.Elective)
 
     schedule = _make_schedule([
         (FALL, c_ob, date(2026, 2, 3)),
-        (FALL, c_el, date(2026, 2, 10)),  # different day
+        (FALL, c_el, date(2026, 2, 10)),
     ])
 
-    assert ScheduleScorer().compute_elective_collisions(schedule, [PROGRAM]) == 0
+    assert CollisionCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 def test_two_elective_collisions():
-    """Two electives each colliding on different days → 2 collisions."""
+    """Two electives on different days — only the one that collides counts."""
     c_ob  = _make_course("Physics 1", "101", PROGRAM, year=1, req_type=ReqType.Obligatory)
     c_el1 = _make_course("Art",       "991", PROGRAM, year=1, req_type=ReqType.Elective)
     c_el2 = _make_course("Music",     "992", PROGRAM, year=1, req_type=ReqType.Elective)
 
     schedule = _make_schedule([
         (FALL, c_ob,  date(2026, 2, 3)),
-        (FALL, c_el1, date(2026, 2, 3)),   # collision 1
-        (FALL, c_el2, date(2026, 2, 10)),  # no collision
+        (FALL, c_el1, date(2026, 2, 3)),
+        (FALL, c_el2, date(2026, 2, 10)),
     ])
 
-    # Only c_el1 collides
-    assert ScheduleScorer().compute_elective_collisions(schedule, [PROGRAM]) == 1
+    assert CollisionCalculator().compute(schedule, [PROGRAM]) == 1
 
 
 def test_elective_collisions_empty_schedule():
     schedule = ExamSchedule(None)
-    assert ScheduleScorer().compute_elective_collisions(schedule, [PROGRAM]) == 0
+    assert CollisionCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 # ------------------------------------------------------------------
-# compute_spread
+# SpreadCalculator (EP-99)
 # ------------------------------------------------------------------
 
 def test_spread_two_obligatory_exams():
@@ -173,11 +169,10 @@ def test_spread_two_obligatory_exams():
         (FALL, c2, date(2026, 2, 24)),
     ])
 
-    assert ScheduleScorer().compute_spread(schedule, [PROGRAM]) == 21
+    assert SpreadCalculator().compute(schedule, [PROGRAM]) == 21
 
 
 def test_spread_uses_first_and_last_only():
-    """Spread = max_date - min_date regardless of middle exams."""
     c1 = _make_course("Physics 1",  "101", PROGRAM, year=1)
     c2 = _make_course("Calculus 1", "102", PROGRAM, year=1)
     c3 = _make_course("Intro CS",   "103", PROGRAM, year=1)
@@ -188,7 +183,7 @@ def test_spread_uses_first_and_last_only():
         (FALL, c3, date(2026, 2, 24)),
     ])
 
-    assert ScheduleScorer().compute_spread(schedule, [PROGRAM]) == 21
+    assert SpreadCalculator().compute(schedule, [PROGRAM]) == 21
 
 
 def test_spread_ignores_electives():
@@ -198,36 +193,34 @@ def test_spread_ignores_electives():
 
     schedule = _make_schedule([
         (FALL, c_ob, date(2026, 2, 10)),
-        (FALL, c_el, date(2026, 3, 20)),  # far elective — should not extend spread
+        (FALL, c_el, date(2026, 3, 20)),
     ])
 
-    assert ScheduleScorer().compute_spread(schedule, [PROGRAM]) == 0
+    assert SpreadCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 def test_spread_single_exam_returns_zero():
     c1 = _make_course("Physics 1", "101", PROGRAM, year=1)
     schedule = _make_schedule([(FALL, c1, date(2026, 2, 3))])
-    assert ScheduleScorer().compute_spread(schedule, [PROGRAM]) == 0
+    assert SpreadCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 def test_spread_empty_schedule_returns_zero():
     schedule = ExamSchedule(None)
-    assert ScheduleScorer().compute_spread(schedule, [PROGRAM]) == 0
+    assert SpreadCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 # ------------------------------------------------------------------
-# compute_max_per_day
+# DailyCapCalculator (EP-100)
 # ------------------------------------------------------------------
 
 def test_max_per_day_single_exam():
-    """One exam on one day → max_per_day = 1."""
     c1 = _make_course("Physics 1", "101", PROGRAM, year=1)
     schedule = _make_schedule([(FALL, c1, date(2026, 2, 3))])
-    assert ScheduleScorer().compute_max_per_day(schedule, [PROGRAM]) == 1
+    assert DailyCapCalculator().compute(schedule, [PROGRAM]) == 1
 
 
 def test_max_per_day_two_on_same_day():
-    """Two exams on the same day → max_per_day = 2."""
     c1 = _make_course("Physics 1",  "101", PROGRAM, year=1)
     c2 = _make_course("Calculus 1", "102", PROGRAM, year=1)
 
@@ -236,11 +229,10 @@ def test_max_per_day_two_on_same_day():
         (FALL, c2, date(2026, 2, 3)),
     ])
 
-    assert ScheduleScorer().compute_max_per_day(schedule, [PROGRAM]) == 2
+    assert DailyCapCalculator().compute(schedule, [PROGRAM]) == 2
 
 
 def test_max_per_day_picks_busiest_day():
-    """Two on Feb 3, one on Feb 10 → max_per_day = 2."""
     c1 = _make_course("Physics 1",  "101", PROGRAM, year=1)
     c2 = _make_course("Calculus 1", "102", PROGRAM, year=1)
     c3 = _make_course("Intro CS",   "103", PROGRAM, year=1)
@@ -251,20 +243,20 @@ def test_max_per_day_picks_busiest_day():
         (FALL, c3, date(2026, 2, 10)),
     ])
 
-    assert ScheduleScorer().compute_max_per_day(schedule, [PROGRAM]) == 2
+    assert DailyCapCalculator().compute(schedule, [PROGRAM]) == 2
 
 
 def test_max_per_day_empty_schedule():
     schedule = ExamSchedule(None)
-    assert ScheduleScorer().compute_max_per_day(schedule, [PROGRAM]) == 0
+    assert DailyCapCalculator().compute(schedule, [PROGRAM]) == 0
 
 
 # ------------------------------------------------------------------
-# score() — full ScheduleScore
+# ScheduleScorer.compute_scores — full ScheduleScore (EP-102)
 # ------------------------------------------------------------------
 
 def test_score_populates_all_fields():
-    """score() fills all five fields of ScheduleScore."""
+    """compute_scores() fills all five fields of ScheduleScore."""
     c1 = _make_course("Physics 1",  "101", PROGRAM, year=1, req_type=ReqType.Obligatory)
     c2 = _make_course("Calculus 1", "102", PROGRAM, year=1, req_type=ReqType.Obligatory)
     c3 = _make_course("Art",        "999", PROGRAM, year=1, req_type=ReqType.Elective)
@@ -272,10 +264,10 @@ def test_score_populates_all_fields():
     schedule = _make_schedule([
         (FALL, c1, date(2026, 2, 3)),
         (FALL, c2, date(2026, 2, 10)),
-        (FALL, c3, date(2026, 2, 10)),  # elective collision
+        (FALL, c3, date(2026, 2, 10)),
     ])
 
-    result = ScheduleScorer().score(schedule, [PROGRAM])
+    result = ScheduleScorer(program_ids=[PROGRAM]).compute_scores(schedule)
 
     assert isinstance(result, ScheduleScore)
     assert result.avg_gap == 7.0
@@ -288,7 +280,7 @@ def test_score_populates_all_fields():
 def test_score_empty_schedule_returns_zero_score():
     """An empty schedule produces a zeroed ScheduleScore."""
     schedule = ExamSchedule(None)
-    result = ScheduleScorer().score(schedule, [PROGRAM])
+    result = ScheduleScorer(program_ids=[PROGRAM]).compute_scores(schedule)
 
     assert result.avg_gap == 0.0
     assert result.min_gap == 0

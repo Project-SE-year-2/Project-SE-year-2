@@ -221,9 +221,8 @@ class ScoresDatabase:
             ),
         )
         self._conn.commit()
-        # Notify the UI process that a new scored schedule is available.
         if self._queue is not None:
-            self._queue.put({"event": "batch_written", "period_id": period_id})
+            self._queue.put({"event": "batch_written", "period_id": period_id, "count": 1})
 
     def insert_batch(
         self,
@@ -265,9 +264,8 @@ class ScoresDatabase:
             ],
         )
         self._conn.commit()
-        # One notification covers the entire batch — avoids flooding the queue.
         if self._queue is not None:
-            self._queue.put({"event": "batch_written", "period_id": period_id})
+            self._queue.put({"event": "batch_written", "period_id": period_id, "count": len(rows)})
 
     def mark_done(self) -> None:
         """

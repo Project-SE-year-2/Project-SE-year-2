@@ -6,6 +6,11 @@ signals so the UI can react to each period completing and to overall
 completion or failure.
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.presenter.i_app_service import IAppService
+
 try:
     from PyQt5.QtCore import QThread, pyqtSignal
     _QT_AVAILABLE = True
@@ -30,7 +35,7 @@ if _QT_AVAILABLE:
         finished = pyqtSignal(int)
         error = pyqtSignal(str)
 
-        def __init__(self, service, parent=None):
+        def __init__(self, service: "IAppService", parent=None):
             super().__init__(parent)
             self._service = service
 

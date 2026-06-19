@@ -1,23 +1,37 @@
 """
 engine_listener.py
 ------------------
-QThread that bridges the Engine Process event queue to Qt signals.
+QThread that bridges the Engine Process scores queue to Qt signals.
 
-The Engine Process (and ScoresDatabase) post lightweight dict events onto a
-multiprocessing.Queue.  This thread calls queue.get() — a *blocking* wait,
-not a poll — so it consumes zero CPU between events.  Each event is
-immediately translated into a pyqtSignal that Qt delivers to connected slots
-on the main (UI) thread.
+Responsibilities
+----------------
+This class has ONE responsibility: translate multiprocessing.Queue events
+produced by ScoresDatabase into Qt signals for the UI thread.
 
-Event format produced by ScoresDatabase:
-  {"event": "batch_written", "period_id": <str>}  — new scores committed
-  {"event": "engine_done"}                         — generation finished
+It is NOT a replacement for GenerateWorker.  The two classes serve
+completely different purposes:
 
-Signals emitted:
-  batch_written(str)  — carries period_id; triggers WindowManager to check
-                        whether a better schedule arrived
-  engine_done()       — generation is complete; UI hides the spinner
-  error(str)          — an unexpected exception; carries the message
+  GenerateWorker  — drives schedule generation by calling
+                    IAppService.generate_stream() and notifies the UI
+                    when each period's generation is complete
+                    (signals: period_ready, finished).
+
+  EngineListener  — listens for scoring events posted to the queue by
+                    ScoresDatabase after each batch is written to scores.db,
+                    and notifies the UI that new ranked results are available
+                    (signals: batch_written, engine_done).
+
+Event contract (produced by ScoresDatabase)
+-------------------------------------------
+  {"event": "batch_written", "period_id": <str>, "count": <int>}
+  {"event": "engine_done"}
+  {"event": "_stop"}   <- internal sentinel for graceful shutdown
+
+Graceful shutdown
+-----------------
+Call stop() from the main thread before the application exits.
+stop() puts a sentinel event on the queue so run() unblocks and exits
+cleanly instead of blocking forever on queue.get().
 """
 
 import multiprocessing
@@ -40,8 +54,9 @@ if _QT_AVAILABLE:
         """
 
         # Emitted every time ScoresDatabase commits a new batch of scores.
-        # Carries the period_id so WindowManager can check only the relevant period.
-        batch_written = pyqtSignal(str)
+        # Carries period_id and count so WindowManager knows how many new
+        # rows arrived without querying the database.
+        batch_written = pyqtSignal(str, int)
 
         # Emitted once when the Engine Process finishes all periods.
         engine_done = pyqtSignal()
@@ -50,50 +65,53 @@ if _QT_AVAILABLE:
         error = pyqtSignal(str)
 
         def __init__(self, queue: multiprocessing.Queue, parent=None):
-            """
-            Parameters
-            ----------
-            queue:
-                The same multiprocessing.Queue that was passed to ScoresDatabase
-                at construction time.  Both ends must reference the same Queue
-                object (created before the Engine Process is spawned so it is
-                inherited by the child process).
-            """
             super().__init__(parent)
             self._queue = queue
+
+        def stop(self) -> None:
+            """
+            Request a graceful shutdown.
+
+            Puts a sentinel event on the queue so run() unblocks immediately
+            and the thread exits cleanly.  Safe to call from any thread.
+            """
+            self._queue.put({"event": "_stop"})
 
         def run(self) -> None:
             """
             Main loop — runs on the background QThread, never on the UI thread.
 
             queue.get() blocks without consuming CPU until an event arrives.
-            Each event dict is dispatched to the matching signal.  The loop
-            exits cleanly on "engine_done" or on any unhandled exception.
+            Exits cleanly on engine_done, _stop sentinel, or any exception.
             """
             try:
                 while True:
-                    # Blocking wait — no polling, no sleep() required.
                     event = self._queue.get()
 
                     if event.get("event") == "batch_written":
-                        # Signal delivery crosses the thread boundary automatically;
-                        # Qt queues the call and executes it on the main thread.
-                        self.batch_written.emit(event["period_id"])
+                        period_id = event["period_id"]
+                        count = event.get("count", 0)
+                        self.batch_written.emit(period_id, count)
 
                     elif event.get("event") == "engine_done":
                         self.engine_done.emit()
-                        break   # exit the loop; the thread finishes naturally
+                        break
+
+                    elif event.get("event") == "_stop":
+                        break
 
             except Exception as exc:
                 self.error.emit(str(exc))
 
 else:
-    # Stub for environments without PyQt5 (CI, unit tests, server installs).
     class EngineListener:  # type: ignore[no-redef]
         """Stub — PyQt5 not installed."""
 
         def __init__(self, queue: multiprocessing.Queue, parent=None):
             self._queue = queue
+
+        def stop(self) -> None:
+            pass
 
         def start(self) -> None:
             raise RuntimeError("PyQt5 is not installed. Cannot start EngineListener.")

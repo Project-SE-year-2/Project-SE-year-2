@@ -58,6 +58,10 @@ SEMESTER_SUBTITLE_COLOR = "#64748B"   # "September 2026 – December 2026"
 SEMESTER_SUBTITLE_SIZE  = 18
 SEMESTER_ICON_COLOR     = "#4338CA"   # leaf / feather icon colour
 
+# ── Month navigation bar (‹ October 2026 (1/3) ›) ───────────────────────────
+MONTH_NAV_LABEL_SIZE   = 15
+MONTH_NAV_LABEL_WEIGHT = 600
+
 # ── Schedule navigator (‹ N of M ›) ─────────────────────────────────────────
 NAV_ARROW_STYLE = """
 QPushButton#navArrowBtn {

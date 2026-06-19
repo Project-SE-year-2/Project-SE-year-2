@@ -184,3 +184,31 @@ def test_set_pending_does_not_change_rows(db, state):
     rows_before = list(state.rows)
     state.set_pending()
     assert state.rows == rows_before
+
+
+# ---------------------------------------------------------------------------
+# set_sort() state safety
+# ---------------------------------------------------------------------------
+
+def test_set_sort_invalid_column_does_not_corrupt_sort_cols(db, state):
+    """If set_sort() raises, sort_cols must remain unchanged."""
+    db.insert("fall_a", 0, 0, _m())
+    state.load()
+    original_sort = list(state.sort_cols)
+
+    with pytest.raises(ValueError):
+        state.set_sort(["nonexistent_column"])
+
+    assert state.sort_cols == original_sort
+
+def test_set_sort_invalid_column_does_not_corrupt_offset(db, state):
+    """If set_sort() raises on an invalid column, offset must remain unchanged."""
+    db.insert_batch("fall_a", [(0, i, _m()) for i in range(DEFAULT_PAGE_SIZE + 5)])
+    state.load()
+    state.next_page()
+    offset_before = state.offset
+
+    with pytest.raises(ValueError):
+        state.set_sort(["bad_column"])
+
+    assert state.offset == offset_before

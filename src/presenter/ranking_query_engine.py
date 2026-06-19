@@ -39,12 +39,19 @@ class RankingQueryEngine:
     def fetch_window(self, period_id: str, sort_cols: list,
                      limit: int, offset: int) -> list:
         """Return up to limit schedule references ranked by sort_cols."""
+        if limit <= 0:
+            raise ValueError(f"limit must be a positive integer, got {limit}")
+        if offset < 0:
+            raise ValueError(f"offset must be non-negative, got {offset}")
         order_clause = self._build_order_clause(sort_cols)
+        # Tie-breaker ensures deterministic ordering and stable pagination
+        # when multiple rows share identical metric values.
         rows = self._conn.execute(
             f"SELECT batch_number, index_in_batch, min_days_required, avg_days_all, "
             f"elective_conflicts, span_required, max_exams_per_day "
             f"FROM scores WHERE period_id = ? "
-            f"ORDER BY {order_clause} LIMIT ? OFFSET ?",
+            f"ORDER BY {order_clause}, batch_number ASC, index_in_batch ASC "
+            f"LIMIT ? OFFSET ?",
             (period_id, limit, offset),
         ).fetchall()
         return [tuple(row) for row in rows]

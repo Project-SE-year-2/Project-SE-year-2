@@ -153,3 +153,53 @@ def test_context_manager_closes_connection(db_path, db):
         assert len(eng.fetch_window("fall_a", ["min_days_required"], limit=10, offset=0)) == 1
     with pytest.raises(Exception):
         eng._conn.execute("SELECT 1")
+
+
+# ---------------------------------------------------------------------------
+# limit / offset validation
+# ---------------------------------------------------------------------------
+
+def test_fetch_window_zero_limit_raises(db, engine):
+    with pytest.raises(ValueError, match="limit"):
+        engine.fetch_window("fall_a", ["min_days_required"], limit=0, offset=0)
+
+def test_fetch_window_negative_limit_raises(db, engine):
+    with pytest.raises(ValueError, match="limit"):
+        engine.fetch_window("fall_a", ["min_days_required"], limit=-1, offset=0)
+
+def test_fetch_window_negative_offset_raises(db, engine):
+    with pytest.raises(ValueError, match="offset"):
+        engine.fetch_window("fall_a", ["min_days_required"], limit=10, offset=-1)
+
+def test_fetch_window_zero_offset_is_valid(db, engine):
+    db.insert("fall_a", 0, 0, _m())
+    rows = engine.fetch_window("fall_a", ["min_days_required"], limit=10, offset=0)
+    assert len(rows) == 1
+
+
+# ---------------------------------------------------------------------------
+# Deterministic tie-breaker
+# ---------------------------------------------------------------------------
+
+def test_fetch_window_stable_order_when_metrics_tied(db, engine):
+    """Rows with identical metric values must come back in batch/index order."""
+    # Insert 3 rows with identical metrics — tie-breaker should sort by (batch, index).
+    db.insert("fall_a", 0, 2, _m(min_days=5.0))
+    db.insert("fall_a", 0, 0, _m(min_days=5.0))
+    db.insert("fall_a", 0, 1, _m(min_days=5.0))
+
+    rows = engine.fetch_window("fall_a", ["min_days_required"], limit=10, offset=0)
+
+    indices = [r[IDX_INDEX_IN_BATCH] for r in rows]
+    assert indices == [0, 1, 2], "Tied rows must be ordered by index_in_batch ASC"
+
+def test_pagination_is_stable_across_pages_with_tied_metrics(db, engine):
+    """Two consecutive pages must not overlap when all metrics are identical."""
+    db.insert_batch("fall_a", [(0, i, _m(min_days=3.0)) for i in range(10)])
+
+    page1 = engine.fetch_window("fall_a", ["min_days_required"], limit=5, offset=0)
+    page2 = engine.fetch_window("fall_a", ["min_days_required"], limit=5, offset=5)
+
+    p1_idx = {r[IDX_INDEX_IN_BATCH] for r in page1}
+    p2_idx = {r[IDX_INDEX_IN_BATCH] for r in page2}
+    assert p1_idx.isdisjoint(p2_idx), "Pages must not overlap even with tied metrics"

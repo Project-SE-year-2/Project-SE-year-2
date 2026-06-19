@@ -66,10 +66,22 @@ class WindowState:
         return (self.total + self.page_size - 1) // self.page_size
 
     def set_sort(self, sort_cols: list) -> None:
-        """Change ranking priority and re-fetch from page 1 (no regeneration)."""
+        """Change ranking priority and re-fetch from page 1 (no regeneration).
+
+        Validates the new sort_cols before modifying any state, so a ValueError
+        leaves the object in its previous valid state.
+        """
+        # Validate first — do not touch state until we know the input is good.
+        self.engine._build_order_clause(sort_cols)
+        previous = self.sort_cols
         self.sort_cols = sort_cols
         self.offset = 0
-        self._fetch()
+        try:
+            self._fetch()
+        except Exception:
+            # Restore previous state if the fetch itself fails unexpectedly.
+            self.sort_cols = previous
+            raise
         self.pending = False
 
     def set_pending(self) -> None:

@@ -5,10 +5,14 @@ from src.algorithm.i_metric_calculator import IMetricCalculator
 
 
 class AvgDaysCalculator(IMetricCalculator):
-    """EP-97 — Average gap between consecutive exams, all course types."""
+    """
+    EP-97 — Average gap between consecutive exams, all course types.
+    Groups by (program_id, year), deduplicates same-day entries,
+    then computes the mean consecutive gap in days.
+    """
 
     def field_name(self) -> str:
-        return "avg_gap"
+        return "avg_days_all"
 
     def compute(self, schedule: ExamSchedule, program_ids: list[str]) -> float:
         gaps: list[int] = []

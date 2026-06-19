@@ -5,7 +5,7 @@ from src.models.exam_period import ExamPeriod
 from src.models.exam_schedule import ExamSchedule
 from src.models.program_requirement import ProgramRequirement
 from src.models.enums import Evaluation, Semester, Moed, ReqType
-from src.models.schedule_score import ScheduleScore
+from src.models.schedule_score import ScheduleMetrics
 from src.algorithm.schedule_scorer import ScheduleScorer
 from src.algorithm.calculators.avg_days_calculator import AvgDaysCalculator
 
@@ -39,25 +39,26 @@ PROGRAM = "83101"
 
 
 # ------------------------------------------------------------------
-# ScheduleScore dataclass
+# ScheduleMetrics dataclass
 # ------------------------------------------------------------------
 
-def test_schedule_score_defaults():
-    score = ScheduleScore()
-    assert score.avg_gap == 0.0
-    assert score.min_gap == 0
-    assert score.spread == 0
-    assert score.collisions == 0
-    assert score.max_per_day == 0
+def test_schedule_metrics_defaults():
+    m = ScheduleMetrics()
+    assert m.avg_days_all == 0.0
+    assert m.min_days_required == 0
+    assert m.span_required == 0
+    assert m.elective_conflicts == 0
+    assert m.max_exams_per_day == 0
 
 
-def test_schedule_score_custom_values():
-    score = ScheduleScore(avg_gap=7.5, min_gap=3, spread=21, collisions=1, max_per_day=2)
-    assert score.avg_gap == 7.5
-    assert score.min_gap == 3
-    assert score.spread == 21
-    assert score.collisions == 1
-    assert score.max_per_day == 2
+def test_schedule_metrics_custom_values():
+    m = ScheduleMetrics(avg_days_all=7.5, min_days_required=3,
+                        span_required=21, elective_conflicts=1, max_exams_per_day=2)
+    assert m.avg_days_all == 7.5
+    assert m.min_days_required == 3
+    assert m.span_required == 21
+    assert m.elective_conflicts == 1
+    assert m.max_exams_per_day == 2
 
 
 # ------------------------------------------------------------------
@@ -145,7 +146,7 @@ def test_avg_gap_ignores_duplicate_dates():
 # ScheduleScorer.compute_scores — EP-102
 # ------------------------------------------------------------------
 
-def test_compute_scores_returns_schedule_score():
+def test_compute_scores_returns_schedule_metrics():
     c1 = _make_course("Physics 1",  "101", PROGRAM, year=1)
     c2 = _make_course("Calculus 1", "102", PROGRAM, year=1)
     schedule = _make_schedule([
@@ -153,19 +154,24 @@ def test_compute_scores_returns_schedule_score():
         (FALL, c2, date(2026, 2, 10)),
     ])
     result = ScheduleScorer(program_ids=[PROGRAM]).compute_scores(schedule)
-    assert isinstance(result, ScheduleScore)
-    assert result.avg_gap == 7.0
+    assert isinstance(result, ScheduleMetrics)
+    assert result.avg_days_all == 7.0
 
 
 def test_compute_scores_empty_schedule():
     result = ScheduleScorer(program_ids=[PROGRAM]).compute_scores(ExamSchedule(None))
-    assert isinstance(result, ScheduleScore)
-    assert result.avg_gap == 0.0
+    assert isinstance(result, ScheduleMetrics)
+    assert result.avg_days_all == 0.0
+
+
+def test_compute_scores_no_program_ids_backward_compat():
+    """ScheduleScorer() with no args must not raise — backward compatibility."""
+    result = ScheduleScorer().compute_scores(ExamSchedule(None))
+    assert isinstance(result, ScheduleMetrics)
 
 
 def test_compute_scores_field_name_mapping():
-    """Each calculator's field_name() must match a real ScheduleScore attribute."""
-    blank = ScheduleScore()
-    scorer = ScheduleScorer(program_ids=[PROGRAM])
-    for calc in scorer._calculators:
+    """Each calculator's field_name() must match a real ScheduleMetrics attribute."""
+    blank = ScheduleMetrics()
+    for calc in ScheduleScorer(program_ids=[PROGRAM])._calculators:
         assert hasattr(blank, calc.field_name())

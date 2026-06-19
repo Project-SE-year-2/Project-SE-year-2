@@ -522,11 +522,11 @@ class MoedCalendarOutputWidget(QWidget):
         spans only a single month (nothing to navigate to).
         """
         n = len(self._months)
-        if self._multi_month_mode or n <= 1:
-            self._month_nav_bar.setVisible(False)
+        visible = not self._multi_month_mode and n > 1
+        self._month_nav_bar.setVisible(visible)
+        if not visible:
             return
 
-        self._month_nav_bar.setVisible(True)
         i = self._current_month_idx
         year, month = self._months[i]
         self._month_nav_label.setText(
@@ -550,6 +550,9 @@ class MoedCalendarOutputWidget(QWidget):
 
         multi_month=False  — one month at a time with ‹ / › navigation.
         multi_month=True   — all months side-by-side (original behaviour).
+
+        Side effects: rebuilds month cards, resets navigation bar visibility,
+        and keeps the current month index unchanged.
         """
         if multi_month == self._multi_month_mode:
             return

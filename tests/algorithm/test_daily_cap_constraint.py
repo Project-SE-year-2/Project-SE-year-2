@@ -17,6 +17,7 @@ Covers:
   - courses from different programs on the same day all count toward the cap
   - exams spread across different days each count independently
   - k=1 with two exams on the same day violates
+  - elective and obligatory courses both count toward the cap
 """
 
 import pytest

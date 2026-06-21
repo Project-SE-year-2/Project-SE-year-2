@@ -18,7 +18,8 @@ Covers:
   - violation in one cohort fails the whole schedule even when others pass
   - all cohorts passing returns True
   - same course in two cohorts contributes to both spans independently
-  - three obligatory exams: span is first-to-last, not adjacent
+  - three obligatory exams, small gap at start: span is first-to-last (passes)
+  - three obligatory exams, small gap at end: span is still first-to-last (passes)
 """
 
 import pytest

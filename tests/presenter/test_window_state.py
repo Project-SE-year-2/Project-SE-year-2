@@ -38,6 +38,12 @@ def test_load_resets_offset_to_zero(db, state):
     state.load()
     assert state.offset == 0
 
+def test_load_clears_has_update(db, state):
+    db.insert("fall_a", 0, 0, _m())
+    state.set_pending()
+    state.load()
+    assert state.has_update is False
+
 def test_load_clears_pending_flag(db, state):
     db.insert("fall_a", 0, 0, _m())
     state.set_pending()
@@ -69,6 +75,12 @@ def test_refresh_does_not_reset_offset(db, state):
     offset_before = state.offset
     state.refresh()
     assert state.offset == offset_before
+
+def test_refresh_clears_has_update(db, state):
+    db.insert("fall_a", 0, 0, _m())
+    state.set_pending()
+    state.refresh()
+    assert state.has_update is False
 
 def test_refresh_clears_pending_flag(db, state):
     db.insert("fall_a", 0, 0, _m())

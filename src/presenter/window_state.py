@@ -49,11 +49,13 @@ class WindowState:
         self.offset = 0
         self._fetch()
         self.pending = False
+        self.has_update = False
 
     def refresh(self) -> None:
         """Re-fetch current page, clear pending."""
         self._fetch()
         self.pending = False
+        self.has_update = False
 
     def next_page(self) -> bool:
         """Advance one page. Returns False if already on the last page."""

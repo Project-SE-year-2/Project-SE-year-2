@@ -3,6 +3,9 @@ from src.models.exam_schedule import ExamSchedule
 
 from src.algorithm.constraints.i_constraint import IConstraint
 from src.algorithm.constraints.all_gap_constraint import AllGapConstraint
+from src.algorithm.constraints.collision_constraint import CollisionConstraint
+from src.algorithm.constraints.spread_constraint import SpreadConstraint
+from src.algorithm.constraints.daily_cap_constraint import DailyCapConstraint
 
 
 class ConstraintChecker:
@@ -20,6 +23,21 @@ class ConstraintChecker:
             "all_gap_enabled",
             "all_gap_k",
             AllGapConstraint,
+        ),
+        (
+            "elective_conflicts_enabled",
+            "elective_conflicts_k",
+            CollisionConstraint,
+        ),
+        (
+            "spread_enabled",
+            "spread_k",
+            SpreadConstraint,
+        ),
+        (
+            "daily_cap_enabled",
+            "daily_cap_k",
+            DailyCapConstraint,
         ),
     ]
 

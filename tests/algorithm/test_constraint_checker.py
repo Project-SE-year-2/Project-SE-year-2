@@ -162,3 +162,35 @@ def test_disabled_constraint_is_not_created():
     checker = ConstraintChecker(settings)
 
     assert len(checker._constraints) == 0
+
+# Verify that all currently supported enabled constraints are created.
+def test_builds_all_supported_enabled_constraints():
+    settings = ConstraintSettings(
+        all_gap_enabled=True,
+        all_gap_k=5,
+        elective_conflicts_enabled=True,
+        elective_conflicts_k=1,
+        spread_enabled=True,
+        spread_k=10,
+        daily_cap_enabled=True,
+        daily_cap_k=3,
+    )
+
+    checker = ConstraintChecker(settings)
+
+    assert len(checker._constraints) == 4
+
+# Verify that DailyCapConstraint is applied by ConstraintChecker.
+def test_is_valid_returns_false_when_daily_cap_fails():
+    settings = ConstraintSettings(daily_cap_enabled=True, daily_cap_k=1)
+    checker = ConstraintChecker(settings)
+
+    c1 = _make_course("Physics", "101", PROGRAM, 1)
+    c2 = _make_course("Calculus", "102", PROGRAM, 1)
+
+    schedule = _make_schedule([
+        (FALL, c1, date(2026, 2, 1)),
+        (FALL, c2, date(2026, 2, 1)),
+    ])
+
+    assert checker.is_valid(schedule) is False

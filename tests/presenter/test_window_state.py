@@ -212,3 +212,74 @@ def test_set_sort_invalid_column_does_not_corrupt_offset(db, state):
         state.set_sort(["bad_column"])
 
     assert state.offset == offset_before
+
+
+# ---------------------------------------------------------------------------
+# has_update flag + accept_pending()  (EP-103 live-update integration)
+# ---------------------------------------------------------------------------
+
+def test_has_update_is_false_initially(state):
+    assert state.has_update is False
+
+
+def test_set_pending_sets_has_update(state):
+    state.set_pending()
+    assert state.has_update is True
+
+
+def test_set_pending_also_sets_pending_flag(state):
+    """set_pending() must keep the existing pending flag behaviour."""
+    state.set_pending()
+    assert state.pending is True
+
+
+def test_accept_pending_clears_has_update(db, state):
+    db.insert("fall_a", 0, 0, _m())
+    state.load()
+    state.set_pending()
+    state.accept_pending()
+    assert state.has_update is False
+
+
+def test_accept_pending_clears_pending_flag(db, state):
+    db.insert("fall_a", 0, 0, _m())
+    state.load()
+    state.set_pending()
+    state.accept_pending()
+    assert state.pending is False
+
+
+def test_accept_pending_includes_new_data(db, state):
+    """accept_pending() must re-fetch so new rows written since load() appear."""
+    db.insert("fall_a", 0, 0, _m())
+    state.load()
+    assert state.total == 1
+
+    db.insert("fall_a", 0, 1, _m())
+    state.set_pending()
+    state.accept_pending()
+
+    assert state.total == 2
+    assert len(state.rows) == 2
+
+
+def test_accept_pending_preserves_offset(db, state):
+    """accept_pending() keeps the current page, unlike load() which resets to page 1."""
+    db.insert_batch("fall_a", [(0, i, _m()) for i in range(DEFAULT_PAGE_SIZE + 5)])
+    state.load()
+    state.next_page()
+    offset_before = state.offset
+
+    state.set_pending()
+    state.accept_pending()
+
+    assert state.offset == offset_before
+
+
+def test_accept_pending_without_prior_set_pending_is_safe(db, state):
+    """accept_pending() is a no-op for the flags even when no update was signalled."""
+    db.insert("fall_a", 0, 0, _m())
+    state.load()
+    state.accept_pending()
+    assert state.has_update is False
+    assert state.pending is False

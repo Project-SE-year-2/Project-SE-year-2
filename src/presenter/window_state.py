@@ -2,6 +2,21 @@
 window_state.py
 ---------------
 Holds the current view state for a single period's ranking window.
+
+Live-update integration
+-----------------------
+WindowState itself is pure Python (no Qt dependency).  The wiring to
+EngineListener must be done in the presenter layer:
+
+    listener = EngineListener(queue)
+    listener.batch_written.connect(
+        lambda period_id, count: window_state.set_pending()
+    )
+
+When batch_written fires:
+  1. set_pending() sets pending=True and has_update=True.
+  2. The UI shows a "Refresh" banner.
+  3. The user clicks Refresh → accept_pending() calls refresh() and clears both flags.
 """
 
 from __future__ import annotations
@@ -26,6 +41,8 @@ class WindowState:
     offset: int = field(default=0, init=False)
     total: int = field(default=0, init=False)
     pending: bool = field(default=False, init=False)
+    # True from the moment EngineListener fires batch_written until accept_pending() is called.
+    has_update: bool = field(default=False, init=False)
 
     def load(self) -> None:
         """Reset to page 1, fetch, clear pending."""
@@ -87,6 +104,16 @@ class WindowState:
     def set_pending(self) -> None:
         """Mark that new scores arrived — UI should show a Refresh banner."""
         self.pending = True
+        self.has_update = True
+
+    def accept_pending(self) -> None:
+        """Commit the pending update: re-fetch at the current offset and clear flags.
+
+        Called when the user explicitly clicks the Refresh banner.
+        Keeps the current page position (unlike load() which resets to page 1).
+        """
+        self.refresh()
+        self.has_update = False
 
     def _fetch(self) -> None:
         self.total = self.engine.count(self.period_id)

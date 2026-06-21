@@ -1,5 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QLabel, QPushButton
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtWidgets import QMainWindow, QStackedWidget
 
 # Import the Singleton service and screen modules
 from src.presenter.app_service import AppService
@@ -48,8 +47,10 @@ class MainWindow(QMainWindow):
 
         # Wire navigation signals
         self.input_screen.switch_to_output.connect(self._show_output_screen)
+        self.input_screen.switch_to_settings.connect(self._show_settings_screen)
         self.output_screen.switch_to_input.connect(self._show_input_screen)
-        self.settings_screen.switch_to_input.connect(self._show_input_screen)
+        # Settings back-navigation must NOT wipe results — user is just browsing settings.
+        self.settings_screen.switch_to_input.connect(self._return_to_input_without_wipe)
 
     def _show_output_screen(self):
         """Switches the stacked widget to the Output Screen (Index 1)."""
@@ -58,6 +59,10 @@ class MainWindow(QMainWindow):
     def _show_settings_screen(self):
         """Switches the stacked widget to the Settings Screen (Index 2)."""
         self.stacked_widget.setCurrentIndex(2)
+
+    def _return_to_input_without_wipe(self):
+        """Return to the Input Screen from Settings without wiping generated results."""
+        self.stacked_widget.setCurrentIndex(0)
 
     def _wipe_results(self):
         """Cleanly stop the background engine and aggressively wipe the disk."""

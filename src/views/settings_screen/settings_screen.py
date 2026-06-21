@@ -70,7 +70,7 @@ class SettingsScreen(QWidget):
             "QPushButton { border: none; color: #3B82F6; font-size: 14px; }"
             "QPushButton:hover { color: #1D4ED8; }"
         )
-        self.back_btn.clicked.connect(self.switch_to_input)
+        self.back_btn.clicked.connect(self.switch_to_input.emit)
 
         title = QLabel("Settings")
         title.setAlignment(Qt.AlignCenter)

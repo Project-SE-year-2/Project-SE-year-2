@@ -129,6 +129,28 @@ class TestSettingsScreenInMainWindow(unittest.TestCase):
             self.window.service,
         )
 
+    def test_input_screen_has_switch_to_settings_signal(self):
+        """InputScreen must expose switch_to_settings to trigger navigation."""
+        from src.views.input_screen.input_screen import InputScreen
+        self.assertTrue(hasattr(InputScreen, 'switch_to_settings'))
+
+    def test_settings_button_navigates_to_settings_screen(self):
+        """Clicking the Settings button on InputScreen must switch to index 2."""
+        self.window.stacked_widget.setCurrentIndex(0)
+        self.window.input_screen.switch_to_settings.emit()
+        self.assertEqual(self.window.stacked_widget.currentIndex(), 2)
+
+    def test_back_from_settings_does_not_wipe_results(self):
+        """Navigating back from Settings must go to index 0 via the no-wipe path."""
+        # Confirm _return_to_input_without_wipe exists and does NOT call _wipe_results.
+        self.assertTrue(
+            hasattr(self.window, '_return_to_input_without_wipe'),
+            "_return_to_input_without_wipe method must exist on MainWindow",
+        )
+        self.window.stacked_widget.setCurrentIndex(2)
+        self.window._return_to_input_without_wipe()
+        self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

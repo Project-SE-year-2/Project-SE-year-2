@@ -1,3 +1,4 @@
+import pytest
 from datetime import date
 
 from src.algorithm.constraints.constraint_checker import ConstraintChecker
@@ -67,19 +68,19 @@ FALL = ExamPeriod(
 PROGRAM = "83101"
 
 
-# Verify that an empty registry always accepts schedules.
 def test_is_valid_returns_true_when_no_constraints_enabled():
+    """Verify that an empty registry always accepts schedules."""
     settings = ConstraintSettings()
 
     checker = ConstraintChecker(settings)
 
-    result = checker.is_valid(ExamSchedule(None))
+    result = checker.is_valid(ExamSchedule(FALL))
 
     assert result is True
 
 
-# Verify that enabled constraints are created during initialization.
 def test_builds_enabled_constraints():
+    """Verify that enabled constraints are created during initialization."""
     settings = ConstraintSettings(
         all_gap_enabled=True,
         all_gap_k=5,
@@ -90,8 +91,8 @@ def test_builds_enabled_constraints():
     assert len(checker._constraints) == 1
 
 
-# Verify that a valid schedule passes all enabled constraints.
 def test_is_valid_returns_true_for_valid_schedule():
+    """Verify that a valid schedule passes all enabled constraints."""
     settings = ConstraintSettings(
         all_gap_enabled=True,
         all_gap_k=5,
@@ -121,8 +122,8 @@ def test_is_valid_returns_true_for_valid_schedule():
     assert checker.is_valid(schedule) is True
 
 
-# Verify that validation stops when a constraint fails.
 def test_is_valid_returns_false_for_invalid_schedule():
+    """Verify that validation stops when a constraint fails."""
     settings = ConstraintSettings(
         all_gap_enabled=True,
         all_gap_k=10,
@@ -152,8 +153,8 @@ def test_is_valid_returns_false_for_invalid_schedule():
     assert checker.is_valid(schedule) is False
 
 
-# Verify that disabled constraints are not instantiated.
 def test_disabled_constraint_is_not_created():
+    """Verify that disabled constraints are not instantiated."""
     settings = ConstraintSettings(
         all_gap_enabled=False,
         all_gap_k=5,
@@ -163,8 +164,9 @@ def test_disabled_constraint_is_not_created():
 
     assert len(checker._constraints) == 0
 
-# Verify that all currently supported enabled constraints are created.
+
 def test_builds_all_supported_enabled_constraints():
+    """Verify that all currently supported enabled constraints are created."""
     settings = ConstraintSettings(
         all_gap_enabled=True,
         all_gap_k=5,
@@ -180,8 +182,9 @@ def test_builds_all_supported_enabled_constraints():
 
     assert len(checker._constraints) == 4
 
-# Verify that DailyCapConstraint is applied by ConstraintChecker.
+
 def test_is_valid_returns_false_when_daily_cap_fails():
+    """Verify that DailyCapConstraint is applied by ConstraintChecker."""
     settings = ConstraintSettings(daily_cap_enabled=True, daily_cap_k=1)
     checker = ConstraintChecker(settings)
 
@@ -194,3 +197,14 @@ def test_is_valid_returns_false_when_daily_cap_fails():
     ])
 
     assert checker.is_valid(schedule) is False
+
+
+def test_mandatory_gap_enabled_raises_not_implemented():
+    """Verify that enabling the mandatory gap constraint raises an error."""
+    settings = ConstraintSettings(
+        mandatory_gap_enabled=True,
+        mandatory_gap_k=5,
+    )
+    
+    with pytest.raises(NotImplementedError):
+        ConstraintChecker(settings)

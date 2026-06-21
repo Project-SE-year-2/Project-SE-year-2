@@ -18,7 +18,7 @@ class ConstraintChecker:
     """
 
     # Maps settings fields to their matching constraint implementation.
-    _CONSTRAINT_REGISTRY = [
+    _CONSTRAINT_REGISTRY = (
         (
             "all_gap_enabled",
             "all_gap_k",
@@ -39,11 +39,16 @@ class ConstraintChecker:
             "daily_cap_k",
             DailyCapConstraint,
         ),
-    ]
+    )
 
     # Build the active constraint list from the supplied settings.
     def __init__(self, settings: ConstraintSettings):
         self._constraints: list[IConstraint] = []
+
+        if settings.mandatory_gap_enabled:
+            raise NotImplementedError(
+                "MandatoryGapConstraint is not implemented yet."
+            )
 
         for enabled_attr, k_attr, constraint_cls in self._CONSTRAINT_REGISTRY:
             if getattr(settings, enabled_attr):

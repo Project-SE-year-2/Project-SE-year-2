@@ -41,6 +41,32 @@ def _make_course(
     return course
 
 
+# Create an elective course that belongs to a specific program and year.
+def _make_elective_course(
+    name: str,
+    course_id: str,
+    program_id: str,
+    year: int,
+) -> Course:
+    course = Course(
+        name,
+        course_id,
+        "Prof. X",
+        Evaluation.Exam,
+    )
+
+    course.add_requirement(
+        ProgramRequirement(
+            program_id,
+            year,
+            Semester.FALL,
+            ReqType.Elective,
+        )
+    )
+
+    return course
+
+
 # Create a merged ExamSchedule from assignment tuples.
 def _make_schedule(assignments: list[tuple]) -> ExamSchedule:
     schedules = []
@@ -208,3 +234,41 @@ def test_mandatory_gap_enabled_raises_not_implemented():
     
     with pytest.raises(NotImplementedError):
         ConstraintChecker(settings)
+
+
+def test_is_valid_returns_false_when_collision_constraint_fails():
+    """Verify that CollisionConstraint is applied by ConstraintChecker."""
+    settings = ConstraintSettings(
+        elective_conflicts_enabled=True,
+        elective_conflicts_k=1,
+    )
+    checker = ConstraintChecker(settings)
+
+    c1 = _make_elective_course("AI", "201", PROGRAM, 1)
+    c2 = _make_elective_course("ML", "202", PROGRAM, 1)
+
+    schedule = _make_schedule([
+        (FALL, c1, date(2026, 2, 1)),
+        (FALL, c2, date(2026, 2, 1)),
+    ])
+
+    assert checker.is_valid(schedule) is False
+
+
+def test_is_valid_returns_false_when_spread_constraint_fails():
+    """Verify that SpreadConstraint is applied by ConstraintChecker."""
+    settings = ConstraintSettings(
+        spread_enabled=True,
+        spread_k=10,
+    )
+    checker = ConstraintChecker(settings)
+
+    c1 = _make_course("Physics", "101", PROGRAM, 1)
+    c2 = _make_course("Calculus", "102", PROGRAM, 1)
+
+    schedule = _make_schedule([
+        (FALL, c1, date(2026, 2, 1)),
+        (FALL, c2, date(2026, 2, 5)),
+    ])
+
+    assert checker.is_valid(schedule) is False

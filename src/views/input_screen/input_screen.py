@@ -31,6 +31,7 @@ class InputScreen(QWidget):
     Handles UI state transitions for background processing.
     """
     switch_to_output = pyqtSignal()
+    switch_to_settings = pyqtSignal()
 
     # Initializes the screen, stores the service dependency, and builds the UI.
     def __init__(self, service, parent=None):
@@ -128,6 +129,11 @@ class InputScreen(QWidget):
         self.spinner      = LoadingSpinner()
         self.error_banner = ErrorBanner()
 
+        self.settings_btn = QPushButton("⚙ Settings")
+        self.settings_btn.setObjectName("settingsBtn")
+        self.settings_btn.clicked.connect(self.switch_to_settings.emit)
+
+        bar_layout.addWidget(self.settings_btn)
         bar_layout.addStretch()
         bar_layout.addWidget(self.spinner)
         bar_layout.addWidget(self.generate_btn)
@@ -331,7 +337,6 @@ class InputScreen(QWidget):
         self.period_list.refresh()
         self.period_list.setVisible(True)
 
-        self.file_loader.update_validation(programs=False, period=False)
         self.file_loader.update_validation(programs=False, period=False)
         self._sync_generate_button_state()
 

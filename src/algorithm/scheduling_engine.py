@@ -117,7 +117,7 @@ class SchedulingEngine:
         combined.sort(key=lambda s: s.sort_key)
         return combined, metadata
 
-    def solve_to_disk(self, period: ExamPeriod, courses_dict: dict, writer, on_batch_written=None) -> int:
+    def solve_to_disk(self, period: ExamPeriod, courses_dict: dict, writer, on_batch_written=None, constraint_checker=None) -> int:
         """Solve one period with solve_stream() and write every BATCH_SIZE schedules
         directly to disk - at most one batch is in RAM at any moment.
 
@@ -135,6 +135,9 @@ class SchedulingEngine:
         batch: list = []
         total = 0
         for sched in self._solver.solve_stream(courses, period, self._validator):
+            if constraint_checker is not None and not constraint_checker.is_valid(sched):
+                continue
+
             batch.append(sched)
             total += 1
             

@@ -401,9 +401,17 @@ class FileLoaderWidget(QWidget):
             dialog_caption="Select Dates File",
             single_file=True,   # dates zone always holds exactly one file
         )
+        self._constraints_zone = DropZoneCard(
+            icon=ICON_FILE,
+            title="Constraints File",
+            hint="Drag & drop constraints file here\n(or click to browse)\n\nText (.txt)",
+            dialog_caption="Select Constraints File",
+            single_file=True,
+        )
 
         zones_row.addWidget(self._courses_zone)
         zones_row.addWidget(self._dates_zone)
+        zones_row.addWidget(self._constraints_zone)
         layout.addLayout(zones_row)
 
         # ── Replace / Add toggle ───────────────────────────────────────────
@@ -468,6 +476,7 @@ class FileLoaderWidget(QWidget):
         self._courses_zone.file_added.connect(self._on_file_selected)
         self._dates_zone.file_added.connect(self._on_file_selected)
         self._load_button.clicked.connect(self._load_files)
+        self._constraints_zone.file_added.connect(self._on_file_selected)
 
     # Switches between Replace and Add mode and notifies the drop zones.
     def _set_mode(self, replace: bool) -> None:
@@ -493,6 +502,7 @@ class FileLoaderWidget(QWidget):
 
             courses_paths = self._courses_zone.paths()
             dates_path = self._dates_zone.first_path()
+            constraints_path = self._constraints_zone.first_path()
 
             self._validator.validate(courses_paths, dates_path)
 
@@ -502,6 +512,11 @@ class FileLoaderWidget(QWidget):
                 self._service.load_data(courses_path, dates_path, effective_mode)
 
             all_loaded = courses_paths + ([dates_path] if dates_path else [])
+            if constraints_path:
+                self._service.load_constraint_settings_from_file(constraints_path)
+                all_loaded.append(constraints_path)
+            else:
+                self._try_load_constraint_settings(all_loaded)
             self._loaded_files_panel.set_files(all_loaded)
             self._show_success("Files loaded successfully.")
             self.files_loaded.emit()
@@ -517,6 +532,7 @@ class FileLoaderWidget(QWidget):
         self._load_button.setDisabled(is_loading)
         self._courses_zone.setDisabled(is_loading)
         self._dates_zone.setDisabled(is_loading)
+        self._constraints_zone.setDisabled(is_loading)
         if is_loading:
             self._message_label.setText("Loading files...")
 
@@ -574,3 +590,17 @@ class FileLoaderWidget(QWidget):
                 color: {th.TEXT_SECONDARY};
             }}
         """
+    
+    def _try_load_constraint_settings(self, paths: list[str]) -> None:
+        """Load constraint settings from the first uploaded file that contains the advanced constraints marker."""
+        marker = "# ADVANCED_CONSTRAINTS"
+
+        for path in paths:
+            try:
+                text = Path(path).read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            if marker in text:
+                self._service.load_constraint_settings_from_file(path)
+                return

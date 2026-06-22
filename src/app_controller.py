@@ -10,6 +10,7 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
 from src.output.schedule_report_writer import ScheduleReportWriter
 from src.output.output_manager import OutputManager
+from src.algorithm.constraints.constraint_checker import ConstraintChecker
 
 
 class AppController:
@@ -26,7 +27,7 @@ class AppController:
             if os.path.getsize(path) == 0:
                 raise ValueError(f"Error: The file at {path} is empty!")
 
-    def run(self, courses_path: str, periods_path: str, programs_path: str):
+    def run(self, courses_path: str, periods_path: str, programs_path: str, constraint_settings=None):
         self._validate_paths([courses_path, periods_path, programs_path])
 
         courses = self.course_parser.parse(courses_path)
@@ -60,6 +61,13 @@ class AppController:
         self.engine = SchedulingEngine(constraint_validator, catalog, index)
 
         schedules, metadata = self.engine.generateAll(scheduling_tasks)
+
+        if constraint_settings is not None:
+            checker = ConstraintChecker(constraint_settings)
+            schedules = [
+                schedule for schedule in schedules
+                if checker.is_valid(schedule)
+            ]
 
         project_root = os.path.normpath(os.path.join(os.path.dirname(courses_path), ".."))
         output_dir = os.path.join(project_root, "output")

@@ -26,6 +26,8 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
 from src.output.schedule_report_writer import ScheduleReportWriter
 from src.models.exam_schedule import ExamSchedule
+from src.models.constraint_settings import ConstraintSettings
+from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
 
 
 _PROJECT_ROOT = Path(__file__).parents[2]
@@ -68,6 +70,7 @@ class AppService(IAppService):
         # EP-83 — multiprocessing: set to EngineProcess() in main.py to enable
         # two-process architecture. None = legacy single-process mode (used by tests).
         self._engine_process = None
+        self._constraint_settings = ConstraintSettings()
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
     # ------------------------------------------------------------------ #
@@ -105,6 +108,23 @@ class AppService(IAppService):
             raise ValueError(f"Unknown mode '{mode}'. Expected 'replace' or 'append'.")
         
         self._datastore.save()
+
+
+    def set_constraint_settings(self, settings: ConstraintSettings) -> None:
+        """Store active constraint settings for future generation runs."""
+        self._constraint_settings = settings
+
+
+    def get_constraint_settings(self) -> ConstraintSettings:
+        """Return the active constraint settings used by generation."""
+        return self._constraint_settings
+
+
+    def load_constraint_settings_from_file(self, path: str) -> None:
+        """Load constraint settings from a text file and store them in the service."""
+        settings = ConstraintSettingsLoader.from_file(path)
+        self.set_constraint_settings(settings)
+
 
     # ------------------------------------------------------------------ #
     # EP-39 / TASK5 — Program & course methods                            #
@@ -239,7 +259,7 @@ class AppService(IAppService):
                 pid = _period_id(period)
                 writer.clear_period(pid)
 
-            self._engine_process.start(engine, scheduling_tasks)
+            self._engine_process.start(engine, scheduling_tasks, self.get_constraint_settings())
 
             while True:
                 msg = self._engine_process.get_notification()

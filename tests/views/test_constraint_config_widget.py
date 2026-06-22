@@ -1,4 +1,4 @@
-"""Tests for ConstraintConfigWidget (EP-109)."""
+"""Tests for ConstraintConfigWidget (EP-109 + EP-110 validation rules)."""
 
 import sys
 import unittest
@@ -138,6 +138,53 @@ class TestConstraintConfigWidgetAPI(unittest.TestCase):
         self.widget.set_values({"daily_cap_enabled": True, "daily_cap_k": 2})
         # Other checkboxes must still be unchecked
         self.assertFalse(self.widget._checks["all_gap"].isChecked())
+
+
+class TestConstraintConfigWidgetValidation(unittest.TestCase):
+    """EP-110 — spinbox minimum boundaries block out-of-bounds entries."""
+
+    def setUp(self):
+        self.widget = ConstraintConfigWidget()
+
+    # elective_conflicts allows 0 (zero conflicts is valid)
+    def test_elective_conflicts_min_is_zero(self):
+        self.assertEqual(self.widget._spins["elective_conflicts"].minimum(), 0)
+
+    # all gap / calendar constraints must start at 1
+    def test_mandatory_gap_min_is_one(self):
+        self.assertEqual(self.widget._spins["mandatory_gap"].minimum(), 1)
+
+    def test_all_gap_min_is_one(self):
+        self.assertEqual(self.widget._spins["all_gap"].minimum(), 1)
+
+    def test_spread_min_is_one(self):
+        self.assertEqual(self.widget._spins["spread"].minimum(), 1)
+
+    def test_daily_cap_min_is_one(self):
+        self.assertEqual(self.widget._spins["daily_cap"].minimum(), 1)
+
+    def test_spinbox_clamps_below_minimum_for_gap_constraints(self):
+        """Setting a gap spinbox to 0 must clamp to 1 automatically."""
+        spin = self.widget._spins["all_gap"]
+        spin.setValue(0)
+        self.assertEqual(spin.value(), 1)
+
+    def test_spinbox_accepts_zero_for_elective_conflicts(self):
+        """elective_conflicts spinbox must accept 0 as a valid value."""
+        spin = self.widget._spins["elective_conflicts"]
+        spin.setValue(0)
+        self.assertEqual(spin.value(), 0)
+
+    def test_all_spinboxes_respect_max_boundary(self):
+        """No spinbox must accept a value above its defined maximum."""
+        maxes = {
+            "mandatory_gap": 30, "all_gap": 30,
+            "elective_conflicts": 10, "spread": 60, "daily_cap": 10,
+        }
+        for key, max_val in maxes.items():
+            spin = self.widget._spins[key]
+            spin.setValue(max_val + 999)
+            self.assertEqual(spin.value(), max_val, msg=key)
 
 
 if __name__ == "__main__":

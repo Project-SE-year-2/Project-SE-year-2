@@ -39,6 +39,17 @@ _DEFAULT_K = {
     "daily_cap":          3,
 }
 
+# Lower bound for each spinbox (EP-110 validation rules):
+#   elective_conflicts → 0  (zero conflicts is a valid target)
+#   all gap/calendar constraints → 1  (a gap of 0 days is meaningless)
+_MIN_K = {
+    "mandatory_gap":      1,
+    "all_gap":            1,
+    "elective_conflicts": 0,
+    "spread":             1,
+    "daily_cap":          1,
+}
+
 # Upper bound for each spinbox.
 _MAX_K = {
     "mandatory_gap":      30,
@@ -96,7 +107,7 @@ class ConstraintConfigWidget(QWidget):
         label.setMinimumWidth(160)
 
         spin = QSpinBox()
-        spin.setMinimum(0)
+        spin.setMinimum(_MIN_K[key])
         spin.setMaximum(_MAX_K[key])
         spin.setValue(_DEFAULT_K[key])
         spin.setFixedWidth(64)

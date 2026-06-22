@@ -21,8 +21,10 @@ class CollisionCalculator(IMetricCalculator):
         return 'elective_conflicts'
 
     def compute(self, schedule: ExamSchedule) -> float:
+        # Count the number of electives scheduled for each (program_id, date) pair.
         counts: dict[tuple, int] = {}
 
+        # Iterate through all course-date assignments and count electives by (program_id, date).
         for course, exam_date in schedule.assignments.items():
             for req in course.requirements:
                 if req.req_type == ReqType.Elective:

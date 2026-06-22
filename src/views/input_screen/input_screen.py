@@ -338,7 +338,6 @@ class InputScreen(QWidget):
         self.period_list.setVisible(True)
 
         self.file_loader.update_validation(programs=False, period=False)
-        self.file_loader.update_validation(programs=False, period=False)
         self._sync_generate_button_state()
 
     # Handles program selection changes and shows dependent widgets only when needed.

@@ -468,7 +468,7 @@ def test_daily_cap_filter_removes_same_day_schedules(tmp_path):
 
 
 def test_elective_collision_filter_removes_same_day_electives(tmp_path):
-    """elective_conflicts_k=1 caps each (program, day) cell at 1 elective.
+    """elective_conflicts_k=0 caps each (program, day) cell at 1 elective.
     Same-day schedules reach count=2 and fail; cross-day reach count=1 and pass.
     2 electives × 3 days = 9 total: 3 same-day (fail) + 6 cross-day (pass)."""
     PROG = "83101"
@@ -490,7 +490,7 @@ def test_elective_collision_filter_removes_same_day_electives(tmp_path):
     total = engine.solve_to_disk(
         fall, {e1: [PROG], e2: [PROG]}, writer,
         constraint_checker=ConstraintChecker(
-            ConstraintSettings(elective_conflicts_enabled=True, elective_conflicts_k=1)
+            ConstraintSettings(elective_conflicts_enabled=True, elective_conflicts_k=0)
         ),
     )
 

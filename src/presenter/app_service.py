@@ -208,7 +208,7 @@ class AppService(IAppService):
         catalog = ExamPeriodCatalog(periods)
         collision_validator = BasicVersionValidator(index)
         constraint_validator = ConstraintValidator(index, collision_validator)
-        engine = SchedulingEngine(constraint_validator, catalog, index)
+        engine = SchedulingEngine(constraint_validator, catalog, index, self.get_constraint_settings())
 
         return engine, scheduling_tasks
 

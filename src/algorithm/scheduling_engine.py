@@ -13,6 +13,8 @@ from src.algorithm.backtracking_solver import BacktrackingSolver
 from src.algorithm.schedule_combiner import ScheduleCombiner
 from src.algorithm.generation_result import PeriodGenerationResult
 from src.algorithm.period_results_writer import BATCH_SIZE
+from src.models.constraint_settings import ConstraintSettings
+from src.algorithm.constraints.partial_constraint_registry import PartialConstraintRegistry
 
 
 class SchedulingEngine:
@@ -31,16 +33,19 @@ class SchedulingEngine:
         validator: ConstraintValidator,
         catalog: ExamPeriodCatalog,
         index: ConstraintIndex,
+        constraint_settings: ConstraintSettings | None = None,
     ):
         self._validator = validator
         self._catalog = catalog
         self._index = index
+        self._constraint_settings = constraint_settings
 
         collision_validator = BasicVersionValidator(index)
         heuristic = CourseOrderingHeuristic(index)
         forward_checker = ForwardChecker(validator)
+        partial_constraint_checker = PartialConstraintRegistry.build(constraint_settings)
 
-        self._solver = BacktrackingSolver(collision_validator, heuristic, forward_checker)
+        self._solver = BacktrackingSolver(collision_validator, heuristic, forward_checker, partial_constraint_checker)
         self._combiner = ScheduleCombiner()
 
     def _solve_period(

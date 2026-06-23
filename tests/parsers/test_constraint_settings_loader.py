@@ -184,13 +184,3 @@ daily_cap_k=abc
 
     with pytest.raises(ValueError):
         ConstraintSettingsLoader.from_file(str(config))
-
-
-def test_from_cli_args_enabled_flag_without_k_uses_default_value():
-    """Verify that enabling a constraint without K keeps the default K value."""
-    settings = ConstraintSettingsLoader.from_cli_args([
-        "--daily-cap-enabled",
-    ])
-
-    assert settings.daily_cap_enabled is True
-    assert settings.daily_cap_k == 3

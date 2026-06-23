@@ -5,6 +5,7 @@ from src.algorithm.i_collision_validator import ICollisionValidator
 from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.course_ordering_heuristic import CourseOrderingHeuristic
 from src.algorithm.forward_checker import ForwardChecker
+from src.algorithm.constraints.partial_constraint_checker import PartialConstraintChecker
 
 
 class BacktrackingSolver:
@@ -19,10 +20,12 @@ class BacktrackingSolver:
         validator: ICollisionValidator,
         heuristic: CourseOrderingHeuristic,
         forward_checker: ForwardChecker,
+        partial_constraint_checker: PartialConstraintChecker | None = None,
     ):
         self._validator = validator
         self._heuristic = heuristic
         self._forward_checker = forward_checker
+        self._partial_constraint_checker = partial_constraint_checker
 
     def solve(
         self,
@@ -73,6 +76,13 @@ class BacktrackingSolver:
         for exam_date in period.getAvailableDates():
             if constraint_validator.canAssign(course, exam_date, partial):
                 partial.assign(course, exam_date)
+                if (
+                    self._partial_constraint_checker is not None
+                    and not self._partial_constraint_checker.is_valid_partial(partial)
+                ):
+                    partial.unassign(course)
+                    continue
+
                 if self._forward_checker.hasViableAssignment(rest, partial, period):
                     self._backtrack(rest, partial, period, constraint_validator, results)
                 partial.unassign(course)
@@ -101,6 +111,13 @@ class BacktrackingSolver:
         for exam_date in period.getAvailableDates():
             if constraint_validator.canAssign(course, exam_date, partial):
                 partial.assign(course, exam_date)
+                if (
+                    self._partial_constraint_checker is not None
+                    and not self._partial_constraint_checker.is_valid_partial(partial)
+                ):
+                    partial.unassign(course)
+                    continue
+                
                 if self._forward_checker.hasViableAssignment(rest, partial, period):
                     # 'yield from' pauses this execution and yields results from 
                     # the recursive calls as they are found

@@ -5,7 +5,12 @@ from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
 
 
 def test_from_file_loads_enabled_flags_and_k_values(tmp_path):
-    """Verify that from_file parses enabled flags and K values from the advanced section."""
+    """
+    Verify that enabled flags and K values are parsed from file.
+
+    The config body is intentionally indented to document that the loader
+    strips each line before parsing, so structural text layouts remain valid.
+    """
     config = tmp_path / "constraints.txt"
     config.write_text(
         """

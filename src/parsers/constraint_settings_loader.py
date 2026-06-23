@@ -57,7 +57,16 @@ class ConstraintSettingsLoader:
 
     @staticmethod
     def from_cli_args(args: list[str]) -> ConstraintSettings:
-        """Load constraint settings from command-line argument tokens."""
+        """
+        Parse constraint settings from command-line arguments.
+
+        This parser is intended to be used independently from from_file().
+        Boolean flags use action="store_true", so omitted flags are treated as
+        unspecified/disabled by the resulting ConstraintSettings defaults.
+        The CLI path does not support explicit --no-* overrides because file-based
+        and CLI-based settings are not merged.
+        """
+        
         parser = argparse.ArgumentParser(add_help=False)
 
         for field_name, field_type in ConstraintSettingsLoader._FIELDS:

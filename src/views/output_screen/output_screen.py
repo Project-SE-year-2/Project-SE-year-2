@@ -404,6 +404,9 @@ class OutputScreen(QWidget):
 
         # ── First show / no data yet ──────────────────────────────────────────
         self._global_index = 0
+        for key in self._period_indices:
+            self._period_indices[key] = 0
+
         for state in self._window_states.values():
             state.clear()
         self._calendar_displaying_data = False
@@ -438,7 +441,7 @@ class OutputScreen(QWidget):
     def _on_semester_changed(self, semester: str) -> None:
         """Switch semester tab — restore the stored index for the new period."""
         self._current_semester = semester
-        self._global_index = self._period_indices.get(self._active_period_id(), 0)
+        self._global_index = self._active_window_state().current()
         self._hide_conflict_banner()
         self._check_conflicts_next = True
         self._calendar_displaying_data = False
@@ -473,7 +476,7 @@ class OutputScreen(QWidget):
 
         for moed in ["Aleph", "Bet", "Gimel"]:
             pid  = f"{sem_code}_{moed}"
-            idx  = self._period_indices.get(pid, 0)
+            idx = self._window_states.setdefault(pid, WindowState()).current()
             exams: list = []
             start_date: _date | None = None
             end_date:   _date | None = None
@@ -516,7 +519,7 @@ class OutputScreen(QWidget):
         sem  = self._current_semester
         moed = self._current_moed
         pid  = self._active_period_id()
-        idx  = self._period_indices.get(pid, 0)
+        idx = self._active_window_state().current()
 
         # ── Fetch isolated period schedule ────────────────────────────────────
         try:
@@ -677,7 +680,7 @@ class OutputScreen(QWidget):
             return
 
         pid         = self._active_period_id()
-        current_idx = self._period_indices.get(pid, 0)
+        current_idx = self._active_window_state().current()
 
         # get_schedule_count(period_id) is authoritative: 0 = no schedules.
         # Do NOT fall back to _global_total here — a period may genuinely have

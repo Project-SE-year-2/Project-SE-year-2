@@ -370,7 +370,7 @@ class TestOutputScreen(unittest.TestCase):
         self.mock_service.get_periods.return_value = []
 
         # Set a stored index for SPRI_Aleph
-        self.screen._period_indices["SPRI_Aleph"] = 3
+        self.screen._window_states["SPRI_Aleph"].move_to(3)
         self.screen._on_semester_changed("SPRING")
 
         self.assertEqual(self.screen._global_index, 3)
@@ -503,8 +503,15 @@ class TestOutputScreen(unittest.TestCase):
         self.screen._period_indices["FALL_Aleph"] = 5
         self.screen._period_indices["SPRI_Bet"] = 3
 
+        self.screen._window_states["FALL_Aleph"].move_to(5)
+        self.screen._window_states["SPRI_Bet"].move_to(3)
+
         self.screen._on_generation_finished(100)
 
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].current(), 0)
+        self.assertEqual(self.screen._window_states["SPRI_Bet"].current(), 0)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].history_stack, [])
+        self.assertEqual(self.screen._window_states["SPRI_Bet"].history_stack, [])
         self.assertEqual(self.screen._period_indices["FALL_Aleph"], 0)
         self.assertEqual(self.screen._period_indices["SPRI_Bet"], 0)
         self.assertEqual(self.screen._global_index, 0)
@@ -586,25 +593,15 @@ def test_back_restores_previous_index():
     assert state.current() == 2
 
 
-def test_set_lookahead_replaces_buffer():
-    """Verify that set_lookahead stores upcoming indices."""
-    state = WindowState()
-    state.set_lookahead([4, 5, 6])
-
-    assert state.lookahead_buffer == [4, 5, 6]
-
-
 def test_clear_resets_state():
-    """Verify that clear resets current, history, and lookahead."""
+    """Verify that clear resets current, history."""
     state = WindowState()
     state.move_to(3)
-    state.set_lookahead([4, 5])
 
     state.clear()
 
     assert state.current() == 0
     assert state.history_stack == []
-    assert state.lookahead_buffer == []
 
 # ---------------------------------------------------------------------------
 # Module-level helper

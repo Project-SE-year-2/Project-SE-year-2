@@ -807,6 +807,12 @@ class OutputScreen(QWidget):
 
     # ── Toolbar ───────────────────────────────────────────────────────────────
 
+    def on_sort_changed(self, _sort_cols: list = None) -> None:
+        """Reset all period indices to 0 when the sort order changes."""
+        for key in self._period_indices:
+            self._period_indices[key] = 0
+        self._global_index = 0
+
     def _on_back_clicked(self) -> None:
         if self._day_dialog is not None:
             self._day_dialog.close()

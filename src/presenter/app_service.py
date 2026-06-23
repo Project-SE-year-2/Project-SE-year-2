@@ -28,6 +28,8 @@ from src.output.schedule_report_writer import ScheduleReportWriter
 from src.models.exam_schedule import ExamSchedule
 from src.models.constraint_settings import ConstraintSettings
 from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
+from src.presenter.ranking_query_engine import RankingQueryEngine
+from src.algorithm.period_results_writer import BATCH_SIZE
 
 
 _PROJECT_ROOT = Path(__file__).parents[2]
@@ -70,6 +72,12 @@ class AppService(IAppService):
         # EP-83 — multiprocessing: set to EngineProcess() in main.py to enable
         # two-process architecture. None = legacy single-process mode (used by tests).
         self._engine_process = None
+        # EP-119 - sort order for ranked schedule retrieval
+        self._sort_cols: list[str] = []
+        self._ranking_engine: RankingQueryEngine | None = None
+        # Frozen snapshot: per-period list of (batch_number, index_in_batch) in sorted order.
+        # Populated lazily on first ranked access; cleared when sort changes or refresh requested.
+        self._sorted_cache: dict[str, list[tuple[int, int]]] = {}
         self._constraint_settings = ConstraintSettings()
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
@@ -113,6 +121,21 @@ class AppService(IAppService):
     def set_constraint_settings(self, settings: ConstraintSettings) -> None:
         """Store active constraint settings for future generation runs."""
         self._constraint_settings = settings
+
+    def set_sort_order(self, sort_cols: list[str]) -> None:
+        """Store the active sort order and clear the frozen snapshot so the next
+        navigation re-queries scores.db with the new sort criteria."""
+        self._sort_cols = sort_cols
+        self._sorted_cache.clear()
+
+    def refresh_ranked_view(self) -> None:
+        """Clear the frozen snapshot so the next navigation re-queries scores.db.
+        Called by the 'Refresh View' banner (Task 121) to accept newly written scores."""
+        self._sorted_cache.clear()
+
+    def get_sort_order(self) -> list[str]:
+        """Return the active sort column list."""
+        return self._sort_cols
 
 
     def get_constraint_settings(self) -> ConstraintSettings:
@@ -366,17 +389,16 @@ class AppService(IAppService):
     def get_period_schedule(self, period_id: str, index: int) -> list[dict]:
         """Return formatted exam rows for one period at the given local index.
 
-        Disk mode   : reads the ExamSchedule object from the period's batch file
-                      via ResultsReader and formats it into flat dicts.
-        Legacy mode : reads from the in-memory _results_by_period cache that is
-                      populated per-period as generate_stream() runs.
-
-        The returned list contains only exams that belong to *period_id*; there
-        is no Cartesian-product mixing with other periods.
-
-        Returns an empty list when no data is available (generation not yet
-        complete, or the period has no valid schedules).
+        When a sort order is active and scores.db exists, uses RankingQueryEngine
+        to return the schedule ranked at position `index` by the chosen metrics.
+        Falls back to sequential disk or in-memory reading otherwise.
         """
+        # ── Ranked mode (scores.db + active sort order) ───────────────────────
+        if self._sort_cols:
+            ranked = self._get_ranked_schedule(period_id, index)
+            if ranked is not None:
+                return ranked
+
         # ── Disk mode ─────────────────────────────────────────────────────────
         disk_count = self._results_reader.get_count(period_id)
         if disk_count > 0:
@@ -400,6 +422,58 @@ class AppService(IAppService):
                 return []
 
         return []
+
+    def _get_ranked_schedule(self, period_id: str, rank: int) -> list[dict] | None:
+        """Return the schedule at the given rank using a frozen sorted snapshot.
+
+        On first call for a period (or after cache is cleared), queries scores.db
+        once and caches the full sorted index list. Subsequent calls for the same
+        period use the cache so the displayed order stays stable while generation
+        continues writing new scores in the background.
+        """
+        if period_id not in self._sorted_cache:
+            if not self._build_sorted_cache(period_id):
+                return None
+        indices = self._sorted_cache[period_id]
+        if rank >= len(indices):
+            return None
+        batch_number, index_in_batch = indices[rank]
+        try:
+            linear_index = batch_number * BATCH_SIZE + index_in_batch
+            schedule = self._results_reader.get_schedule_at(period_id, linear_index)
+            return self._format_schedule_rows(schedule)
+        except Exception:
+            return None
+
+    def _build_sorted_cache(self, period_id: str) -> bool:
+        """Query scores.db for all rows in sorted order and store as a frozen list."""
+        engine = self._get_ranking_engine()
+        if engine is None:
+            return False
+        try:
+            rows = engine.fetch_window(period_id, self._sort_cols, limit=2 ** 31 - 1, offset=0)
+            self._sorted_cache[period_id] = [(r[0], r[1]) for r in rows]
+            return True
+        except Exception:
+            return False
+
+    def _get_ranking_engine(self) -> RankingQueryEngine | None:
+        """Return a live RankingQueryEngine, or None if scores.db does not exist."""
+        db_path = self._scores_db_path()
+        if not db_path.exists():
+            if self._ranking_engine is not None:
+                self._ranking_engine.close()
+                self._ranking_engine = None
+            return None
+        if self._ranking_engine is None:
+            try:
+                self._ranking_engine = RankingQueryEngine(db_path)
+            except Exception:
+                return None
+        return self._ranking_engine
+
+    def _scores_db_path(self) -> Path:
+        return _PROJECT_ROOT / "data" / "results" / "scores.db"
 
     def get_schedule_batch(self, start: int, limit: int) -> list[list[dict]]:
         if start < 0:

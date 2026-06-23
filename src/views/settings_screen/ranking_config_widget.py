@@ -13,32 +13,37 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox,
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 
 from src.views.settings_screen.styles import ranking_config_widget_style as _style
 
 
 # Maps each metric key to the full sentence shown inside its list row.
+_METRIC_TITLES: dict[str, str] = {
+    "min_days_required": "Minimum gap between mandatory exams",
+    "avg_days_all":      "Average gap between consecutive exams",
+    "elective_conflicts": "Elective exam conflicts",
+    "span_required":     "Span of mandatory exams",
+    "max_exams_per_day": "Peak exams per day",
+}
+
 _METRIC_DESCRIPTIONS: dict[str, str] = {
     "min_days_required": (
-        "Minimize the minimum gap between two required-course exams "
-        "in the same program and same year."
+        "Same program and year - schedules with a larger minimum gap are ranked first."
     ),
     "avg_days_all": (
-        "Minimize the average gap between required/elective exams "
-        "in the same program and same year."
+        "Mandatory and elective exams, same program and year - wider average spacing ranked first."
     ),
     "elective_conflicts": (
-        "Minimize the number of conflicts between two elective-course "
-        "exams in the same program."
+        "Same program - schedules with fewer same-day elective clashes are ranked first."
     ),
     "span_required": (
-        "Minimize the gap between the first required-course exam and "
-        "the last required-course exam in a selected program, year and moed."
+        "Same program, year and moed - schedules where first and last mandatory exams "
+        "are furthest apart are ranked first."
     ),
     "max_exams_per_day": (
-        "Minimize the maximum number of exams scheduled on the same day."
+        "Schedules with fewer exams on the busiest day are ranked first."
     ),
 }
 
@@ -56,54 +61,52 @@ _DEFAULT_CHECKED: set[str] = set()
 
 
 class _RowWidget(QWidget):
-    """One row inside the list: drag-handle | badge | description | checkbox.
+    """One row inside the list: drag-handle | badge | title+description | checkbox."""
 
-    This is a private helper — only RankingConfigWidget creates instances.
-    """
-
-    def __init__(self, key: str, description: str, parent=None):
+    def __init__(self, key: str, title: str, description: str, parent=None):
         super().__init__(parent)
 
-        # Remember which metric key this row represents.
         self.key = key
 
-        # QHBoxLayout arranges children left-to-right in a single line.
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)  # padding inside the row card
-        outer.setSpacing(12)                   # gap between each child widget
+        outer.setContentsMargins(_style.ROW_MARGIN_H, _style.ROW_MARGIN_V,
+                                 _style.ROW_MARGIN_H, _style.ROW_MARGIN_V)
+        outer.setSpacing(_style.ROW_SPACING)
 
-        # ── Drag handle ──────────────────────────────────────────────────
-        # A braille-dots character rendered as a visual grip icon.
-        # setFixedWidth keeps it narrow so it doesn't take up space.
+        # ── Drag handle ───────────────────────────────────────────────────
         handle = QLabel("⠿")
         handle.setStyleSheet(_style.DRAG_HANDLE)
-        handle.setFixedWidth(16)
+        handle.setFixedWidth(_style.HANDLE_WIDTH)
         outer.addWidget(handle)
 
         # ── Priority badge ────────────────────────────────────────────────
-        # A square QLabel sized to a circle via border-radius in the stylesheet.
-        # Shows "1", "2", … when checked; empty and grey when unchecked.
         self.badge = QLabel("1")
-        self.badge.setFixedSize(28, 28)          # fixed square so it stays circular
-        self.badge.setAlignment(Qt.AlignCenter)  # number centred inside the circle
+        self.badge.setFixedSize(_style.BADGE_SIZE, _style.BADGE_SIZE)
+        self.badge.setAlignment(Qt.AlignCenter)
         font = QFont()
         font.setBold(True)
-        font.setPointSize(10)
+        font.setPointSize(_style.BADGE_FONT_PT)
         self.badge.setFont(font)
-        self._set_badge_active(True)   # start blue (will be overridden by _refresh_badges)
+        self._set_badge_active(True)
         outer.addWidget(self.badge)
 
-        # ── Description label ─────────────────────────────────────────────
-        # stretch=1 tells the layout to give all remaining horizontal space to
-        # this widget, pushing the checkbox to the far right.
-        desc = QLabel(description)
-        desc.setWordWrap(True)   # allow the text to wrap onto multiple lines
-        desc.setStyleSheet(_style.DESCRIPTION_LABEL)
-        outer.addWidget(desc, stretch=1)
+        # ── Text block: title (large) + description (small) ───────────────
+        text_block = QVBoxLayout()
+        text_block.setSpacing(_style.TEXT_BLOCK_SPACING)
+
+        title_lbl = QLabel(title)
+        title_lbl.setWordWrap(True)
+        title_lbl.setStyleSheet(_style.ROW_TITLE_LABEL)
+        text_block.addWidget(title_lbl)
+
+        desc_lbl = QLabel(description)
+        desc_lbl.setWordWrap(True)
+        desc_lbl.setStyleSheet(_style.DESCRIPTION_LABEL)
+        text_block.addWidget(desc_lbl)
+
+        outer.addLayout(text_block, stretch=1)
 
         # ── Checkbox ──────────────────────────────────────────────────────
-        # Determines whether this metric is included in the sort order.
-        # Starts unchecked; RankingConfigWidget sets the real value after init.
         self.checkbox = QCheckBox()
         self.checkbox.setChecked(True)
         self.checkbox.setStyleSheet(_style.CHECKBOX)
@@ -133,6 +136,8 @@ class _RowWidget(QWidget):
 
 class RankingConfigWidget(QWidget):
     """Right panel of SettingsScreen — checkbox + drag to set metric priority."""
+
+    sort_order_changed = pyqtSignal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -191,10 +196,11 @@ class RankingConfigWidget(QWidget):
         """Clear the list and rebuild one _RowWidget per key in order."""
         self._list.clear()
         for key in order:
-            desc = _METRIC_DESCRIPTIONS.get(key, key)
+            title = _METRIC_TITLES.get(key, key)
+            desc = _METRIC_DESCRIPTIONS.get(key, "")
 
-            # Build the visible row widget (handle + badge + text + checkbox).
-            row_widget = _RowWidget(key, desc)
+            # Build the visible row widget (handle + badge + title + desc + checkbox).
+            row_widget = _RowWidget(key, title, desc)
             row_widget.checkbox.setChecked(key in checked)
 
             # Whenever this row's checkbox is toggled, recalculate all badges.
@@ -245,6 +251,7 @@ class RankingConfigWidget(QWidget):
                 counter += 1
             else:
                 widget.set_badge_number(None)     # grey empty badge
+        self.sort_order_changed.emit(self.get_sort_order())
 
     # ------------------------------------------------------------------
     # Public API

@@ -18,6 +18,7 @@ from src.algorithm.scoring.avg_days_calculator import AvgDaysCalculator
 from src.algorithm.scoring.collision_calculator import CollisionCalculator
 from src.algorithm.scoring.spread_calculator import SpreadCalculator
 from src.algorithm.scoring.daily_cap_calculator import DailyCapCalculator
+from src.algorithm.scoring.min_days_calculator import MinDaysCalculator
 from src.models.exam_schedule import ExamSchedule
 
 
@@ -27,6 +28,7 @@ class ScheduleScorer:
     def __init__(self) -> None:
         # Calculators owned by this PR. MinDaysCalculator is added by a separate PR.
         self._calculators: list[IMetricCalculator] = [
+            MinDaysCalculator(),
             AvgDaysCalculator(),
             CollisionCalculator(),
             SpreadCalculator(),
@@ -44,7 +46,5 @@ class ScheduleScorer:
             calc.field_name(): calc.compute(schedule)
             for calc in self._calculators
         }
-        # min_days_required is provided by MinDaysCalculator (separate PR);
-        # default to 0.0 until that calculator is registered above.
         values.setdefault("min_days_required", 0.0)
         return ScheduleMetrics(**values)

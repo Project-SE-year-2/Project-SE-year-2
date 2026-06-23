@@ -11,6 +11,15 @@ CSS properties are supported.  Each constant below is a plain string
 that gets passed to widget.setStyleSheet().
 """
 
+# ── Row layout constants ──────────────────────────────────────────────────────
+ROW_MARGIN_H      = 8   # left/right padding inside each row card (px)
+ROW_MARGIN_V      = 10  # top/bottom padding inside each row card (px)
+ROW_SPACING       = 12  # horizontal gap between row elements (px)
+HANDLE_WIDTH      = 16  # fixed width of the drag-handle label (px)
+BADGE_SIZE        = 28  # width and height of the circular priority badge (px)
+BADGE_FONT_PT     = 10  # point size of the number inside the badge
+TEXT_BLOCK_SPACING = 2  # vertical gap between title and description labels (px)
+
 # ── List container ────────────────────────────────────────────────────────────
 # Applied to the QListWidget that holds all metric rows.
 # "border: none" removes the default sunken border around the list.
@@ -75,9 +84,11 @@ BADGE_INACTIVE = (
 # font-size: 16px makes it large enough to be visible without being intrusive.
 DRAG_HANDLE = "color: #CBD5E1; font-size: 16px;"
 
-# ── Row description text ──────────────────────────────────────────────────────
-# Dark text for the metric description sentence inside each row.
-DESCRIPTION_LABEL = "color: #1E293B; font-size: 12px;"
+# ── Row title text (main idea, shown large and bold) ─────────────────────────
+ROW_TITLE_LABEL = "color: #1E293B; font-size: 16px; font-weight: bold;"
+
+# ── Row description text (detail line, smaller and grey) ─────────────────────
+DESCRIPTION_LABEL = "color: #64748B; font-size: 14px;"
 
 # ── Section title (above the list) ───────────────────────────────────────────
 # Bold, slightly larger than the description text.

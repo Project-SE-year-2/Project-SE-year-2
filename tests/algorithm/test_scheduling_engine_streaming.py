@@ -10,12 +10,15 @@ from src.algorithm.constraint_index import ConstraintIndex
 from src.algorithm.exam_period_catalog import ExamPeriodCatalog
 from src.algorithm.basic_version_validator import BasicVersionValidator
 from src.algorithm.constraint_validator import ConstraintValidator
+from src.algorithm.constraints.constraint_checker import ConstraintChecker
+from src.models.constraint_settings import ConstraintSettings
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
 from src.models.exam_schedule import ExamSchedule
 from src.models.enums import Evaluation, Moed, ReqType, Semester
 from src.models.program_requirement import ProgramRequirement
 from src.presenter.results_reader import ResultsReader
+from tests.algorithm.constraint_helpers import make_elective_course
 
 
 def _build_engine(periods: list[ExamPeriod]) -> SchedulingEngine:
@@ -376,3 +379,185 @@ def test_solve_to_disk_second_run_replaces_first_run_results(tmp_path):
 
     # Second run must produce exactly the same count, not double it
     assert second_count == first_count
+
+
+# ================================================================== #
+# solve_to_disk - constraint_checker filter                           #
+# ================================================================== #
+
+def test_constraint_checker_none_writes_all_schedules(tmp_path):
+    """Explicitly passing constraint_checker=None must behave identically to omitting it."""
+    c1 = _make_independent_course("10001")
+    c2 = _make_independent_course("10002")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1, c2], ["10001", "10002"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+
+    total = engine.solve_to_disk(
+        fall, {c1: ["10001"], c2: ["10002"]}, writer, constraint_checker=None
+    )
+
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert total == 9
+    assert reader.get_count("FALL_Aleph") == 9
+
+
+def test_constraint_checker_accepting_all_writes_all(tmp_path):
+    """A checker with no constraints enabled must pass every schedule through."""
+    c1 = _make_independent_course("10001")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1], ["10001"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+
+    total = engine.solve_to_disk(
+        fall, {c1: ["10001"]}, writer,
+        constraint_checker=ConstraintChecker(ConstraintSettings()),
+    )
+
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert total == 3
+    assert reader.get_count("FALL_Aleph") == 3
+
+
+def test_daily_cap_filter_removes_same_day_schedules(tmp_path):
+    """daily_cap_k=1 rejects schedules where two courses share a day.
+    2 courses × 3 days = 9 total: 3 same-day (fail) + 6 cross-day (pass)."""
+    c1 = _make_independent_course("10001")
+    c2 = _make_independent_course("10002")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1, c2], ["10001", "10002"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+
+    total = engine.solve_to_disk(
+        fall, {c1: ["10001"], c2: ["10002"]}, writer,
+        constraint_checker=ConstraintChecker(
+            ConstraintSettings(daily_cap_enabled=True, daily_cap_k=1)
+        ),
+    )
+
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert total == 6
+    assert reader.get_count("FALL_Aleph") == 6
+
+
+def test_elective_collision_filter_removes_same_day_electives(tmp_path):
+    """elective_conflicts_k=1 caps each (program, day) cell at 1 elective.
+    Same-day schedules reach count=2 and fail; cross-day reach count=1 and pass.
+    2 electives × 3 days = 9 total: 3 same-day (fail) + 6 cross-day (pass)."""
+    PROG = "83101"
+    e1 = make_elective_course("E1", PROG)
+    e2 = make_elective_course("E2", PROG)
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([e1, e2], [PROG])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+
+    total = engine.solve_to_disk(
+        fall, {e1: [PROG], e2: [PROG]}, writer,
+        constraint_checker=ConstraintChecker(
+            ConstraintSettings(elective_conflicts_enabled=True, elective_conflicts_k=1)
+        ),
+    )
+
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert total == 6
+    assert reader.get_count("FALL_Aleph") == 6
+
+
+def test_two_constraints_both_applied_to_same_schedule(tmp_path):
+    """Both daily_cap and elective_conflicts independently reject same-day schedules.
+    Enabling both together must still reject them (AND logic, no double-counting):
+    2 electives × 3 days = 9 total, 3 same-day fail both → 6 pass."""
+    PROG = "83101"
+    e1 = make_elective_course("E1", PROG)
+    e2 = make_elective_course("E2", PROG)
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([e1, e2], [PROG])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+
+    total = engine.solve_to_disk(
+        fall, {e1: [PROG], e2: [PROG]}, writer,
+        constraint_checker=ConstraintChecker(
+            ConstraintSettings(
+                daily_cap_enabled=True, daily_cap_k=1,
+                elective_conflicts_enabled=True, elective_conflicts_k=1,
+            )
+        ),
+    )
+
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert total == 6
+    assert reader.get_count("FALL_Aleph") == 6
+
+
+def test_return_value_matches_disk_count(tmp_path):
+    """solve_to_disk() return value must equal the number of schedules written, not generated."""
+    c1 = _make_independent_course("10001")
+    c2 = _make_independent_course("10002")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1, c2], ["10001", "10002"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+
+    total = engine.solve_to_disk(
+        fall, {c1: ["10001"], c2: ["10002"]}, writer,
+        constraint_checker=ConstraintChecker(
+            ConstraintSettings(daily_cap_enabled=True, daily_cap_k=1)
+        ),
+    )
+
+    reader = ResultsReader(root_path=tmp_path / "results")
+    assert total == reader.get_count("FALL_Aleph")
+    assert total < 9

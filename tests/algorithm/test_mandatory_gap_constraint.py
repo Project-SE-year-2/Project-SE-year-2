@@ -97,7 +97,7 @@ def test_mandatory_gap_multiple_courses(schedule: ExamSchedule):
 
     assert constraint.is_satisfied(schedule) is True
 
-    schedule.assign(c3, date(2025, 1, 6))  # Gap from c2 to c3 is 2
+    schedule.assign(c3, date(2025, 1, 5))  # Gap from c2 to c3 is 1 < 2
     assert constraint.is_satisfied(schedule) is False
 
 

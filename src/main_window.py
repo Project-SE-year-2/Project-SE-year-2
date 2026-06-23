@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QStackedWidget
+from PyQt5.QtWidgets import QMainWindow, QStackedWidget, QMessageBox
 
 # Import the Singleton service and screen modules
 from src.presenter.app_service import AppService
@@ -51,6 +51,7 @@ class MainWindow(QMainWindow):
         self.output_screen.switch_to_input.connect(self._show_input_screen)
         # Settings back-navigation must NOT wipe results — user is just browsing settings.
         self.settings_screen.switch_to_input.connect(self._return_to_input_without_wipe)
+        self.settings_screen.settings_confirmed.connect(self._on_settings_confirmed)
 
     def _show_output_screen(self):
         """Switches the stacked widget to the Output Screen (Index 1)."""
@@ -85,3 +86,18 @@ class MainWindow(QMainWindow):
         """Hook into the application shutdown to wipe all generated results."""
         self._wipe_results()
         super().closeEvent(event)
+
+    def _on_settings_confirmed(self):
+        """Apply SettingsScreen constraint settings and show a validation dialog on invalid input."""
+        try:
+            settings = self.settings_screen.get_constraint_settings()
+        except ValueError as exc:
+            QMessageBox.warning(
+                self,
+                "Invalid Constraint Settings",
+                str(exc),
+            )
+            return
+
+        self.service.set_constraint_settings(settings)
+        self._return_to_input_without_wipe()

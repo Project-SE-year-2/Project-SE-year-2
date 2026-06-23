@@ -26,6 +26,7 @@ from PyQt5.QtCore import pyqtSignal, Qt
 
 from src.views.settings_screen.constraint_config_widget import ConstraintConfigWidget
 from src.views.settings_screen.ranking_config_widget import RankingConfigWidget
+from src.models.constraint_settings import ConstraintSettings
 
 
 class SettingsScreen(QWidget):
@@ -35,6 +36,7 @@ class SettingsScreen(QWidget):
     """
 
     switch_to_input = pyqtSignal()
+    settings_confirmed = pyqtSignal()
 
     def __init__(self, service, parent=None):
         super().__init__(parent)
@@ -76,13 +78,17 @@ class SettingsScreen(QWidget):
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1E293B;")
 
-        # Invisible spacer on the right keeps the title visually centred.
-        spacer = QWidget()
-        spacer.setFixedWidth(80)
+        self.apply_btn = QPushButton("Apply")
+        self.apply_btn.setFixedWidth(80)
+        self.apply_btn.setStyleSheet(
+            "QPushButton { background-color: #3B82F6; color: white; border-radius: 6px; font-size: 14px; }"
+            "QPushButton:hover { background-color: #2563EB; }"
+        )
+        self.apply_btn.clicked.connect(self.settings_confirmed.emit)
 
         layout.addWidget(self.back_btn)
         layout.addWidget(title, stretch=1)
-        layout.addWidget(spacer)
+        layout.addWidget(self.apply_btn)
 
         return header
 
@@ -112,3 +118,12 @@ class SettingsScreen(QWidget):
         panels.addWidget(self.ranking_panel, stretch=1)
 
         return panels
+
+
+    def get_constraint_settings(self) -> ConstraintSettings:
+        """Return typed constraint settings collected from the constraint panel."""
+        return self.constraint_panel.get_settings()
+
+    def set_constraint_settings(self, settings: ConstraintSettings) -> None:
+        """Load typed constraint settings into the constraint panel."""
+        self.constraint_panel.set_settings(settings)

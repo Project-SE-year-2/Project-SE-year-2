@@ -14,9 +14,9 @@ QVBoxLayout (inside QScrollArea)
 
 Navigation model — per-period
 ------------------------------
-Each period stores its own position in _period_indices (UI-owned state).
-NEXT/PREV update _period_indices[active_period_id] locally and then call
-service.get_period_schedule(period_id, new_index) to fetch the new data.
+Each period stores its own navigation state in _window_states. (UI-owned state).
+NEXT/PREV update the active period's WindowState and then call
+service.get_period_schedule(period_id, current_index) to fetch the new data.
 Only the active period advances; all others remain unchanged.
 
 The navigator counter shows the active period's position ("N of M") using
@@ -79,6 +79,7 @@ from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutp
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
 from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
+from src.views.output_screen.window_state import WindowState
 
 
 # ── Semester-name → backend period-id prefix mapping ─────────────────────────
@@ -120,12 +121,12 @@ class OutputScreen(QWidget):
         self._global_index: int = 0
         self._global_total: int = 0
 
-        # ── Per-period navigation indices ─────────────────────────────────────
-        # Keys match backend period_id: "FALL_Aleph", "SPRI_Aleph", etc.
-        # Each period tracks its OWN local page so NEXT on one period never
-        # touches another period's position.
-        self._period_indices: dict[str, int] = {
-            f"{sem.value}_{moed.value}": 0
+        # ── Per-period window states ─────────────────────────────────────────────
+        # Each period has its own WindowState to track history, current pointer.
+        # This allows the user to navigate back and forth
+        # within each period independently, without affecting other periods.
+        self._window_states: dict[str, WindowState] = {
+            f"{sem.value}_{moed.value}": WindowState()
             for sem in Semester
             for moed in Moed
         }
@@ -164,6 +165,23 @@ class OutputScreen(QWidget):
         """Backend period_id for current semester + moed (e.g. "SPRI_Aleph")."""
         sem_code = _SEMESTER_TO_ID.get(self._current_semester, self._current_semester)
         return f"{sem_code}_{self._current_moed}"
+
+    # ── Active WindowState ─────────────────────────────────────────────────────
+    def _active_window_state(self) -> WindowState:
+        """Return the WindowState object for the currently active period."""
+        pid = self._active_period_id()
+        return self._window_states.setdefault(pid, WindowState())
+
+    def _period_index(self, period_id: str) -> int:
+        """Return the current schedule index for a period from WindowState."""
+        return self._window_states.setdefault(period_id, WindowState()).current()
+
+    def _current_export_indices(self) -> dict[str, int]:
+        """Return export-compatible period indices derived from WindowState."""
+        return {
+            pid: state.current()
+            for pid, state in self._window_states.items()
+        }
 
     # ── Backward-compat properties ────────────────────────────────────────────
 
@@ -370,7 +388,7 @@ class OutputScreen(QWidget):
 
         # Guard: on Windows a modal QMessageBox (e.g. the "download success"
         # popup) re-fires showEvent on the active QStackedWidget page when it
-        # closes.  We must NOT reset _period_indices in that case or the user
+        # closes.  We must NOT reset _window_states in that case or the user
         # would silently jump back to schedule 0.
         #
         # Rule:
@@ -387,8 +405,9 @@ class OutputScreen(QWidget):
 
         # ── First show / no data yet ──────────────────────────────────────────
         self._global_index = 0
-        for key in self._period_indices:
-            self._period_indices[key] = 0
+        
+        for state in self._window_states.values():
+            state.clear()
         self._calendar_displaying_data = False
         self.semester_tabs.set_enabled_all(False)
         self._loading_semester = self._current_semester
@@ -421,7 +440,7 @@ class OutputScreen(QWidget):
     def _on_semester_changed(self, semester: str) -> None:
         """Switch semester tab — restore the stored index for the new period."""
         self._current_semester = semester
-        self._global_index = self._period_indices.get(self._active_period_id(), 0)
+        self._global_index = self._active_window_state().current()
         self._hide_conflict_banner()
         self._check_conflicts_next = True
         self._calendar_displaying_data = False
@@ -438,7 +457,7 @@ class OutputScreen(QWidget):
             self._refresh_all_sessions_display()
             return
 
-        self._global_index = self._period_indices.get(self._active_period_id(), 0)
+        self._global_index = self._active_window_state().current()
         self._check_conflicts_next = True
         self._refresh_screen_display()
 
@@ -456,7 +475,7 @@ class OutputScreen(QWidget):
 
         for moed in ["Aleph", "Bet", "Gimel"]:
             pid  = f"{sem_code}_{moed}"
-            idx  = self._period_indices.get(pid, 0)
+            idx = self._period_index(pid)
             exams: list = []
             start_date: _date | None = None
             end_date:   _date | None = None
@@ -499,7 +518,7 @@ class OutputScreen(QWidget):
         sem  = self._current_semester
         moed = self._current_moed
         pid  = self._active_period_id()
-        idx  = self._period_indices.get(pid, 0)
+        idx = self._active_window_state().current()
 
         # ── Fetch isolated period schedule ────────────────────────────────────
         try:
@@ -603,7 +622,7 @@ class OutputScreen(QWidget):
             if other_moed == current_moed:
                 continue
             other_pid = f"{sem_code}_{other_moed}"
-            other_idx = self._period_indices.get(other_pid, 0)
+            other_idx = self._period_index(other_pid)
             try:
                 other_exams = self.service.get_period_schedule(other_pid, other_idx)
             except Exception:
@@ -633,8 +652,10 @@ class OutputScreen(QWidget):
         No Cartesian-product scanning or cross-period interference.
         """
         pid = self._active_period_id()
-        self._period_indices[pid] = index
-        self._global_index = index
+        state = self._active_window_state()
+        state.move_to(index)
+
+        self._global_index = state.current()
         self._hide_conflict_banner()
         self._check_conflicts_next = True
         self._refresh_screen_display()
@@ -657,7 +678,7 @@ class OutputScreen(QWidget):
             return
 
         pid         = self._active_period_id()
-        current_idx = self._period_indices.get(pid, 0)
+        current_idx = self._period_index(pid)
 
         # get_schedule_count(period_id) is authoritative: 0 = no schedules.
         # Do NOT fall back to _global_total here — a period may genuinely have
@@ -795,9 +816,10 @@ class OutputScreen(QWidget):
             pass
         self._global_total = real_total
 
-        # Reset all period indices and render schedule 0 for the active period.
-        for key in self._period_indices:
-            self._period_indices[key] = 0
+        # Reset all WindowState objects and render schedule 0 for the active period.
+        
+        for state in self._window_states.values():
+            state.clear()
         self._global_index = 0
         self._refresh_screen_display()
 
@@ -808,9 +830,9 @@ class OutputScreen(QWidget):
     # ── Toolbar ───────────────────────────────────────────────────────────────
 
     def on_sort_changed(self, _sort_cols: list = None) -> None:
-        """Reset all period indices to 0 when the sort order changes."""
-        for key in self._period_indices:
-            self._period_indices[key] = 0
+        """Reset all period navigation states to 0 when the sort order changes."""
+        for state in self._window_states.values():
+            state.clear()
         self._global_index = 0
 
     def _on_back_clicked(self) -> None:
@@ -829,7 +851,7 @@ class OutputScreen(QWidget):
         # Check that at least one period has data.
         has_data = any(
             self.service.get_schedule_count(period_id=pid) > 0
-            for pid in self._period_indices
+            for pid in self._window_states
         )
         if not has_data:
             QMessageBox.warning(self, "No Schedule", "No schedule is currently loaded.")
@@ -845,7 +867,7 @@ class OutputScreen(QWidget):
             return
 
         try:
-            self.service.export_by_period_indices(self._period_indices, file_path)
+            self.service.export_by_period_indices(self._current_export_indices(), file_path)
             self._show_success_banner("Schedule exported successfully.")
         except Exception as exc:
             QMessageBox.critical(

@@ -79,6 +79,7 @@ from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutp
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
 from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
+from src.views.output_screen.window_state import WindowState
 
 
 # ── Semester-name → backend period-id prefix mapping ─────────────────────────
@@ -130,6 +131,16 @@ class OutputScreen(QWidget):
             for moed in Moed
         }
 
+        # ── Per-period window states ─────────────────────────────────────────────
+        # Each period has its own WindowState to track history, current pointer,
+        # and lookahead buffer.  This allows the user to navigate back and forth
+        # within each period independently, without affecting other periods.
+        self._window_states: dict[str, WindowState] = {
+            f"{sem.value}_{moed.value}": WindowState()
+            for sem in Semester
+            for moed in Moed
+        }
+
         # ── Active view ───────────────────────────────────────────────────────
         self._current_semester: str = "FALL"
         self._current_moed:     str = "Aleph"
@@ -164,6 +175,12 @@ class OutputScreen(QWidget):
         """Backend period_id for current semester + moed (e.g. "SPRI_Aleph")."""
         sem_code = _SEMESTER_TO_ID.get(self._current_semester, self._current_semester)
         return f"{sem_code}_{self._current_moed}"
+
+    # ── Active WindowState ─────────────────────────────────────────────────────
+    def _active_window_state(self) -> WindowState:
+        """Return the WindowState object for the currently active period."""
+        pid = self._active_period_id()
+        return self._window_states.setdefault(pid, WindowState())
 
     # ── Backward-compat properties ────────────────────────────────────────────
 
@@ -387,8 +404,8 @@ class OutputScreen(QWidget):
 
         # ── First show / no data yet ──────────────────────────────────────────
         self._global_index = 0
-        for key in self._period_indices:
-            self._period_indices[key] = 0
+        for state in self._window_states.values():
+            state.clear()
         self._calendar_displaying_data = False
         self.semester_tabs.set_enabled_all(False)
         self._loading_semester = self._current_semester
@@ -633,8 +650,11 @@ class OutputScreen(QWidget):
         No Cartesian-product scanning or cross-period interference.
         """
         pid = self._active_period_id()
-        self._period_indices[pid] = index
-        self._global_index = index
+        state = self._active_window_state()
+        state.move_to(index)
+
+        self._period_indices[pid] = state.current()
+        self._global_index = state.current()
         self._hide_conflict_banner()
         self._check_conflicts_next = True
         self._refresh_screen_display()
@@ -798,6 +818,9 @@ class OutputScreen(QWidget):
         # Reset all period indices and render schedule 0 for the active period.
         for key in self._period_indices:
             self._period_indices[key] = 0
+
+        for state in self._window_states.values():
+            state.clear()
         self._global_index = 0
         self._refresh_screen_display()
 

@@ -12,6 +12,7 @@ if app is None:
     app = QApplication(sys.argv)
 
 from src.views.output_screen.output_screen import OutputScreen
+from src.views.output_screen.window_state import WindowState
 
 
 class TestOutputScreen(unittest.TestCase):
@@ -559,6 +560,51 @@ class TestOutputScreen(unittest.TestCase):
             self.screen._on_back_clicked()
             mock_signal.emit.assert_called_once()
 
+
+    def test_window_state_starts_at_zero(self):
+        """Verify that every OutputScreen WindowState starts at index 0."""
+        for state in self.screen._window_states.values():
+            self.assertEqual(state.current(), 0)
+
+
+def test_move_to_updates_current_and_history():
+    """Verify that move_to stores the previous index and updates current."""
+    state = WindowState()
+    state.move_to(3)
+
+    assert state.current() == 3
+    assert state.history_stack == [0]
+
+
+def test_back_restores_previous_index():
+    """Verify that back returns to the previous index."""
+    state = WindowState()
+    state.move_to(2)
+    state.move_to(5)
+
+    assert state.back() == 2
+    assert state.current() == 2
+
+
+def test_set_lookahead_replaces_buffer():
+    """Verify that set_lookahead stores upcoming indices."""
+    state = WindowState()
+    state.set_lookahead([4, 5, 6])
+
+    assert state.lookahead_buffer == [4, 5, 6]
+
+
+def test_clear_resets_state():
+    """Verify that clear resets current, history, and lookahead."""
+    state = WindowState()
+    state.move_to(3)
+    state.set_lookahead([4, 5])
+
+    state.clear()
+
+    assert state.current() == 0
+    assert state.history_stack == []
+    assert state.lookahead_buffer == []
 
 # ---------------------------------------------------------------------------
 # Module-level helper

@@ -13,6 +13,7 @@ if app is None:
 from src.views.settings_screen.settings_screen import SettingsScreen
 from src.views.settings_screen.constraint_config_widget import ConstraintConfigWidget
 from src.views.settings_screen.ranking_config_widget import RankingConfigWidget
+from src.models.constraint_settings import ConstraintSettings
 
 
 class TestSettingsScreen(unittest.TestCase):
@@ -103,6 +104,41 @@ class TestSettingsScreen(unittest.TestCase):
         self.screen.hide()
 
 
+    def test_set_constraint_settings_updates_ui_controls(self):
+        """Verify that set_constraint_settings updates the constraint panel checkboxes and spinboxes."""
+        settings = ConstraintSettings(
+            mandatory_gap_enabled=True,
+            mandatory_gap_k=3,
+            all_gap_enabled=True,
+            all_gap_k=5,
+            elective_conflicts_enabled=True,
+            elective_conflicts_k=1,
+            spread_enabled=True,
+            spread_k=12,
+            daily_cap_enabled=True,
+            daily_cap_k=2,
+        )
+
+        self.screen.set_constraint_settings(settings)
+
+        panel = self.screen.constraint_panel
+
+        self.assertTrue(panel._checks["mandatory_gap"].isChecked())
+        self.assertEqual(panel._spins["mandatory_gap"].value(), 3)
+
+        self.assertTrue(panel._checks["all_gap"].isChecked())
+        self.assertEqual(panel._spins["all_gap"].value(), 5)
+
+        self.assertTrue(panel._checks["elective_conflicts"].isChecked())
+        self.assertEqual(panel._spins["elective_conflicts"].value(), 1)
+
+        self.assertTrue(panel._checks["spread"].isChecked())
+        self.assertEqual(panel._spins["spread"].value(), 12)
+
+        self.assertTrue(panel._checks["daily_cap"].isChecked())
+        self.assertEqual(panel._spins["daily_cap"].value(), 2)
+
+
 class TestSettingsScreenInMainWindow(unittest.TestCase):
     """Verify SettingsScreen integrates correctly inside MainWindow."""
 
@@ -150,6 +186,13 @@ class TestSettingsScreenInMainWindow(unittest.TestCase):
         self.window.stacked_widget.setCurrentIndex(2)
         self.window._return_to_input_without_wipe()
         self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
+
+    
+    def test_settings_screen_returns_constraint_settings_object(self):
+        """Verify that SettingsScreen exposes typed constraint settings from its constraint panel."""
+        settings = self.window.settings_screen.get_constraint_settings()
+
+        self.assertIsInstance(settings, ConstraintSettings)
 
 
 if __name__ == '__main__':

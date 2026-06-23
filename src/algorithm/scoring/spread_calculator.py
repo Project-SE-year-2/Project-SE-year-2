@@ -46,4 +46,4 @@ class SpreadCalculator(IMetricCalculator):
             return 0.0
 
         # Calculate and return the average span across all valid cohorts
-        return sum(spans) / len(spans)
+        return round(sum(spans) / len(spans), 2)

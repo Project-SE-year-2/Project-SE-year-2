@@ -33,4 +33,4 @@ class CollisionCalculator(IMetricCalculator):
                     
         # Each cell with count > 1 contributes (count - 1) conflicts, 
         # since the first elective is not a conflict.
-        return sum(max(0, count - 1) for count in counts.values())
+        return float(sum(max(0, count - 1) for count in counts.values()))

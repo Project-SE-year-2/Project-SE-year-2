@@ -263,6 +263,9 @@ class OutputScreen(QWidget):
         self._success_banner = self._build_success_banner()
         self._success_banner.setVisible(False)
         main_layout.addWidget(self._success_banner)
+        self._sorting_update_banner = self._build_sorting_update_banner()
+        self._sorting_update_banner.setVisible(False)
+        main_layout.addWidget(self._sorting_update_banner)
         self._success_timer = QTimer(self)
         self._success_timer.setSingleShot(True)
         self._success_timer.timeout.connect(lambda: self._success_banner.setVisible(False))
@@ -363,11 +366,63 @@ class OutputScreen(QWidget):
         row.addWidget(self._success_text, stretch=1)
 
         return banner
+    
+    def _build_sorting_update_banner(self) -> QFrame:
+        """Build a banner that lets the user refresh when optimized results are available."""
+        banner = QFrame()
+        banner.setObjectName("sortingUpdateBanner")
+        banner.setStyleSheet("""
+            QFrame#sortingUpdateBanner {
+                background: #EFF6FF;
+                border: 1.5px solid #BFDBFE;
+                border-radius: 10px;
+            }
+        """)
+
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(16, 12, 16, 12)
+        row.setSpacing(12)
+
+        label = QLabel("New optimized schedules are available.")
+        label.setStyleSheet(
+            "color: #1D4ED8; font-size: 13px; font-weight: 700;"
+        )
+        row.addWidget(label, stretch=1)
+
+        refresh_btn = QPushButton("Refresh View")
+        refresh_btn.setCursor(Qt.PointingHandCursor)
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                background: #2563EB;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 12px;
+                font-weight: 700;
+            }
+            QPushButton:hover {
+                background: #1D4ED8;
+            }
+        """)
+        refresh_btn.clicked.connect(self._on_refresh_pending_clicked)
+        row.addWidget(refresh_btn)
+
+        return banner
 
     def _show_success_banner(self, message: str) -> None:
         self._success_text.setText(message)
         self._success_banner.setVisible(True)
         self._success_timer.start(5000)
+
+    def _show_sorting_update_banner(self) -> None:
+        """Show the optimized-results pending update banner."""
+        self._sorting_update_banner.setVisible(True)
+
+
+    def _hide_sorting_update_banner(self) -> None:
+        """Hide the optimized-results pending update banner."""
+        self._sorting_update_banner.setVisible(False)
 
     def _setup_polling(self) -> None:
         self.poll_timer = QTimer(self)
@@ -385,6 +440,7 @@ class OutputScreen(QWidget):
         self.semester_tabs.set_selected("FALL")
         self.four_month.set_active_moed("Aleph")
         self._hide_conflict_banner()
+        self._hide_sorting_update_banner()
 
         # Guard: on Windows a modal QMessageBox (e.g. the "download success"
         # popup) re-fires showEvent on the active QStackedWidget page when it
@@ -442,6 +498,7 @@ class OutputScreen(QWidget):
         self._current_semester = semester
         self._global_index = self._active_window_state().current()
         self._hide_conflict_banner()
+        self._hide_sorting_update_banner()
         self._check_conflicts_next = True
         self._calendar_displaying_data = False
         self._refresh_screen_display()
@@ -450,6 +507,7 @@ class OutputScreen(QWidget):
         """Switch moed, or switch to the read-only All Sessions overview."""
         self._current_moed = moed
         self._hide_conflict_banner()
+        self._hide_sorting_update_banner()
         self._calendar_displaying_data = False
 
         if moed == "All":
@@ -660,6 +718,14 @@ class OutputScreen(QWidget):
         self._check_conflicts_next = True
         self._refresh_screen_display()
 
+    def _on_refresh_pending_clicked(self) -> None:
+        """Accept pending optimized results and refresh the current display."""
+        state = self._active_window_state()
+        state.accept_pending()
+
+        self._hide_sorting_update_banner()
+        self._refresh_screen_display()
+
     def _on_prefetch_needed(self, loaded_so_far: int) -> None:
         # No-op in isolated mode — each NEXT fetches on demand.
         pass
@@ -788,6 +854,12 @@ class OutputScreen(QWidget):
         if period_id != self._active_period_id():
             return
 
+        if self._calendar_displaying_data:
+            state = self._active_window_state()
+            state.mark_pending()
+            self._show_sorting_update_banner()
+            return
+
         # Data just arrived for the currently-visible period — update count and render.
         try:
             count = self.service.get_schedule_count(period_id=period_id)
@@ -820,6 +892,7 @@ class OutputScreen(QWidget):
         
         for state in self._window_states.values():
             state.clear()
+        self._hide_sorting_update_banner()
         self._global_index = 0
         self._refresh_screen_display()
 

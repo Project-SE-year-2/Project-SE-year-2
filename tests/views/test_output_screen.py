@@ -569,6 +569,102 @@ class TestOutputScreen(unittest.TestCase):
             self.assertEqual(state.current(), 0)
 
 
+    def test_period_ready_shows_sorting_update_banner_when_schedule_already_displayed(self):
+        """Verify that new active-period data shows a refresh banner instead of auto-refreshing."""
+        self.mock_service.get_schedule_count.return_value = 5
+        self.screen._current_semester = "FALL"
+        self.screen._current_moed = "Aleph"
+        self.screen._calendar_displaying_data = True
+
+        self.screen._on_period_ready("FALL_Aleph")
+
+        self.assertTrue(self.screen._active_window_state().has_pending_update)
+        self.assertFalse(self.screen._sorting_update_banner.isHidden())
+
+
+    def test_period_ready_ignores_non_active_period_for_sorting_banner(self):
+        """Verify that non-active period updates do not show the refresh banner."""
+        self.mock_service.get_schedule_count.return_value = 5
+        self.screen._current_semester = "FALL"
+        self.screen._current_mode = "Aleph"
+        self.screen._calendar_displaying_data = True
+
+        self.screen._on_period_ready("SPRI_Aleph")
+
+        self.assertFalse(self.screen._active_window_state().has_pending_update)
+        self.assertFalse(self.screen._sorting_update_banner.isVisible())
+
+
+    def test_refresh_pending_accepts_update_hides_banner_and_refreshes(self):
+        """Verify that Refresh View accepts the pending update, hides the banner, and refreshes display."""
+        state = self.screen._active_window_state()
+        state.mark_pending()
+        self.screen._sorting_update_banner.setVisible(True)
+
+        with patch.object(self.screen, "_refresh_screen_display") as mock_refresh:
+            self.screen._on_refresh_pending_clicked()
+
+        self.assertFalse(state.has_pending_update)
+        self.assertFalse(self.screen._sorting_update_banner.isVisible())
+        mock_refresh.assert_called_once()
+
+
+    def test_semester_change_hides_sorting_update_banner(self):
+        """Verify that changing semester hides any pending update banner."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+        self.mock_service.get_periods.return_value = []
+        self.screen._sorting_update_banner.setVisible(True)
+
+        self.screen._on_semester_changed("SPRING")
+
+        self.assertFalse(self.screen._sorting_update_banner.isVisible())
+
+
+    def test_generation_finished_clears_pending_update_and_hides_banner(self):
+        """Verify that generation completion clears pending state and hides the update banner."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 0
+        self.mock_service.get_periods.return_value = []
+
+        state = self.screen._active_window_state()
+        state.mark_pending()
+        self.screen._sorting_update_banner.setVisible(True)
+
+        self.screen._on_generation_finished(0)
+
+        self.assertFalse(state.has_pending_update)
+        self.assertFalse(self.screen._sorting_update_banner.isVisible())
+
+
+    def test_mark_pending_sets_pending_update_flag(self):
+        """Verify that mark_pending records that newer optimized results are available."""
+        state = WindowState()
+
+        state.mark_pending()
+
+        assert state.has_pending_update is True
+
+
+    def test_accept_pending_clears_pending_update_flag(self):
+        """Verify that accept_pending clears the pending optimized-results marker."""
+        state = WindowState()
+        state.mark_pending()
+
+        state.accept_pending()
+
+        assert state.has_pending_update is False
+
+
+    def test_clear_resets_pending_update_flag(self):
+        """Verify that clear also removes any pending optimized-results marker."""
+        state = WindowState()
+        state.mark_pending()
+
+        state.clear()
+
+        assert state.has_pending_update is False
+
 def test_move_to_updates_current_and_history():
     """Verify that move_to stores the previous index and updates current."""
     state = WindowState()
@@ -612,6 +708,10 @@ def _make_minimal_exam() -> dict:
         "semester":      "FALL",
         "moed":          "Aleph",
     }
+
+
+
+
 
 
 if __name__ == '__main__':

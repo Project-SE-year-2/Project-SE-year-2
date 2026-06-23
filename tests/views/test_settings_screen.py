@@ -13,6 +13,7 @@ if app is None:
 from src.views.settings_screen.settings_screen import SettingsScreen
 from src.views.settings_screen.constraint_config_widget import ConstraintConfigWidget
 from src.views.settings_screen.ranking_config_widget import RankingConfigWidget
+from src.models.constraint_settings import ConstraintSettings
 
 
 class TestSettingsScreen(unittest.TestCase):
@@ -150,6 +151,13 @@ class TestSettingsScreenInMainWindow(unittest.TestCase):
         self.window.stacked_widget.setCurrentIndex(2)
         self.window._return_to_input_without_wipe()
         self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
+
+    
+    def test_settings_screen_returns_constraint_settings_object(self):
+        """Verify that SettingsScreen exposes typed constraint settings from its constraint panel."""
+        settings = self.window.settings_screen.get_constraint_settings()
+
+        self.assertIsInstance(settings, ConstraintSettings)
 
 
 if __name__ == '__main__':

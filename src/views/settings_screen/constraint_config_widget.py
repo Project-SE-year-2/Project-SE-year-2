@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 
+from src.models.constraint_settings import ConstraintSettings
 
 # Human-readable label for each constraint key.
 _CONSTRAINT_LABELS = {
@@ -161,3 +162,12 @@ class ConstraintConfigWidget(QWidget):
             k_val = values.get(f"{key}_k", _DEFAULT_K[key])
             self._checks[key].setChecked(enabled)
             self._spins[key].setValue(k_val)
+
+
+    def get_settings(self) -> ConstraintSettings:
+        """Build a typed ConstraintSettings object from the current UI state."""
+        return ConstraintSettings.from_dict(self.get_values())
+
+    def set_settings(self, settings: ConstraintSettings) -> None:
+        """Populate the UI controls from a typed ConstraintSettings object."""
+        self.set_values(settings.to_dict())

@@ -26,6 +26,7 @@ from PyQt5.QtCore import pyqtSignal, Qt
 
 from src.views.settings_screen.constraint_config_widget import ConstraintConfigWidget
 from src.views.settings_screen.ranking_config_widget import RankingConfigWidget
+from src.models.constraint_settings import ConstraintSettings
 
 
 class SettingsScreen(QWidget):
@@ -112,3 +113,12 @@ class SettingsScreen(QWidget):
         panels.addWidget(self.ranking_panel, stretch=1)
 
         return panels
+
+
+    def get_constraint_settings(self) -> ConstraintSettings:
+        """Return typed constraint settings collected from the constraint panel."""
+        return self.constraint_panel.get_settings()
+
+    def set_constraint_settings(self, settings: ConstraintSettings) -> None:
+        """Load typed constraint settings into the constraint panel."""
+        self.constraint_panel.set_settings(settings)

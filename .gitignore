@@ -20,3 +20,4 @@ tester_main.py
 
 data/*.pkl
 data/results
+.agents/*

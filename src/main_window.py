@@ -77,8 +77,9 @@ class MainWindow(QMainWindow):
 
     def _show_input_screen(self):
         """Switches the stacked widget to the Input Screen (Index 0)."""
-        self._wipe_results()
         self.stacked_widget.setCurrentIndex(0)
+        if hasattr(self.input_screen, 'check_existing_results'):
+            self.input_screen.check_existing_results()
 
     def closeEvent(self, event):
         """Hook into the application shutdown to wipe all generated results."""

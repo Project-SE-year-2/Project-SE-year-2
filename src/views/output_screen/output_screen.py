@@ -14,9 +14,9 @@ QVBoxLayout (inside QScrollArea)
 
 Navigation model — per-period
 ------------------------------
-Each period stores its own position in _period_indices (UI-owned state).
-NEXT/PREV update _period_indices[active_period_id] locally and then call
-service.get_period_schedule(period_id, new_index) to fetch the new data.
+Each period stores its own navigation state in _window_states. (UI-owned state).
+NEXT/PREV update the active period's WindowState and then call
+service.get_period_schedule(period_id, current_index) to fetch the new data.
 Only the active period advances; all others remain unchanged.
 
 The navigator counter shows the active period's position ("N of M") using
@@ -121,19 +121,9 @@ class OutputScreen(QWidget):
         self._global_index: int = 0
         self._global_total: int = 0
 
-        # ── Per-period navigation indices ─────────────────────────────────────
-        # Keys match backend period_id: "FALL_Aleph", "SPRI_Aleph", etc.
-        # Each period tracks its OWN local page so NEXT on one period never
-        # touches another period's position.
-        self._period_indices: dict[str, int] = {
-            f"{sem.value}_{moed.value}": 0
-            for sem in Semester
-            for moed in Moed
-        }
-
         # ── Per-period window states ─────────────────────────────────────────────
-        # Each period has its own WindowState to track history, current pointer,
-        # and lookahead buffer.  This allows the user to navigate back and forth
+        # Each period has its own WindowState to track history, current pointer.
+        # This allows the user to navigate back and forth
         # within each period independently, without affecting other periods.
         self._window_states: dict[str, WindowState] = {
             f"{sem.value}_{moed.value}": WindowState()
@@ -186,11 +176,11 @@ class OutputScreen(QWidget):
         """Return the current schedule index for a period from WindowState."""
         return self._window_states.setdefault(period_id, WindowState()).current()
 
-    def _period_indices_snapshot(self) -> dict[str, int]:
+    def _current_export_indices(self) -> dict[str, int]:
         """Return export-compatible period indices derived from WindowState."""
         return {
-            period_id: state.current()
-            for period_id, state in self._window_states.items()
+            pid: state.current()
+            for pid, state in self._window_states.items()
         }
 
     # ── Backward-compat properties ────────────────────────────────────────────
@@ -415,9 +405,7 @@ class OutputScreen(QWidget):
 
         # ── First show / no data yet ──────────────────────────────────────────
         self._global_index = 0
-        for key in self._period_indices:
-            self._period_indices[key] = 0
-
+        
         for state in self._window_states.values():
             state.clear()
         self._calendar_displaying_data = False
@@ -667,7 +655,6 @@ class OutputScreen(QWidget):
         state = self._active_window_state()
         state.move_to(index)
 
-        self._period_indices[pid] = state.current()
         self._global_index = state.current()
         self._hide_conflict_banner()
         self._check_conflicts_next = True
@@ -829,10 +816,8 @@ class OutputScreen(QWidget):
             pass
         self._global_total = real_total
 
-        # Reset all period indices and render schedule 0 for the active period.
-        for key in self._period_indices:
-            self._period_indices[key] = 0
-
+        # Reset all WindowState objects and render schedule 0 for the active period.
+        
         for state in self._window_states.values():
             state.clear()
         self._global_index = 0
@@ -876,7 +861,7 @@ class OutputScreen(QWidget):
             return
 
         try:
-            self.service.export_by_period_indices(self._period_indices_snapshot(), file_path)
+            self.service.export_by_period_indices(self._current_export_indices(), file_path)
             self._show_success_banner("Schedule exported successfully.")
         except Exception as exc:
             QMessageBox.critical(

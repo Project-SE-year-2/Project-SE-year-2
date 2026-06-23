@@ -235,7 +235,7 @@ class TestOutputScreen(unittest.TestCase):
             {"id": "FALL_Aleph", "start_date": None, "end_date": None}
         ]
         self.screen._on_navigator_index_changed(2)
-        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 2)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].current(), 2)
 
     def test_navigator_index_changed_does_not_affect_other_periods(self):
         """Advancing index for FALL_Aleph must not change SPRI_Aleph's index."""
@@ -244,7 +244,7 @@ class TestOutputScreen(unittest.TestCase):
         self.mock_service.get_periods.return_value = []
         self.screen._on_navigator_index_changed(3)
         # Other periods stay at their initial value (0)
-        self.assertEqual(self.screen._period_indices.get("SPRI_Aleph", 0), 0)
+        self.assertEqual(self.screen._window_states["SPRI_Aleph"].current(), 0)
 
     def test_navigator_index_changed_calls_get_period_schedule_with_new_index(self):
         """After advancing the index, _refresh_screen_display fetches at the new index."""
@@ -420,9 +420,9 @@ class TestOutputScreen(unittest.TestCase):
         self.screen._current_semester = "FALL"
         self.screen._on_navigator_index_changed(5)
 
-        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 5)
-        self.assertEqual(self.screen._period_indices["SPRI_Aleph"], 0)
-        self.assertEqual(self.screen._period_indices["SUMM_Aleph"], 0)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].current(), 5)
+        self.assertEqual(self.screen._window_states["SPRI_Aleph"].current(), 0)
+        self.assertEqual(self.screen._window_states["SUMM_Aleph"].current(), 0)
 
     def test_switching_semester_preserves_previous_index(self):
         """Going FALL→SPRING→FALL restores FALL's stored index."""
@@ -499,10 +499,7 @@ class TestOutputScreen(unittest.TestCase):
         self.mock_service.get_schedule_count.return_value = 10
         self.mock_service.get_periods.return_value = []
 
-        # Set non-zero indices
-        self.screen._period_indices["FALL_Aleph"] = 5
-        self.screen._period_indices["SPRI_Bet"] = 3
-
+        # Set some non-zero indices for FALL_Aleph and SPRI_Bet
         self.screen._window_states["FALL_Aleph"].move_to(5)
         self.screen._window_states["SPRI_Bet"].move_to(3)
 
@@ -512,8 +509,6 @@ class TestOutputScreen(unittest.TestCase):
         self.assertEqual(self.screen._window_states["SPRI_Bet"].current(), 0)
         self.assertEqual(self.screen._window_states["FALL_Aleph"].history_stack, [])
         self.assertEqual(self.screen._window_states["SPRI_Bet"].history_stack, [])
-        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 0)
-        self.assertEqual(self.screen._period_indices["SPRI_Bet"], 0)
         self.assertEqual(self.screen._global_index, 0)
 
     def test_on_generation_error_shows_error(self):
@@ -534,12 +529,12 @@ class TestOutputScreen(unittest.TestCase):
         ]
 
         self.screen._global_total = 5
-        self.screen._period_indices["FALL_Aleph"] = 3
+        self.screen._window_states["FALL_Aleph"].move_to(3)
 
         self.screen.showEvent(QShowEvent())
 
         # Index must NOT be reset to 0
-        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 3)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].current(), 3)
 
     # ------------------------------------------------------------------
     # Navigator visibility

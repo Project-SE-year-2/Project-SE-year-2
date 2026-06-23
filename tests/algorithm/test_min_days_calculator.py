@@ -1,6 +1,9 @@
 from datetime import date
 from math import inf
 
+from src.models.course import Course
+from src.models.enums import Evaluation, Semester, ReqType
+from src.models.program_requirement import ProgramRequirement
 from src.algorithm.scoring.min_days_calculator import MinDaysCalculator
 from tests.algorithm.constraint_helpers import (
     make_obligatory_course as _obligatory,
@@ -109,16 +112,45 @@ def test_global_minimum_is_taken_across_all_cohorts():
     assert MinDaysCalculator().compute(sched) == 3.0
 
 
-def test_duplicate_same_day_dates_are_deduplicated():
-    """Verify that multiple Obligatory exams on the same date are treated as one date."""
+def test_same_day_obligatory_exams_return_zero_gap():
+    """Verify that two Obligatory exams on the same date produce a 0-day gap."""
     c1 = _obligatory("O1", PROG_A, year=1)
     c2 = _obligatory("O2", PROG_A, year=1)
-    c3 = _obligatory("O3", PROG_A, year=1)
 
     sched = _schedule(
         (c1, date(2026, 1, 1)),
         (c2, date(2026, 1, 1)),
-        (c3, date(2026, 1, 6)),
     )
 
-    assert MinDaysCalculator().compute(sched) == 5.0
+    assert MinDaysCalculator().compute(sched) == 0.0
+
+
+def test_multi_cohort_obligatory_course_contributes_to_each_cohort():
+    """Verify that a shared Obligatory course contributes its date to every matching cohort."""
+    shared = Course("Shared", "SH1", "Prof", Evaluation.Exam)
+    shared.add_requirement(ProgramRequirement(PROG_A, 1, Semester.FALL, ReqType.Obligatory))
+    shared.add_requirement(ProgramRequirement(PROG_B, 1, Semester.FALL, ReqType.Obligatory))
+
+    a2 = _obligatory("A2", PROG_A, year=1)
+    b2 = _obligatory("B2", PROG_B, year=1)
+
+    sched = _schedule(
+        (shared, date(2026, 1, 1)),
+        (a2, date(2026, 1, 11)),  # PROG_A gap = 10
+        (b2, date(2026, 1, 4)),   # PROG_B gap = 3
+    )
+
+    assert MinDaysCalculator().compute(sched) == 3.0
+
+
+def test_mixed_obligatory_and_elective_same_cohort_returns_infinity():
+    """Verify that Elective exams are ignored even when mixed with one Obligatory exam."""
+    obligatory = _obligatory("O1", PROG_A, year=1)
+    elective = _elective("E1", PROG_A, year=1)
+
+    sched = _schedule(
+        (obligatory, date(2026, 1, 1)),
+        (elective, date(2026, 1, 2)),
+    )
+
+    assert MinDaysCalculator().compute(sched) == inf

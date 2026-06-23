@@ -22,7 +22,7 @@ class MinDaysCalculator(IMetricCalculator):
         min_gap = inf
 
         for dates in cohort_dates.values():
-            sorted_dates = sorted(set(dates))
+            sorted_dates = sorted(dates)
 
             if len(sorted_dates) < 2:
                 continue

@@ -202,11 +202,13 @@ def test_builds_all_supported_enabled_constraints():
         spread_k=10,
         daily_cap_enabled=True,
         daily_cap_k=3,
+        mandatory_gap_enabled=True,
+        mandatory_gap_k=5,
     )
 
     checker = ConstraintChecker(settings)
 
-    assert len(checker._constraints) == 4
+    assert len(checker._constraints) == 5
 
 
 def test_is_valid_returns_false_when_daily_cap_fails():
@@ -249,7 +251,7 @@ def test_is_valid_returns_false_when_collision_constraint_fails():
     """Verify that CollisionConstraint is applied by ConstraintChecker."""
     settings = ConstraintSettings(
         elective_conflicts_enabled=True,
-        elective_conflicts_k=1,
+        elective_conflicts_k=0,
     )
     checker = ConstraintChecker(settings)
 

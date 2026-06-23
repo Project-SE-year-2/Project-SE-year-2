@@ -1,6 +1,7 @@
 from datetime import date
 from src.models.exam_schedule import ExamSchedule
 from src.algorithm.constraints.i_constraint import IConstraint
+from src.models.enums import ReqType
 
 
 class MandatoryGapConstraint(IConstraint):
@@ -36,7 +37,7 @@ class MandatoryGapConstraint(IConstraint):
             sorted_dates = sorted(dates)
             for i in range(len(sorted_dates) - 1):
                 gap = (sorted_dates[i + 1] - sorted_dates[i]).days
-                if gap <= self._k:
+                if gap < self._k:
                     return False
 
         return True
@@ -50,7 +51,7 @@ class MandatoryGapConstraint(IConstraint):
 
         for course, exam_date in schedule.assignments.items():
             for req in course.requirements:
-                if req.is_obligatory():
+                if req.req_type == ReqType.Obligatory:
                     key = (req.program_id, req.year)
                     cohort_dates.setdefault(key, []).append(exam_date)
 

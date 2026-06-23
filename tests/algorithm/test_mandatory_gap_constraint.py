@@ -3,7 +3,8 @@ from datetime import date
 from src.models.exam_schedule import ExamSchedule
 from src.models.course import Course
 from src.models.program_requirement import ProgramRequirement
-from src.models.enums import Evaluation, Semester, ReqType
+from src.models.enums import Evaluation, Semester, ReqType, Moed
+from src.models.exam_period import ExamPeriod
 from src.algorithm.constraints.mandatory_gap_constraint import MandatoryGapConstraint
 
 
@@ -17,7 +18,8 @@ def _make_course(course_id: str, is_obligatory: bool) -> Course:
 
 @pytest.fixture
 def schedule() -> ExamSchedule:
-    return ExamSchedule(period=None)
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2025, 1, 1), date(2025, 1, 31))
+    return ExamSchedule(period=period)
 
 
 def test_mandatory_gap_valid_gap(schedule: ExamSchedule):
@@ -32,6 +34,17 @@ def test_mandatory_gap_valid_gap(schedule: ExamSchedule):
     assert constraint.is_satisfied(schedule) is True
 
 
+def test_mandatory_gap_exact_gap(schedule: ExamSchedule):
+    constraint = MandatoryGapConstraint(k=2)
+
+    c1 = _make_course("1", is_obligatory=True)
+    c2 = _make_course("2", is_obligatory=True)
+
+    schedule.assign(c1, date(2025, 1, 1))
+    schedule.assign(c2, date(2025, 1, 3))  # Gap = 2 == 2 (k)
+
+    assert constraint.is_satisfied(schedule) is True
+
 def test_mandatory_gap_invalid_gap(schedule: ExamSchedule):
     constraint = MandatoryGapConstraint(k=2)
 
@@ -39,7 +52,7 @@ def test_mandatory_gap_invalid_gap(schedule: ExamSchedule):
     c2 = _make_course("2", is_obligatory=True)
 
     schedule.assign(c1, date(2025, 1, 1))
-    schedule.assign(c2, date(2025, 1, 3))  # Gap = 2 <= 2 (k)
+    schedule.assign(c2, date(2025, 1, 2))  # Gap = 1 < 2 (k)
 
     assert constraint.is_satisfied(schedule) is False
 

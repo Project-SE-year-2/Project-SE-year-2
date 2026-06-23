@@ -22,4 +22,4 @@ class PartialCollisionConstraint(IPartialConstraint):
                     key = (req.program_id, exam_date)
                     counts[key] = counts.get(key, 0) + 1
 
-        return all(count <= self._k for count in counts.values())
+        return all(max(0, count - 1) <= self._k for count in counts.values())

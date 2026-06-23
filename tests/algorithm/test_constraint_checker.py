@@ -240,7 +240,7 @@ def test_is_valid_returns_false_when_collision_constraint_fails():
     """Verify that CollisionConstraint is applied by ConstraintChecker."""
     settings = ConstraintSettings(
         elective_conflicts_enabled=True,
-        elective_conflicts_k=1,
+        elective_conflicts_k=0,
     )
     checker = ConstraintChecker(settings)
 

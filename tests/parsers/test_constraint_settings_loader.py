@@ -184,3 +184,11 @@ daily_cap_k=abc
 
     with pytest.raises(ValueError):
         ConstraintSettingsLoader.from_file(str(config))
+
+
+def test_from_cli_args_enabled_flag_without_k_raises_value_error():
+    """Verify that enabling a constraint without K raises a validation error."""
+    with pytest.raises(ValueError, match="daily_cap_k must be a positive integer"):
+        ConstraintSettingsLoader.from_cli_args([
+            "--daily-cap-enabled",
+        ])

@@ -12,6 +12,7 @@ if app is None:
     app = QApplication(sys.argv)
 
 from src.views.output_screen.output_screen import OutputScreen
+from src.views.output_screen.window_state import WindowState
 
 
 class TestOutputScreen(unittest.TestCase):
@@ -234,7 +235,7 @@ class TestOutputScreen(unittest.TestCase):
             {"id": "FALL_Aleph", "start_date": None, "end_date": None}
         ]
         self.screen._on_navigator_index_changed(2)
-        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 2)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].current(), 2)
 
     def test_navigator_index_changed_does_not_affect_other_periods(self):
         """Advancing index for FALL_Aleph must not change SPRI_Aleph's index."""
@@ -243,7 +244,7 @@ class TestOutputScreen(unittest.TestCase):
         self.mock_service.get_periods.return_value = []
         self.screen._on_navigator_index_changed(3)
         # Other periods stay at their initial value (0)
-        self.assertEqual(self.screen._period_indices.get("SPRI_Aleph", 0), 0)
+        self.assertEqual(self.screen._window_states["SPRI_Aleph"].current(), 0)
 
     def test_navigator_index_changed_calls_get_period_schedule_with_new_index(self):
         """After advancing the index, _refresh_screen_display fetches at the new index."""
@@ -369,7 +370,7 @@ class TestOutputScreen(unittest.TestCase):
         self.mock_service.get_periods.return_value = []
 
         # Set a stored index for SPRI_Aleph
-        self.screen._period_indices["SPRI_Aleph"] = 3
+        self.screen._window_states["SPRI_Aleph"].move_to(3)
         self.screen._on_semester_changed("SPRING")
 
         self.assertEqual(self.screen._global_index, 3)
@@ -419,9 +420,9 @@ class TestOutputScreen(unittest.TestCase):
         self.screen._current_semester = "FALL"
         self.screen._on_navigator_index_changed(5)
 
-        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 5)
-        self.assertEqual(self.screen._period_indices["SPRI_Aleph"], 0)
-        self.assertEqual(self.screen._period_indices["SUMM_Aleph"], 0)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].current(), 5)
+        self.assertEqual(self.screen._window_states["SPRI_Aleph"].current(), 0)
+        self.assertEqual(self.screen._window_states["SUMM_Aleph"].current(), 0)
 
     def test_switching_semester_preserves_previous_index(self):
         """Going FALL→SPRING→FALL restores FALL's stored index."""
@@ -498,14 +499,16 @@ class TestOutputScreen(unittest.TestCase):
         self.mock_service.get_schedule_count.return_value = 10
         self.mock_service.get_periods.return_value = []
 
-        # Set non-zero indices
-        self.screen._period_indices["FALL_Aleph"] = 5
-        self.screen._period_indices["SPRI_Bet"] = 3
+        # Set some non-zero indices for FALL_Aleph and SPRI_Bet
+        self.screen._window_states["FALL_Aleph"].move_to(5)
+        self.screen._window_states["SPRI_Bet"].move_to(3)
 
         self.screen._on_generation_finished(100)
 
-        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 0)
-        self.assertEqual(self.screen._period_indices["SPRI_Bet"], 0)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].current(), 0)
+        self.assertEqual(self.screen._window_states["SPRI_Bet"].current(), 0)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].history_stack, [])
+        self.assertEqual(self.screen._window_states["SPRI_Bet"].history_stack, [])
         self.assertEqual(self.screen._global_index, 0)
 
     def test_on_generation_error_shows_error(self):
@@ -526,12 +529,12 @@ class TestOutputScreen(unittest.TestCase):
         ]
 
         self.screen._global_total = 5
-        self.screen._period_indices["FALL_Aleph"] = 3
+        self.screen._window_states["FALL_Aleph"].move_to(3)
 
         self.screen.showEvent(QShowEvent())
 
         # Index must NOT be reset to 0
-        self.assertEqual(self.screen._period_indices["FALL_Aleph"], 3)
+        self.assertEqual(self.screen._window_states["FALL_Aleph"].current(), 3)
 
     # ------------------------------------------------------------------
     # Navigator visibility
@@ -559,6 +562,41 @@ class TestOutputScreen(unittest.TestCase):
             self.screen._on_back_clicked()
             mock_signal.emit.assert_called_once()
 
+
+    def test_window_state_starts_at_zero(self):
+        """Verify that every OutputScreen WindowState starts at index 0."""
+        for state in self.screen._window_states.values():
+            self.assertEqual(state.current(), 0)
+
+
+def test_move_to_updates_current_and_history():
+    """Verify that move_to stores the previous index and updates current."""
+    state = WindowState()
+    state.move_to(3)
+
+    assert state.current() == 3
+    assert state.history_stack == [0]
+
+
+def test_back_restores_previous_index():
+    """Verify that back returns to the previous index."""
+    state = WindowState()
+    state.move_to(2)
+    state.move_to(5)
+
+    assert state.back() == 2
+    assert state.current() == 2
+
+
+def test_clear_resets_state():
+    """Verify that clear resets current, history."""
+    state = WindowState()
+    state.move_to(3)
+
+    state.clear()
+
+    assert state.current() == 0
+    assert state.history_stack == []
 
 # ---------------------------------------------------------------------------
 # Module-level helper

@@ -6,7 +6,7 @@ from src.algorithm.constraints.all_gap_constraint import AllGapConstraint
 from src.algorithm.constraints.collision_constraint import CollisionConstraint
 from src.algorithm.constraints.spread_constraint import SpreadConstraint
 from src.algorithm.constraints.daily_cap_constraint import DailyCapConstraint
-
+from src.algorithm.constraints.mandatory_gap_constraint import MandatoryGapConstraint
 
 class ConstraintChecker:
     """
@@ -17,8 +17,12 @@ class ConstraintChecker:
     enabled constraints.
     """
 
-    # Maps settings fields to their matching constraint implementation.
     _CONSTRAINT_REGISTRY = (
+        (
+            "mandatory_gap_enabled",
+            "mandatory_gap_k",
+            MandatoryGapConstraint,
+        ),
         (
             "all_gap_enabled",
             "all_gap_k",
@@ -44,11 +48,6 @@ class ConstraintChecker:
     # Build the active constraint list from the supplied settings.
     def __init__(self, settings: ConstraintSettings):
         self._constraints: list[IConstraint] = []
-
-        if settings.mandatory_gap_enabled:
-            raise NotImplementedError(
-                "MandatoryGapConstraint is not implemented yet."
-            )
 
         for enabled_attr, k_attr, constraint_cls in self._CONSTRAINT_REGISTRY:
             if getattr(settings, enabled_attr):

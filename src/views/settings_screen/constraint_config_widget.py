@@ -42,13 +42,13 @@ _DEFAULT_K = {
 
 # Lower bound for each spinbox (EP-110 validation rules):
 #   elective_conflicts → 0  (zero conflicts is a valid target)
-#   all gap/calendar constraints → 1  (a gap of 0 days is meaningless)
+#   all gap/calendar constraints → 0  (a gap of 0 days is meaningless)
 _MIN_K = {
-    "mandatory_gap":      1,
-    "all_gap":            1,
+    "mandatory_gap":      0,
+    "all_gap":            0,
     "elective_conflicts": 0,
-    "spread":             1,
-    "daily_cap":          1,
+    "spread":             0,
+    "daily_cap":          0,
 }
 
 # Upper bound for each spinbox.
@@ -171,3 +171,4 @@ class ConstraintConfigWidget(QWidget):
     def set_settings(self, settings: ConstraintSettings) -> None:
         """Populate the UI controls from a typed ConstraintSettings object."""
         self.set_values(settings.to_dict())
+    

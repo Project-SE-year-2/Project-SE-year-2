@@ -151,24 +151,24 @@ class TestConstraintConfigWidgetValidation(unittest.TestCase):
     def test_elective_conflicts_min_is_zero(self):
         self.assertEqual(self.widget._spins["elective_conflicts"].minimum(), 0)
 
-    # all gap / calendar constraints must start at 1
-    def test_mandatory_gap_min_is_one(self):
-        self.assertEqual(self.widget._spins["mandatory_gap"].minimum(), 1)
+    # all gap / calendar constraints must start at 0
+    def test_mandatory_gap_min_is_zero(self):
+        self.assertEqual(self.widget._spins["mandatory_gap"].minimum(), 0)
 
-    def test_all_gap_min_is_one(self):
-        self.assertEqual(self.widget._spins["all_gap"].minimum(), 1)
+    def test_all_gap_min_is_zero(self):
+        self.assertEqual(self.widget._spins["all_gap"].minimum(), 0)
 
-    def test_spread_min_is_one(self):
-        self.assertEqual(self.widget._spins["spread"].minimum(), 1)
+    def test_spread_min_is_zero(self):
+        self.assertEqual(self.widget._spins["spread"].minimum(), 0)
 
-    def test_daily_cap_min_is_one(self):
-        self.assertEqual(self.widget._spins["daily_cap"].minimum(), 1)
+    def test_daily_cap_min_is_zero(self):
+        self.assertEqual(self.widget._spins["daily_cap"].minimum(), 0)
 
     def test_spinbox_clamps_below_minimum_for_gap_constraints(self):
-        """Setting a gap spinbox to 0 must clamp to 1 automatically."""
+        """Gap spinboxes must accept 0 so disabled settings can round-trip without clamping."""
         spin = self.widget._spins["all_gap"]
         spin.setValue(0)
-        self.assertEqual(spin.value(), 1)
+        self.assertEqual(spin.value(), 0)
 
     def test_spinbox_accepts_zero_for_elective_conflicts(self):
         """elective_conflicts spinbox must accept 0 as a valid value."""

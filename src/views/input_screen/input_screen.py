@@ -126,6 +126,13 @@ class InputScreen(QWidget):
         self.generate_btn.setVisible(False)
         self.generate_btn.clicked.connect(self._on_generate_clicked)
 
+        self.view_calendar_btn = QPushButton("  View Calendar")
+        if not _gen_pix.isNull():
+            self.view_calendar_btn.setIcon(QIcon(_gen_pix))
+        self.view_calendar_btn.setObjectName("viewCalendarBtn")
+        self.view_calendar_btn.setVisible(False)
+        self.view_calendar_btn.clicked.connect(self.switch_to_output.emit)
+
         self.spinner      = LoadingSpinner()
         self.error_banner = ErrorBanner()
 
@@ -135,6 +142,7 @@ class InputScreen(QWidget):
 
         bar_layout.addWidget(self.settings_btn)
         bar_layout.addStretch()
+        bar_layout.addWidget(self.view_calendar_btn)
         bar_layout.addWidget(self.spinner)
         bar_layout.addWidget(self.generate_btn)
         bar_layout.addStretch()
@@ -300,9 +308,16 @@ class InputScreen(QWidget):
 
     # ── Event handlers (logic unchanged) ─────────────────────────────────────
 
+    def check_existing_results(self):
+        has_results = self.service.get_schedule_count() > 0
+        if hasattr(self, 'view_calendar_btn'):
+            self.view_calendar_btn.setVisible(has_results)
+
     # Handles successful file loading by clearing old UI state and showing the program list.
     def _on_files_loaded(self):
         self._generate_state.reset_after_file_load()
+        if hasattr(self, 'view_calendar_btn'):
+            self.view_calendar_btn.setVisible(False)
 
         # Clear selected programs in the service
         self.service.select_programs([])
@@ -376,6 +391,18 @@ class InputScreen(QWidget):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
         """
+        if self.service._engine_process is not None:
+            self.service._engine_process.stop()
+            
+        import shutil
+        from pathlib import Path
+        results_dir = Path("data") / "results"
+        if results_dir.exists():
+            shutil.rmtree(results_dir, ignore_errors=True)
+
+        if hasattr(self, 'view_calendar_btn'):
+            self.view_calendar_btn.setVisible(False)
+
         # Reset UI state for new generation attempt
         self.error_banner.hide_error()
         self.spinner.start()

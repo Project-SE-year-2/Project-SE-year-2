@@ -1,4 +1,5 @@
 import sys
+import pytest
 
 from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
 
@@ -162,3 +163,34 @@ def test_from_cli_args_parses_mandatory_gap_and_daily_cap():
     assert settings.mandatory_gap_k == 2
     assert settings.daily_cap_enabled is True
     assert settings.daily_cap_k == 5
+
+def test_from_file_nonexistent_path_raises_file_not_found():
+    """Verify that from_file raises FileNotFoundError when the config path does not exist."""
+    with pytest.raises(FileNotFoundError):
+        ConstraintSettingsLoader.from_file("missing_constraints_file.txt")
+
+
+def test_from_file_invalid_k_value_raises_value_error(tmp_path):
+    """Verify that from_file rejects non-numeric K values."""
+    config = tmp_path / "constraints.txt"
+    config.write_text(
+        """
+# ADVANCED_CONSTRAINTS
+daily_cap_enabled=true
+daily_cap_k=abc
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        ConstraintSettingsLoader.from_file(str(config))
+
+
+def test_from_cli_args_enabled_flag_without_k_uses_default_value():
+    """Verify that enabling a constraint without K keeps the default K value."""
+    settings = ConstraintSettingsLoader.from_cli_args([
+        "--daily-cap-enabled",
+    ])
+
+    assert settings.daily_cap_enabled is True
+    assert settings.daily_cap_k == 3

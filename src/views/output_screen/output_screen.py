@@ -182,6 +182,17 @@ class OutputScreen(QWidget):
         pid = self._active_period_id()
         return self._window_states.setdefault(pid, WindowState())
 
+    def _period_index(self, period_id: str) -> int:
+        """Return the current schedule index for a period from WindowState."""
+        return self._window_states.setdefault(period_id, WindowState()).current()
+
+    def _period_indices_snapshot(self) -> dict[str, int]:
+        """Return export-compatible period indices derived from WindowState."""
+        return {
+            period_id: state.current()
+            for period_id, state in self._window_states.items()
+        }
+
     # ── Backward-compat properties ────────────────────────────────────────────
 
     @property
@@ -458,7 +469,7 @@ class OutputScreen(QWidget):
             self._refresh_all_sessions_display()
             return
 
-        self._global_index = self._period_indices.get(self._active_period_id(), 0)
+        self._global_index = self._active_window_state().current()
         self._check_conflicts_next = True
         self._refresh_screen_display()
 
@@ -476,7 +487,7 @@ class OutputScreen(QWidget):
 
         for moed in ["Aleph", "Bet", "Gimel"]:
             pid  = f"{sem_code}_{moed}"
-            idx = self._window_states.setdefault(pid, WindowState()).current()
+            idx = self._period_index(pid)
             exams: list = []
             start_date: _date | None = None
             end_date:   _date | None = None
@@ -623,7 +634,7 @@ class OutputScreen(QWidget):
             if other_moed == current_moed:
                 continue
             other_pid = f"{sem_code}_{other_moed}"
-            other_idx = self._period_indices.get(other_pid, 0)
+            other_idx = self._period_index(other_pid)
             try:
                 other_exams = self.service.get_period_schedule(other_pid, other_idx)
             except Exception:
@@ -680,7 +691,7 @@ class OutputScreen(QWidget):
             return
 
         pid         = self._active_period_id()
-        current_idx = self._active_window_state().current()
+        current_idx = self._period_index(pid)
 
         # get_schedule_count(period_id) is authoritative: 0 = no schedules.
         # Do NOT fall back to _global_total here — a period may genuinely have
@@ -849,7 +860,7 @@ class OutputScreen(QWidget):
         # Check that at least one period has data.
         has_data = any(
             self.service.get_schedule_count(period_id=pid) > 0
-            for pid in self._period_indices
+            for pid in self._window_states
         )
         if not has_data:
             QMessageBox.warning(self, "No Schedule", "No schedule is currently loaded.")
@@ -865,7 +876,7 @@ class OutputScreen(QWidget):
             return
 
         try:
-            self.service.export_by_period_indices(self._period_indices, file_path)
+            self.service.export_by_period_indices(self._period_indices_snapshot(), file_path)
             self._show_success_banner("Schedule exported successfully.")
         except Exception as exc:
             QMessageBox.critical(

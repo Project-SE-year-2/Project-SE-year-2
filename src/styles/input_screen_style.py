@@ -109,6 +109,18 @@ QPushButton#generateBtn {
 QPushButton#generateBtn:hover    { background-color: #1D4ED8; }
 QPushButton#generateBtn:disabled { background-color: #9CA3AF; color: #F9FAFB; }
 
+QPushButton#viewCalendarBtn {
+    background-color: #10B981;
+    color:            white;
+    border-radius:    8px;
+    padding:          13px 37px;
+    font-weight:      bold;
+    font-size:        19px;
+    border:           none;
+    min-width:        267px;
+}
+QPushButton#viewCalendarBtn:hover    { background-color: #059669; }
+
 /* ── Courses table ───────────────────────────────────────────────────────── */
 QTableWidget#coursesTable {
     background-color: #FFFFFF;

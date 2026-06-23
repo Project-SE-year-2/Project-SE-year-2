@@ -187,6 +187,17 @@ class TestRankingConfigWidgetSetSortOrder(unittest.TestCase):
         self.widget.set_sort_order(order)
         self.assertEqual(self.widget.get_sort_order(), order)
 
+    def test_set_sort_order_keeps_missing_metrics_visible(self):
+        """set_sort_order must keep all known metrics visible even if the saved order is partial."""
+        self.widget.set_sort_order(["min_days_required", "avg_days_all"])
+        keys = [
+            self.widget._list.item(i).data(0x0100)
+            for i in range(self.widget._list.count())
+        ]
+        self.assertEqual(len(keys), 5)
+        self.assertEqual(keys[:2], ["min_days_required", "avg_days_all"])
+        self.assertEqual(set(keys), set(ALL_KEYS))
+
 
 class TestRankingConfigWidgetItemData(unittest.TestCase):
     """Each list item stores the metric key as UserRole data."""

@@ -278,7 +278,11 @@ class RankingConfigWidget(QWidget):
         # Drop any key that isn't in our descriptions dict.
         valid = [k for k in order if k in _METRIC_DESCRIPTIONS]
 
-        # If no checked set given, treat all valid keys as checked.
-        active = set(valid) if checked is None else (checked & set(valid))
+        # Append any known metric not present in the supplied order so every
+        # metric always remains visible in the UI (the BLOCK fix).
+        full_order = valid + [k for k in _DEFAULT_ORDER if k not in valid]
 
-        self._populate_list(valid, active)
+        # If no checked set given, treat the explicitly-ordered keys as checked.
+        active = set(valid) if checked is None else (checked & set(full_order))
+
+        self._populate_list(full_order, active)

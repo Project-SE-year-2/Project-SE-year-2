@@ -34,10 +34,10 @@ def _solve_single_period(engine, period, courses_dict, root_path, notify_queue, 
             notify_queue.put({"type": "period_ready", "period_id": period.period_id})
             first_batch_sent = True
 
-    constraint_checker = ConstraintChecker(constraint_settings)
+    checker = ConstraintChecker(constraint_settings) if constraint_settings is not None else None
 
     try:
-        engine.solve_to_disk(period, courses_dict, writer, on_batch_written=on_batch, constraint_checker=constraint_checker)
+        engine.solve_to_disk(period, courses_dict, writer, on_batch_written=on_batch, constraint_checker=checker)
     except Exception as exc:
         notify_queue.put({"type": "error", "message": f"Error in {period.period_id}: {str(exc)}"})
     finally:
@@ -67,7 +67,7 @@ def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue, results_path: s
         if msg["type"] == "solve":
             engine = msg["engine"]
             tasks  = msg["tasks"]
-            constraint_settings = msg["constraint_settings"]
+            constraint_settings = msg.get("constraint_settings")
 
             try:
                 import threading
@@ -118,7 +118,7 @@ class EngineProcess:
     # Public API                                                           #
     # ------------------------------------------------------------------ #
 
-    def start(self, engine, tasks: dict, constraint_settings) -> None:
+    def start(self, engine, tasks: dict, constraint_settings=None) -> None:
         """Starts the background worker to solve all periods."""
         if self._process is None or not self._process.is_alive():
             # Recreate queues to purge any stale messages from a previous run

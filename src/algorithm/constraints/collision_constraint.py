@@ -31,7 +31,10 @@ class CollisionConstraint(IConstraint):
     def is_satisfied(self, schedule: ExamSchedule) -> bool:
         """Return False if any (program_id, date) cell has more than K elective exams."""
         elective_counts = self._count_electives_by_program_and_date(schedule)
-        return all(count <= self._k for count in elective_counts.values())
+        return all(
+            max(0, count - 1) <= self._k
+            for count in elective_counts.values()
+        )
 
     # ------------------------------------------------------------------
     # Private helpers

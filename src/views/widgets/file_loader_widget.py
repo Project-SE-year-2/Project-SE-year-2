@@ -468,7 +468,6 @@ class FileLoaderWidget(QWidget):
         self._courses_zone.file_added.connect(self._on_file_selected)
         self._dates_zone.file_added.connect(self._on_file_selected)
         self._load_button.clicked.connect(self._load_files)
-
     # Switches between Replace and Add mode and notifies the drop zones.
     def _set_mode(self, replace: bool) -> None:
         self._replace_toggle.setChecked(replace)

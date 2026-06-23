@@ -391,7 +391,7 @@ class InputScreen(QWidget):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
         """
-        if self.service._engine_process is not None:
+        if getattr(self.service, '_engine_process', None) is not None:
             self.service._engine_process.stop()
             
         import shutil

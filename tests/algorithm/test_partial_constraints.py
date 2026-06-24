@@ -7,6 +7,7 @@ from tests.algorithm.constraint_helpers import (
 )
 from src.algorithm.constraints.partial_all_gap_constraint import PartialAllGapConstraint
 from src.algorithm.constraints.partial_collision_constraint import PartialCollisionConstraint
+from src.algorithm.constraints.partial_mandatory_gap_constraint import PartialMandatoryGapConstraint
 
 PROG_A = "83101"
 
@@ -66,3 +67,37 @@ def test_partial_collision_k_two_rejects_four_electives_same_cell():
     )
 
     assert PartialCollisionConstraint(k=2).is_still_valid(sched) is False
+
+def test_partial_mandatory_gap_accepts_valid_gap():
+    c1 = _obligatory("O1", PROG_A, year=1)
+    c2 = _obligatory("O2", PROG_A, year=1)
+    sched = _schedule(
+        (c1, date(2026, 1, 1)),
+        (c2, date(2026, 1, 4)),
+    )
+    assert PartialMandatoryGapConstraint(k=3).is_still_valid(sched) is True
+
+def test_partial_mandatory_gap_rejects_gap_below_k():
+    c1 = _obligatory("O1", PROG_A, year=1)
+    c2 = _obligatory("O2", PROG_A, year=1)
+    sched = _schedule(
+        (c1, date(2026, 1, 1)),
+        (c2, date(2026, 1, 3)),
+    )
+    assert PartialMandatoryGapConstraint(k=3).is_still_valid(sched) is False
+
+def test_partial_mandatory_gap_single_course_is_valid():
+    c1 = _obligatory("O1", PROG_A, year=1)
+    sched = _schedule(
+        (c1, date(2026, 1, 1)),
+    )
+    assert PartialMandatoryGapConstraint(k=3).is_still_valid(sched) is True
+
+def test_partial_mandatory_gap_ignores_electives():
+    c1 = _obligatory("O1", PROG_A, year=1)
+    c2 = _elective("E1", PROG_A, year=1)
+    sched = _schedule(
+        (c1, date(2026, 1, 1)),
+        (c2, date(2026, 1, 3)),
+    )
+    assert PartialMandatoryGapConstraint(k=3).is_still_valid(sched) is True

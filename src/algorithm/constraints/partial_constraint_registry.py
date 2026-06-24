@@ -3,6 +3,7 @@ from src.algorithm.constraints.partial_constraint_checker import PartialConstrai
 from src.algorithm.constraints.partial_daily_cap_constraint import PartialDailyCapConstraint
 from src.algorithm.constraints.partial_collision_constraint import PartialCollisionConstraint
 from src.algorithm.constraints.partial_all_gap_constraint import PartialAllGapConstraint
+from src.algorithm.constraints.partial_mandatory_gap_constraint import PartialMandatoryGapConstraint
 
 
 class PartialConstraintRegistry:
@@ -21,6 +22,9 @@ class PartialConstraintRegistry:
 
         if settings.daily_cap_enabled:
             constraints.append(PartialDailyCapConstraint(settings.daily_cap_k))
+
+        if settings.mandatory_gap_enabled:
+            constraints.append(PartialMandatoryGapConstraint(settings.mandatory_gap_k))
 
         if settings.elective_conflicts_enabled:
             constraints.append(

@@ -202,11 +202,13 @@ def test_builds_all_supported_enabled_constraints():
         spread_k=10,
         daily_cap_enabled=True,
         daily_cap_k=3,
+        mandatory_gap_enabled=True,
+        mandatory_gap_k=5,
     )
 
     checker = ConstraintChecker(settings)
 
-    assert len(checker._constraints) == 4
+    assert len(checker._constraints) == 5
 
 
 def test_is_valid_returns_false_when_daily_cap_fails():
@@ -225,15 +227,24 @@ def test_is_valid_returns_false_when_daily_cap_fails():
     assert checker.is_valid(schedule) is False
 
 
-def test_mandatory_gap_enabled_raises_not_implemented():
-    """Verify that enabling the mandatory gap constraint raises an error."""
+def test_is_valid_returns_false_when_mandatory_gap_fails():
+    """Verify that MandatoryGapConstraint is applied by ConstraintChecker."""
     settings = ConstraintSettings(
         mandatory_gap_enabled=True,
         mandatory_gap_k=5,
     )
     
-    with pytest.raises(NotImplementedError):
-        ConstraintChecker(settings)
+    checker = ConstraintChecker(settings)
+
+    c1 = _make_course("Physics", "101", PROGRAM, 1)
+    c2 = _make_course("Calculus", "102", PROGRAM, 1)
+
+    schedule = _make_schedule([
+        (FALL, c1, date(2026, 2, 1)),
+        (FALL, c2, date(2026, 2, 5)),  # Gap is 4 <= 5 (fails)
+    ])
+
+    assert checker.is_valid(schedule) is False
 
 
 def test_is_valid_returns_false_when_collision_constraint_fails():

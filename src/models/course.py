@@ -21,10 +21,10 @@ class Course:
     def _validate_num_students(num_students: int) -> None:
         """Validate that student count is a non-negative integer."""
         if not isinstance(num_students, int) or isinstance(num_students, bool):
-            raise ValueError("num_students must be a non-negative integer.")
+            raise ValueError("num_students must be an integer.")
 
         if num_students < 0:
-            raise ValueError("num_students must be a non-negative integer.")
+            raise ValueError("num_students must be non-negative.")
 
 
     def add_requirement(self, req: ProgramRequirement):

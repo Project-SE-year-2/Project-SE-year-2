@@ -2,7 +2,6 @@ import pytest
 
 from src.parsers.course_parser import CourseFileParser
 from src.models.enums import Evaluation, Semester, ReqType
-from src.parsers.course_parser import CourseFileParser
 
 def test_parse_courses_file_loads_courses_correctly(tmp_path):
     content = """$$$$
@@ -318,4 +317,27 @@ def test_course_parser_loads_num_students_when_present(tmp_path):
 
     assert len(courses) == 1
     assert courses[0].num_students == 120
+
+
+# Tests that invalid num_students values produce a clear error message.
+def test_course_parser_rejects_invalid_num_students_value(tmp_path):
+    content = """$$$$
+Algorithms
+89123
+Dr. Cohen
+num_students=abc
+83101,1,FALL,Obligatory
+Exam
+"""
+
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = CourseFileParser()
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid num_students value"
+    ):
+        parser.parse(str(file_path))
 

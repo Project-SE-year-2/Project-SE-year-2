@@ -5,6 +5,7 @@ from src.models.enums import Evaluation, Semester, ReqType
 
 # Parser class for loading courses
 class CourseFileParser(IFileParser):
+    @staticmethod
     def _extract_num_students_and_evaluation(
         self,
         lines: list[str],
@@ -33,7 +34,15 @@ class CourseFileParser(IFileParser):
         optional_students_line = lines[3].strip()
         if optional_students_line.startswith("num_students="):
             raw_value = optional_students_line.split("=", 1)[1].strip()
-            num_students = int(raw_value)
+
+            try:
+                num_students = int(raw_value)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid num_students value: '{raw_value}'. "
+                    "Expected a non-negative integer."
+                )
+
             first_requirement_index = 4
 
         evaluation = lines[-1]

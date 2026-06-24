@@ -161,6 +161,17 @@ def test_insert_persists_correct_values(db: ScoresDatabase) -> None:
     assert row[6] == 4        # max_exams_per_day
 
 
+def test_insert_normalizes_infinite_min_days_to_zero(db: ScoresDatabase) -> None:
+    """Undefined mandatory gaps must not enter scores.db as infinity."""
+    db.insert("fall_a", batch_number=0, index_in_batch=0, metrics=_metrics(min_days=float("inf")))
+
+    row = db._conn.execute(
+        "SELECT min_days_required FROM scores WHERE period_id = 'fall_a'"
+    ).fetchone()
+
+    assert row[0] == 0.0
+
+
 # ---------------------------------------------------------------------------
 # insert_batch
 # ---------------------------------------------------------------------------

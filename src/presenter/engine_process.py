@@ -14,6 +14,8 @@ Communication protocol (lightweight — no ExamSchedule objects cross the bounda
 """
 
 import multiprocessing as mp
+import queue
+import threading
 from pathlib import Path
 
 from src.algorithm.period_results_writer import PeriodResultsWriter
@@ -23,78 +25,166 @@ from src.presenter.scores_database import ScoresDatabase
 
 
 # ------------------------------------------------------------------ #
+# Queue-backed scores proxy                                           #
+# ------------------------------------------------------------------ #
+
+class _QueueScoresProxy:
+    """
+    Drop-in replacement for ScoresDatabase used by solver threads.
+
+    Instead of writing directly to SQLite, it puts rows onto a shared
+    queue.Queue.  A single dedicated writer thread drains the queue and
+    performs all actual DB writes, so SQLite never sees concurrent writers.
+    """
+
+    _SENTINEL = None   # poison pill that signals the writer to stop
+
+    def __init__(self, score_queue: queue.Queue):
+        self._q = score_queue
+
+    def insert_batch(self, period_id: str, rows: list) -> None:
+        """Forward a batch of score rows to the writer thread via the queue."""
+        if rows:
+            self._q.put((period_id, rows))
+
+    def clear_period(self, period_id: str) -> None:
+        """Forward a clear request to the writer thread."""
+        self._q.put(("__clear__", period_id))
+
+
+def _db_writer(score_queue: queue.Queue, db_path: Path) -> None:
+    """
+    Dedicated DB writer thread — the ONLY thread that touches scores.db.
+
+    Drains score_queue until it receives the sentinel (None), writing each
+    batch in a single transaction.  Because only this thread writes, SQLite
+    never sees concurrent writers and no locking is needed.
+    """
+    with ScoresDatabase(db_path) as scores_db:
+        while True:
+            item = score_queue.get()
+            if item is _QueueScoresProxy._SENTINEL:
+                break
+            period_id, payload = item
+            if period_id == "__clear__":
+                scores_db.clear_period(payload)
+            else:
+                scores_db.insert_batch(period_id, payload)
+
+
+# ------------------------------------------------------------------ #
 # Worker — runs inside the Engine Process                             #
 # ------------------------------------------------------------------ #
 
-def _solve_single_period(engine, period, courses_dict, root_path, notify_queue, constraint_settings):
-    """Worker process target to solve a single period."""
-    writer = PeriodResultsWriter(root_path=root_path)
-    
+def _solve_single_period(engine, period, courses_dict, writer, score_proxy, notify_queue, constraint_settings):
+    """Solver thread: finds schedules for one period and queues their scores."""
+    pid = period.period_id
+
     first_batch_sent = False
+
     def on_batch():
         nonlocal first_batch_sent
         if not first_batch_sent:
-            notify_queue.put({"type": "period_ready", "period_id": period.period_id})
+            notify_queue.put({"type": "period_ready", "period_id": pid})
             first_batch_sent = True
 
     checker = ConstraintChecker(constraint_settings) if constraint_settings is not None else None
-
     scorer = ScheduleScorer.default()
-    root = Path(root_path) if root_path else Path(__file__).parents[2] / "data" / "results"
+
+    # ── Feasibility pre-check ─────────────────────────────────────────────────
+    courses = list(courses_dict.keys())
+    feasible, reason = engine.check_feasibility(period, courses)
+    if not feasible:
+        score_proxy.clear_period(pid)  # clear stale DB rows so UI doesn't poll for missing files
+        notify_queue.put({"type": "period_infeasible", "period_id": pid, "reason": reason})
+        notify_queue.put({"type": "period_done", "period_id": pid})
+        return
 
     try:
-        with ScoresDatabase(root / "scores.db") as scores_db:
-            engine.solve_to_disk(period, courses_dict, writer, on_batch_written=on_batch, constraint_checker=checker, scorer=scorer, scores_db=scores_db)
+        total = engine.solve_to_disk(
+            period, courses_dict, writer,
+            on_batch_written=on_batch,
+            constraint_checker=checker,
+            scorer=scorer,
+            scores_db=score_proxy,
+        )
     except Exception as exc:
-        notify_queue.put({"type": "error", "message": f"Error in {period.period_id}: {str(exc)}"})
+        notify_queue.put({"type": "error", "message": f"Error in {pid}: {str(exc)}"})
     finally:
-        notify_queue.put({"type": "period_done", "period_id": period.period_id})
+        notify_queue.put({"type": "period_done", "period_id": pid})
+
 
 def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue, results_path: str | None = None) -> None:
-    """
-    Entry point for the Engine Process.
-    """
+    """Entry point for the Engine Process."""
     import signal
     import sys
 
     def sigterm_handler(signum, frame):
-        # Kill all running solver children before the worker dies
         for p in mp.active_children():
             p.terminate()
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, sigterm_handler)
 
+    _solving = False  # guard against duplicate solve messages
+
     while True:
-        msg = task_queue.get()              # blocking wait
+        msg = task_queue.get()
 
         if msg["type"] == "stop":
             break
 
         if msg["type"] == "solve":
+            if _solving:
+                continue
+
             engine = msg["engine"]
             tasks  = msg["tasks"]
             constraint_settings = msg.get("constraint_settings")
+            _solving = True
 
             try:
-                import threading
-                threads = []
+                root = Path(results_path) if results_path else Path(__file__).parents[2] / "data" / "results"
+                writer = PeriodResultsWriter(root_path=results_path)
+
+                # Queue shared between solver threads (producers) and writer thread (consumer).
+                score_queue: queue.Queue = queue.Queue()
+                score_proxy = _QueueScoresProxy(score_queue)
+
+                # Start the single DB writer thread before any solvers.
+                db_thread = threading.Thread(
+                    target=_db_writer,
+                    args=(score_queue, root / "scores.db"),
+                    daemon=True,
+                )
+                db_thread.start()
+
+                # Start one solver thread per period — they write to queue, never to DB.
+                solver_threads = []
                 for period, courses_dict in tasks.items():
                     t = threading.Thread(
                         target=_solve_single_period,
-                        args=(engine, period, courses_dict, results_path, notify_queue, constraint_settings),
-                        daemon=True
+                        args=(engine, period, courses_dict, writer, score_proxy, notify_queue, constraint_settings),
+                        daemon=True,
                     )
-                    threads.append(t)
+                    solver_threads.append(t)
                     t.start()
-                    
-                for t in threads:
+
+                # Wait for all solvers to finish, then shut down the writer.
+                for t in solver_threads:
                     t.join()
+
+                # Send sentinel to stop the writer thread cleanly.
+                score_queue.put(_QueueScoresProxy._SENTINEL)
+                db_thread.join()
 
                 notify_queue.put({"type": "all_done"})
 
             except Exception as exc:
                 notify_queue.put({"type": "error", "message": str(exc)})
+
+            finally:
+                _solving = False
 
 
 # ------------------------------------------------------------------ #

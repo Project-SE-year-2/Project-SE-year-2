@@ -32,6 +32,7 @@ if _QT_AVAILABLE:
         """
 
         period_ready = pyqtSignal(str)
+        period_infeasible = pyqtSignal(str, str)   # (period_id, reason)
         finished = pyqtSignal(int)
         error = pyqtSignal(str)
 
@@ -41,8 +42,11 @@ if _QT_AVAILABLE:
 
         def run(self) -> None:
             try:
-                for period_id, _schedules in self._service.generate_stream():
-                    self.period_ready.emit(period_id)
+                for period_id, schedules in self._service.generate_stream():
+                    if schedules and schedules[0][0] == "infeasible":
+                        self.period_infeasible.emit(period_id, schedules[0][1])
+                    else:
+                        self.period_ready.emit(period_id)
                 count = self._service.get_schedule_count()
                 self.finished.emit(count)
             except Exception as exc:

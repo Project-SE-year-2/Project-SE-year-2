@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import threading
 import time
 from pathlib import Path
 
@@ -24,6 +25,16 @@ class PeriodResultsWriter:
         # Set base directory for data storage
         self._root = Path(root_path) if root_path else Path(__file__).parents[2] / "data" / "results"
         self._root.mkdir(parents=True, exist_ok=True)
+        # Per-period locks: concurrent threads write to different period dirs,
+        # but rapid bursts from the same thread can still race on the manifest.
+        self._period_locks: dict[str, threading.Lock] = {}
+        self._locks_lock = threading.Lock()
+
+    def _lock_for(self, period_id: str) -> threading.Lock:
+        with self._locks_lock:
+            if period_id not in self._period_locks:
+                self._period_locks[period_id] = threading.Lock()
+            return self._period_locks[period_id]
 
     @staticmethod
     def _safe_replace(src: Path, dst: Path, retries: int = 5, delay: float = 0.1) -> None:
@@ -38,8 +49,12 @@ class PeriodResultsWriter:
                 time.sleep(delay)
 
     def write_batch(self, period_id: str, schedules: list[ExamSchedule]) -> None:
+        with self._lock_for(period_id):
+            self._write_batch_locked(period_id, schedules)
+
+    def _write_batch_locked(self, period_id: str, schedules: list[ExamSchedule]) -> None:
         if not schedules:
-            self.update_manifest(period_id, 0)
+            self._update_manifest_locked(period_id, 0)
             return
 
         manifest = self._load_manifest(period_id)
@@ -70,14 +85,14 @@ class PeriodResultsWriter:
             
             written += len(to_add)
             existing_count += len(to_add)
-            self.update_manifest(period_id, existing_count)
+            self._update_manifest_locked(period_id, existing_count)
             batch_index += 1
 
         # Now write the rest in perfect chunks of BATCH_SIZE
         while written < len(schedules):
             batch = schedules[written : written + BATCH_SIZE]
             batch_file = self._batch_path(period_id, batch_index)
-            
+
             batch_file.parent.mkdir(parents=True, exist_ok=True)
             temp_batch_file = batch_file.with_suffix(".tmp")
             with open(temp_batch_file, "wb") as f:
@@ -86,17 +101,22 @@ class PeriodResultsWriter:
 
             written += len(batch)
             existing_count += len(batch)
-            self.update_manifest(period_id, existing_count)
+            self._update_manifest_locked(period_id, existing_count)
             batch_index += 1
 
-    # Updates the manifest with the new count of schedules for the given period ID
-    def update_manifest(self, period_id: str, count: int) -> None:
+    def _update_manifest_locked(self, period_id: str, count: int) -> None:
+        """Write manifest — must be called while holding the period lock."""
         manifest_path = self._root / period_id / "manifest.json"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = manifest_path.with_suffix(".tmp")
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump({"count": count}, f)
         self._safe_replace(temp_path, manifest_path)
+
+    # Updates the manifest with the new count of schedules for the given period ID
+    def update_manifest(self, period_id: str, count: int) -> None:
+        with self._lock_for(period_id):
+            self._update_manifest_locked(period_id, count)
 
     # Generate formatted filename: batch_0000.pkl, batch_0001.pkl, etc
     def _batch_path(self, period_id: str, batch_index: int) -> Path:
@@ -114,6 +134,18 @@ class PeriodResultsWriter:
         except Exception:
             return {}
 
+    def get_all_counts(self) -> dict[str, int]:
+        """Return {period_id: schedule_count} for every period that has a manifest."""
+        counts = {}
+        if not self._root.exists():
+            return counts
+        for period_dir in self._root.iterdir():
+            if period_dir.is_dir():
+                manifest = self._load_manifest(period_dir.name)
+                if manifest:
+                    counts[period_dir.name] = manifest.get("count", 0)
+        return counts
+
     def clear_period(self, period_id: str) -> None:
         """Delete all batch files for a period and reset its manifest count to 0.
 
@@ -121,14 +153,10 @@ class PeriodResultsWriter:
         previous run never mix with the current one.
         """
         import shutil
-        period_dir = self._root / period_id
-        
-        # Instantly set manifest to 0 so readers stop looking for batch files
-        self.update_manifest(period_id, 0)
-        
-        # Then clean up old batch files rapidly using rmtree
-        if period_dir.exists():
-            shutil.rmtree(period_dir, ignore_errors=True)
-            
-        period_dir.mkdir(parents=True, exist_ok=True)
-        self.update_manifest(period_id, 0)
+        with self._lock_for(period_id):
+            period_dir = self._root / period_id
+            self._update_manifest_locked(period_id, 0)
+            if period_dir.exists():
+                shutil.rmtree(period_dir, ignore_errors=True)
+            period_dir.mkdir(parents=True, exist_ok=True)
+            self._update_manifest_locked(period_id, 0)

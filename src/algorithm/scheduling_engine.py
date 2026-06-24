@@ -122,6 +122,10 @@ class SchedulingEngine:
         combined.sort(key=lambda s: s.sort_key)
         return combined, metadata
 
+    def check_feasibility(self, period: ExamPeriod, courses: list) -> tuple[bool, str]:
+        """Delegate feasibility pre-check to the solver."""
+        return self._solver.check_feasibility(courses, period, self._validator)
+
     def solve_to_disk(self, period: ExamPeriod, courses_dict: dict, writer, on_batch_written=None, constraint_checker=None, scorer=None, scores_db=None) -> int:
         """Solve one period with solve_stream() and write every BATCH_SIZE schedules
         directly to disk - at most one batch is in RAM at any moment.

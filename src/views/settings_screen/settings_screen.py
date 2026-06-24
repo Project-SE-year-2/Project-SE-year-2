@@ -25,14 +25,13 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import pyqtSignal, Qt
 
 from src.views.settings_screen.constraint_config_widget import ConstraintConfigWidget
-from src.views.settings_screen.ranking_config_widget import RankingConfigWidget
 from src.models.constraint_settings import ConstraintSettings
 
 
 class SettingsScreen(QWidget):
     """
-    Structural canvas that hosts ConstraintConfigWidget and RankingConfigWidget
-    side-by-side, with a header bar providing back-navigation.
+    Structural canvas that hosts ConstraintConfigWidget with a header bar
+    providing back-navigation.
     """
 
     switch_to_input = pyqtSignal()
@@ -99,23 +98,14 @@ class SettingsScreen(QWidget):
         return line
 
     def _make_panels(self) -> QHBoxLayout:
-        """Two sub-panels placed side-by-side without overlap."""
+        """Constraint settings panel."""
         panels = QHBoxLayout()
         panels.setContentsMargins(16, 16, 16, 16)
         panels.setSpacing(16)
 
         self.constraint_panel = ConstraintConfigWidget()
-        self.ranking_panel = RankingConfigWidget()
 
         panels.addWidget(self.constraint_panel, stretch=1)
-
-        # Vertical separator between the two panels.
-        sep = QFrame()
-        sep.setFrameShape(QFrame.VLine)
-        sep.setStyleSheet("color: #E2E8F0;")
-        panels.addWidget(sep)
-
-        panels.addWidget(self.ranking_panel, stretch=1)
 
         return panels
 
@@ -123,8 +113,8 @@ class SettingsScreen(QWidget):
     def _on_apply(self) -> None:
         """Private click handler for the Apply button.
 
-        Emits settings_confirmed so MainWindow can read both constraint settings
-        and sort order from this screen and push them to the service layer.
+        Emits settings_confirmed so MainWindow can read constraint settings
+        from this screen and push them to the service layer.
         """
         self.settings_confirmed.emit()
 

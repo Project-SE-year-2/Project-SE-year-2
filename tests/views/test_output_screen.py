@@ -13,6 +13,7 @@ if app is None:
 
 from src.views.output_screen.output_screen import OutputScreen
 from src.views.output_screen.window_state import WindowState
+from src.views.settings_screen.ranking_config_widget import RankingConfigWidget
 
 
 class TestOutputScreen(unittest.TestCase):
@@ -30,6 +31,7 @@ class TestOutputScreen(unittest.TestCase):
         self.assertIsNotNone(self.screen.download_btn)
         self.assertIsNotNone(self.screen.four_month)
         self.assertIsNotNone(self.screen.navigator)
+        self.assertIsInstance(self.screen.ranking_panel, RankingConfigWidget)
 
     # ------------------------------------------------------------------
     # Show / hide events

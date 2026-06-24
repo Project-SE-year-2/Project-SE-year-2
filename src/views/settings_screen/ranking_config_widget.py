@@ -1,7 +1,7 @@
 """
 ranking_config_widget.py
 -------------------------
-Drag-and-drop metric ranking sub-component for SettingsScreen (EP-112).
+Drag-and-drop metric ranking sub-component for schedule output sorting.
 Only checked rows participate in sorting.  get_sort_order() returns the keys
 of checked rows in their current visual order (top = highest priority).
 Unchecked rows are excluded from the result.
@@ -12,11 +12,12 @@ Numbers update automatically after every drag or checkbox toggle.
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox,
+    QPushButton,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 
-from src.views.settings_screen.styles import ranking_config_widget_style as _style
+from src.styles import output_sorting_panel_style as _style
 
 
 # Maps each metric key to the full sentence shown inside its list row.
@@ -149,18 +150,27 @@ class RankingConfigWidget(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
+        self.setObjectName("OutputSortingPanel")
+        self.setFixedWidth(_style.PANEL_WIDTH)
+        self.setStyleSheet(_style.PANEL_WIDGET)
+
         # QVBoxLayout stacks children top-to-bottom.
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(8)
+        layout.setContentsMargins(
+            _style.PANEL_MARGIN,
+            _style.PANEL_MARGIN,
+            _style.PANEL_MARGIN,
+            _style.PANEL_MARGIN,
+        )
+        layout.setSpacing(_style.PANEL_SPACING)
 
         # Section title shown above the list.
-        title = QLabel("Sort & Prioritize Schedule")
+        title = QLabel("Sorting Preferences")
         title.setStyleSheet(_style.TITLE_LABEL)
         layout.addWidget(title)
 
         # Instructional subtitle below the title.
-        subtitle = QLabel("Select and drag to prioritize the sorting methods")
+        subtitle = QLabel("Select criteria and drag to set priority")
         subtitle.setStyleSheet(_style.SUBTITLE_LABEL)
         layout.addWidget(subtitle)
 
@@ -191,6 +201,11 @@ class RankingConfigWidget(QWidget):
 
         # stretch=1 makes the list expand to fill all remaining vertical space.
         layout.addWidget(self._list, stretch=1)
+
+        self.apply_btn = QPushButton("Apply")
+        self.apply_btn.setStyleSheet(_style.APPLY_BUTTON)
+        self.apply_btn.clicked.connect(self._emit_sort_order)
+        layout.addWidget(self.apply_btn)
 
     def _populate_list(self, order: list[str], checked: set[str]) -> None:
         """Clear the list and rebuild one _RowWidget per key in order."""
@@ -251,7 +266,11 @@ class RankingConfigWidget(QWidget):
                 counter += 1
             else:
                 widget.set_badge_number(None)     # grey empty badge
+
+    def _emit_sort_order(self) -> None:
+        """Emit the selected sort order only when the user applies it."""
         self.sort_order_changed.emit(self.get_sort_order())
+
 
     # ------------------------------------------------------------------
     # Public API

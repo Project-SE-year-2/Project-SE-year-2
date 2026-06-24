@@ -52,9 +52,9 @@ class MainWindow(QMainWindow):
         # Settings back-navigation must NOT wipe results — user is just browsing settings.
         self.settings_screen.switch_to_input.connect(self._return_to_input_without_wipe)
         self.settings_screen.settings_confirmed.connect(self._on_settings_confirmed)
-        # Route sort changes to AppService and reset output screen position
-        self.settings_screen.ranking_panel.sort_order_changed.connect(self.service.set_sort_order)
-        self.settings_screen.ranking_panel.sort_order_changed.connect(self.output_screen.on_sort_changed)
+        # Route output-screen sort changes to AppService and reset output position.
+        self.output_screen.ranking_panel.sort_order_changed.connect(self.service.set_sort_order)
+        self.output_screen.ranking_panel.sort_order_changed.connect(self.output_screen.on_sort_changed)
 
     def _show_output_screen(self):
         """Switches the stacked widget to the Output Screen (Index 1)."""
@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def _on_settings_confirmed(self):
-        """Apply constraint settings and sort order from SettingsScreen to the service layer.
+        """Apply constraint settings from SettingsScreen to the service layer.
 
         Validates the constraint settings first — shows a warning dialog and
         stays on the Settings screen if the values are invalid.
@@ -106,9 +106,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Push both constraint settings and sort order to the presenter.
+        # Push constraint settings to the presenter.
         self.service.set_constraint_settings(settings)
-        sort_order = self.settings_screen.ranking_panel.get_sort_order()
-        self.service.set_sort_order(sort_order)
 
         self._return_to_input_without_wipe()

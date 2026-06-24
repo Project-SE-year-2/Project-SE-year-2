@@ -90,9 +90,9 @@ class CourseTableWidget(QWidget):
         hdr.setContentsMargins(0, 0, 0, 0)
         hdr.setSpacing(th.SPACING_SMALL)
 
-        title_block = QWidget()
-        title_block.setStyleSheet("background: transparent;")
-        tb_l = QVBoxLayout(title_block)
+        self._title_block = QWidget()
+        self._title_block.setStyleSheet("background: transparent;")
+        tb_l = QVBoxLayout(self._title_block)
         tb_l.setContentsMargins(0, 0, 0, 0)
         tb_l.setSpacing(2)
 
@@ -105,7 +105,7 @@ class CourseTableWidget(QWidget):
         tb_l.addWidget(self._title_lbl)
         tb_l.addWidget(self._count_lbl)
 
-        hdr.addWidget(title_block)
+        hdr.addWidget(self._title_block)
         hdr.addStretch()
         layout.addLayout(hdr)
 
@@ -197,6 +197,7 @@ class CourseTableWidget(QWidget):
     # ── Render ────────────────────────────────────────────────────────────────
 
     def _show_empty(self) -> None:
+        self._title_block.setVisible(False)
         self._table.setVisible(False)
         self._pag_w.setVisible(False)
         self._empty_w.setVisible(True)
@@ -211,6 +212,7 @@ class CourseTableWidget(QWidget):
             return
 
         self._empty_w.setVisible(False)
+        self._title_block.setVisible(True)
         self._table.setVisible(True)
         self._pag_w.setVisible(True)
         self._title_lbl.setText(f"Courses in {self._program_name}")

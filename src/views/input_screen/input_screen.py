@@ -413,6 +413,7 @@ class InputScreen(QWidget):
 
         self._worker = GenerateWorker(self.service)
         self._worker.period_ready.connect(self._on_period_ready)
+        self._worker.period_infeasible.connect(self._on_period_infeasible)
         self._worker.finished.connect(self._on_generation_finished)
         self._worker.error.connect(self._on_error)
         self._worker.start()
@@ -436,6 +437,12 @@ class InputScreen(QWidget):
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
         QTimer.singleShot(500, lambda: self.switch_to_output.emit())
+
+    def _on_period_infeasible(self, period_id: str, reason: str):
+        self.spinner.stop()
+        self._generate_state.finish_generation()
+        self._sync_generate_button_state()
+        self.error_banner.show_error(reason)
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

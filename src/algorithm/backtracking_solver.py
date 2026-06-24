@@ -1,3 +1,5 @@
+import random
+
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
 from src.models.exam_schedule import ExamSchedule
@@ -11,8 +13,20 @@ from src.algorithm.constraints.partial_constraint_checker import PartialConstrai
 class BacktrackingSolver:
     """
     Enumerates ALL valid exam schedules for a single ExamPeriod via backtracking.
-    Uses the Most-Constrained-Variable heuristic and forward-checking to prune
-    the search tree early.
+
+    Pruning strategy (three layers, applied in order):
+      1. Static MCV ordering  — courses with most obligatory-group conflicts come first.
+      2. Dynamic MRV          — at each node, pick the unassigned course with the
+                                fewest remaining valid dates (Minimum Remaining Values).
+      3. Forward-checking     — after each assignment verify every remaining course
+                                still has at least one valid date; prune immediately
+                                if any course has zero options.
+
+    First-solution strategy:
+      Before systematic backtracking, run randomized DFS restarts (Las Vegas).
+      Each restart shuffles date order at every node, exploring a different subtree.
+      The first solution found is yielded immediately; systematic backtracking then
+      continues from scratch to enumerate all remaining solutions.
     """
 
     def __init__(
@@ -47,16 +61,228 @@ class BacktrackingSolver:
     ):
         """
         Generator that yields valid exam schedules one at a time.
-        Supports pause and resume via Python's native generator protocol.
-        Each yielded schedule is a copy (never the mutable partial object).
+
+        Phase 1 — randomized backtracking restarts: find the first solution fast
+                  by exploring random subtrees.  Yields immediately on success.
+        Phase 2 — systematic backtracking: enumerates all remaining solutions,
+                  skipping the one already yielded in Phase 1.
+        """
+        ordered = self._heuristic.orderByMostConstrained(courses, period)
+
+        first = self._find_first_with_restarts(ordered, period, constraint_validator)
+        if first is not None:
+            yield first
+
+        partial = ExamSchedule(period)
+        yield from self._backtrack_stream(
+            ordered, partial, period, constraint_validator,
+            skip=first,
+        )
+
+    # ── Feasibility check ─────────────────────────────────────────────────────
+
+    def check_feasibility(
+        self,
+        courses: list[Course],
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+    ) -> tuple[bool, str]:
+        """
+        Quick pre-check before running the full solver.
+
+        Level 1 — domain check (instant): every course must have at least one
+                  valid date on its own, ignoring other courses.
+        Level 2 — probe (fast): 30 randomized-backtracking restarts × 2 000 nodes;
+                  if no solution is found, the period is reported as infeasible.
+        """
+        ordered = self._heuristic.orderByMostConstrained(courses, period)
+        partial = ExamSchedule(period)
+
+        for course in ordered:
+            dates = self._valid_dates_for(course, partial, period, constraint_validator)
+            if not dates:
+                return False, (
+                f"Course '{course.course_id}' has no valid date in period "
+                f"'{period.period_id}' given the selected constraints."
+            )
+
+        for _ in range(30):
+            node_count = [0]
+            result = self._random_backtrack_first(
+                ordered, partial, period, constraint_validator, node_count,
+                node_limit=2_000,
+            )
+            if result is not None:
+                return True, ""
+
+        return False, (
+            f"No feasible schedule was found for period '{period.period_id}' "
+            f"with the selected constraints. "
+            f"Try relaxing the constraints or expanding the date range."
+        )
+
+    # ── Randomized backtracking — find first solution fast ────────────────────
+
+    _RBT_RESTARTS   = 200    # how many random restarts to attempt
+    _RBT_NODE_LIMIT = 5_000  # max nodes explored per restart before giving up
+
+    def _find_first_with_restarts(
+        self,
+        ordered: list[Course],
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+    ) -> ExamSchedule | None:
+        """
+        Repeatedly run a randomized DFS until one complete schedule is found.
+        Each restart shuffles date order at every node → different subtree explored.
         """
         partial = ExamSchedule(period)
-        ordered = self._heuristic.orderByMostConstrained(courses, period)
-        # 'yield from' delegates the generation to the recursive backtrack_stream
-        # This allows yielding results one by one up to the caller
-        yield from self._backtrack_stream(
-            ordered, partial, period, constraint_validator
+        for _ in range(self._RBT_RESTARTS):
+            node_count = [0]
+            result = self._random_backtrack_first(
+                ordered, partial, period, constraint_validator, node_count
+            )
+            if result is not None:
+                return result
+        return None
+
+    def _random_backtrack_first(
+        self,
+        remaining: list[Course],
+        partial: ExamSchedule,
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+        node_count: list,
+        node_limit: int | None = None,
+    ) -> ExamSchedule | None:
+        """
+        Single randomized DFS pass.  Returns the first complete schedule found,
+        or None if the node limit is hit or the subtree is exhausted.
+        """
+        limit = node_limit if node_limit is not None else self._RBT_NODE_LIMIT
+        if node_count[0] >= limit:
+            return None
+
+        if not remaining:
+            return partial.copy()
+
+        course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
+        dates = self._valid_dates_for(course, partial, period, constraint_validator)
+        random.shuffle(dates)
+
+        for date in dates:
+            node_count[0] += 1
+            partial.assign(course, date)
+            if self._forward_checker.hasViableAssignment(rest, partial, period, self._partial_constraint_checker):
+                result = self._random_backtrack_first(rest, partial, period, constraint_validator, node_count, limit)
+                if result is not None:
+                    partial.unassign(course)
+                    return result
+            partial.unassign(course)
+
+        return None
+
+    # ── Domain filtering ──────────────────────────────────────────────────────
+
+    def _valid_dates_for(
+        self,
+        course: Course,
+        partial: ExamSchedule,
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+    ) -> list:
+        """
+        Return only the dates that pass both collision and partial constraints
+        for *course* given the current partial assignment.
+        """
+        valid = []
+        for d in period.getAvailableDates():
+            if not constraint_validator.canAssign(course, d, partial):
+                continue
+            if self._partial_constraint_checker is not None:
+                partial.assign(course, d)
+                ok = self._partial_constraint_checker.is_valid_partial(partial)
+                partial.unassign(course)
+                if not ok:
+                    continue
+            valid.append(d)
+        return valid
+
+    # ── LCV — Least Constraining Value ───────────────────────────────────────
+
+    def _lcv_sort_dates(
+        self,
+        dates: list,
+        course: Course,
+        rest: list[Course],
+        partial: ExamSchedule,
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+    ) -> list:
+        """
+        Sort dates so the least-constraining date comes first.
+        Skipped when rest is empty or there is only one date candidate.
+        """
+        if not rest or len(dates) <= 1:
+            return dates
+
+        def lcv_score(d) -> int:
+            partial.assign(course, d)
+            total = sum(
+                self._count_remaining_values(c, partial, period, constraint_validator)
+                for c in rest
+            )
+            partial.unassign(course)
+            return total
+
+        return sorted(dates, key=lcv_score, reverse=True)
+
+    # ── MRV helpers ───────────────────────────────────────────────────────────
+
+    _MRV_CAP = 8
+
+    def _count_remaining_values(
+        self,
+        course: Course,
+        partial: ExamSchedule,
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+    ) -> int:
+        """Count valid dates still available for *course*, capped at _MRV_CAP."""
+        count = 0
+        for d in period.getAvailableDates():
+            if not constraint_validator.canAssign(course, d, partial):
+                continue
+            if self._partial_constraint_checker is not None:
+                partial.assign(course, d)
+                ok = self._partial_constraint_checker.is_valid_partial(partial)
+                partial.unassign(course)
+                if not ok:
+                    continue
+            count += 1
+            if count >= self._MRV_CAP:
+                break
+        return count
+
+    def _select_mrv_course(
+        self,
+        remaining: list[Course],
+        partial: ExamSchedule,
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+    ) -> tuple[Course, list[Course]]:
+        """
+        Pick the course with the fewest remaining valid dates (MRV).
+        Ties broken by static MCV pre-sort order (first in list wins).
+        """
+        best = min(
+            remaining,
+            key=lambda c: self._count_remaining_values(c, partial, period, constraint_validator),
         )
+        rest = [c for c in remaining if c is not best]
+        return best, rest
+
+    # ── Backtracking (collect-all variant) ───────────────────────────────────
 
     def _backtrack(
         self,
@@ -70,22 +296,17 @@ class BacktrackingSolver:
             results.append(partial.copy())
             return
 
-        course = remaining[0]
-        rest = remaining[1:]
+        course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
+        valid_dates = self._valid_dates_for(course, partial, period, constraint_validator)
+        ordered_dates = self._lcv_sort_dates(valid_dates, course, rest, partial, period, constraint_validator)
 
-        for exam_date in period.getAvailableDates():
-            if constraint_validator.canAssign(course, exam_date, partial):
-                partial.assign(course, exam_date)
-                if (
-                    self._partial_constraint_checker is not None
-                    and not self._partial_constraint_checker.is_valid_partial(partial)
-                ):
-                    partial.unassign(course)
-                    continue
+        for exam_date in ordered_dates:
+            partial.assign(course, exam_date)
+            if self._forward_checker.hasViableAssignment(rest, partial, period, self._partial_constraint_checker):
+                self._backtrack(rest, partial, period, constraint_validator, results)
+            partial.unassign(course)
 
-                if self._forward_checker.hasViableAssignment(rest, partial, period):
-                    self._backtrack(rest, partial, period, constraint_validator, results)
-                partial.unassign(course)
+    # ── Backtracking (streaming / generator variant) ──────────────────────────
 
     def _backtrack_stream(
         self,
@@ -93,35 +314,28 @@ class BacktrackingSolver:
         partial: ExamSchedule,
         period: ExamPeriod,
         constraint_validator: ConstraintValidator,
+        skip: ExamSchedule | None = None,
     ):
         """
         Recursive generator that yields valid schedules one at a time.
-        Yields a copy of partial on each solution, never the mutable partial itself.
+
+        skip: schedule already yielded by _find_first_with_restarts that must
+              not be yielded again (compared only at leaf nodes).
         """
-        # Base case - solution found
         if not remaining:
-            # Yield a copy of the partial state to ensure external callers 
-            # don't see modifications during backtracking
-            yield partial.copy()
+            result = partial.copy()
+            if skip is None or result.assignments != skip.assignments:
+                yield result
             return
 
-        course = remaining[0]
-        rest = remaining[1:]
+        course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
+        valid_dates = self._valid_dates_for(course, partial, period, constraint_validator)
+        ordered_dates = self._lcv_sort_dates(valid_dates, course, rest, partial, period, constraint_validator)
 
-        for exam_date in period.getAvailableDates():
-            if constraint_validator.canAssign(course, exam_date, partial):
-                partial.assign(course, exam_date)
-                if (
-                    self._partial_constraint_checker is not None
-                    and not self._partial_constraint_checker.is_valid_partial(partial)
-                ):
-                    partial.unassign(course)
-                    continue
-                
-                if self._forward_checker.hasViableAssignment(rest, partial, period):
-                    # 'yield from' pauses this execution and yields results from 
-                    # the recursive calls as they are found
-                    yield from self._backtrack_stream(
-                        rest, partial, period, constraint_validator
-                    )
-                partial.unassign(course)
+        for exam_date in ordered_dates:
+            partial.assign(course, exam_date)
+            if self._forward_checker.hasViableAssignment(rest, partial, period, self._partial_constraint_checker):
+                yield from self._backtrack_stream(
+                    rest, partial, period, constraint_validator, skip,
+                )
+            partial.unassign(course)

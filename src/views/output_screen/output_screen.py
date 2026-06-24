@@ -625,10 +625,14 @@ class OutputScreen(QWidget):
             # If count > 0 the data simply isn't ready yet — keep loading.
             self._calendar_displaying_data = False
             try:
+                still_generating = bool(self.service.is_generating())
+            except Exception:
+                still_generating = False
+            try:
                 period_count = self.service.get_schedule_count(period_id=pid)
             except Exception:
                 period_count = 0
-            if isinstance(period_count, int) and period_count > 0:
+            if still_generating or (isinstance(period_count, int) and period_count > 0):
                 self._empty_timer.stop()
                 self._loading_semester = sem
                 if not self._loading_timer.isActive():

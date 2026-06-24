@@ -72,6 +72,7 @@ class AppService(IAppService):
         # EP-83 — multiprocessing: set to EngineProcess() in main.py to enable
         # two-process architecture. None = legacy single-process mode (used by tests).
         self._engine_process = None
+        self._generation_active = False
         # EP-119 - sort order for ranked schedule retrieval
         self._sort_cols: list[str] = []
         self._ranking_engine: RankingQueryEngine | None = None
@@ -79,9 +80,6 @@ class AppService(IAppService):
         # Populated lazily on first ranked access; cleared when sort changes or refresh requested.
         self._sorted_cache: dict[str, list[tuple[int, int]]] = {}
         self._constraint_settings = ConstraintSettings()
-        # Active sort column order for the ranking view (list of metric key strings).
-        # An empty list means "use engine default ordering".
-        self._sort_order: list[str] = []
 
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
@@ -127,9 +125,14 @@ class AppService(IAppService):
         self._constraint_settings = settings
 
     def set_sort_order(self, sort_cols: list[str]) -> None:
-        """Store the active sort order and clear the frozen snapshot so the next
-        navigation re-queries scores.db with the new sort criteria."""
-        self._sort_cols = sort_cols
+        """Store active ranking columns and clear any frozen ranked snapshots.
+
+        The output screen checks _sort_cols to decide whether to route schedule
+        navigation through RankingQueryEngine.  Keeping this as the single
+        source of truth preserves the scores.db ranking flow described in the
+        technical design.
+        """
+        self._sort_cols = list(sort_cols)
         self._sorted_cache.clear()
 
     def refresh_ranked_view(self) -> None:
@@ -139,16 +142,7 @@ class AppService(IAppService):
 
     def get_sort_order(self) -> list[str]:
         """Return the active sort column list."""
-        return self._sort_cols
-
-
-    def set_sort_order(self, sort_cols: list[str]) -> None:
-        """Persist the user's preferred metric sort order for schedule ranking."""
-        self._sort_order = list(sort_cols)
-
-    def get_sort_order(self) -> list[str]:
-        """Return the active sort column order (empty list = engine default)."""
-        return list(self._sort_order)
+        return list(self._sort_cols)
 
     def get_constraint_settings(self) -> ConstraintSettings:
         """Return the active constraint settings used by generation."""
@@ -272,75 +266,88 @@ class AppService(IAppService):
         """
         engine, scheduling_tasks = self._prepare_engine()
         self._results_by_period = {}
+        self._generation_active = True
 
         # ── EP-83: Multiprocessing mode ───────────────────────────────────
         # Engine Process runs solve_to_disk() in a separate OS process.
         # Only lightweight period_id strings cross the process boundary.
         if self._engine_process is not None:
-            self._current_indices = {}
-            # Ensure any previous generation run is completely terminated
-            self._engine_process.stop()
+            try:
+                self._current_indices = {}
+                # Ensure any previous generation run is completely terminated
+                self._engine_process.stop()
 
-            # Instantly yield the first period to unblock the UI and trigger OutputScreen
-            # to show up immediately in 0ms (it will show loading spinners until data arrives)
-            first_pid = next(iter(scheduling_tasks.keys()))
-            yield _period_id(first_pid), []
+                # Instantly yield the first period to unblock the UI and trigger OutputScreen
+                # to show up immediately in 0ms (it will show loading spinners until data arrives)
+                first_pid = next(iter(scheduling_tasks.keys()))
+                yield _period_id(first_pid), []
 
-            # Instantly clear all old period results on disk to prevent the OutputScreen
-            # from accidentally reading a leftover manifest from a previous run
-            from src.algorithm.period_results_writer import PeriodResultsWriter
-            writer = PeriodResultsWriter()
-            for period in scheduling_tasks.keys():
-                pid = _period_id(period)
-                writer.clear_period(pid)
+                # Instantly clear all old period results on disk to prevent the OutputScreen
+                # from accidentally reading a leftover manifest from a previous run
+                from src.algorithm.period_results_writer import PeriodResultsWriter
+                writer = PeriodResultsWriter()
+                for period in scheduling_tasks.keys():
+                    pid = _period_id(period)
+                    writer.clear_period(pid)
 
-            self._engine_process.start(engine, scheduling_tasks, self.get_constraint_settings())
+                self._engine_process.start(engine, scheduling_tasks, self.get_constraint_settings())
 
-            while True:
-                msg = self._engine_process.get_notification()
+                while True:
+                    msg = self._engine_process.get_notification()
 
-                if msg["type"] == "error":
-                    raise RuntimeError(msg["message"])
+                    if msg["type"] == "error":
+                        raise RuntimeError(msg["message"])
 
-                if msg["type"] == "all_done":
-                    break
+                    if msg["type"] == "all_done":
+                        break
 
-                if msg["type"] in ("period_done", "period_ready"):
-                    pid = msg["period_id"]
-                    self._current_indices.setdefault(pid, 0)
-                    yield pid, []
+                    if msg["type"] == "period_infeasible":
+                        pid = msg["period_id"]
+                        reason = msg.get("reason", "האילוצים שנבחרו אינם מאפשרים שיבוץ לתקופה זו.")
+                        yield pid, [("infeasible", reason)]
+
+                    if msg["type"] in ("period_done", "period_ready"):
+                        pid = msg["period_id"]
+                        self._current_indices.setdefault(pid, 0)
+                        yield pid, []
+            finally:
+                self._generation_active = False
             return
 
         # ── EP-82: File-based single-process mode ─────────────────────────
         if self._results_writer is not None:
-            self._current_indices = {}
-            for period, courses_dict in scheduling_tasks.items():
-                pid = _period_id(period)
-                engine.solve_to_disk(period, courses_dict, self._results_writer)
-                self._current_indices.setdefault(pid, 0)
-                yield pid, []
+            try:
+                self._current_indices = {}
+                for period, courses_dict in scheduling_tasks.items():
+                    pid = _period_id(period)
+                    engine.solve_to_disk(period, courses_dict, self._results_writer)
+                    self._current_indices.setdefault(pid, 0)
+                    yield pid, []
+            finally:
+                self._generation_active = False
             return
 
         # ── Legacy mode ───────────────────────────────────────────────────
         # In-memory collection + ScheduleCombiner (used by all existing tests)
         from src.algorithm.schedule_combiner import ScheduleCombiner
 
-        for period_result in engine.iterPeriodResults(scheduling_tasks):
-            pid = _period_id(period_result.period)
-            self._results_by_period[pid] = period_result.schedules
-            self._last_metadata[period_result.period] = period_result.metadata
-            yield pid, period_result.schedules
+        try:
+            for period_result in engine.iterPeriodResults(scheduling_tasks):
+                pid = _period_id(period_result.period)
+                self._results_by_period[pid] = period_result.schedules
+                self._last_metadata[period_result.period] = period_result.metadata
+                yield pid, period_result.schedules
 
-        all_sub_results = list(self._results_by_period.values())
-        combined = ScheduleCombiner().combineSubResults(all_sub_results)
-        combined.sort(key=lambda s: s.sort_key)
-        self._results = combined
+            all_sub_results = list(self._results_by_period.values())
+            combined = ScheduleCombiner().combineSubResults(all_sub_results)
+            combined.sort(key=lambda s: s.sort_key)
+            self._results = combined
+        finally:
+            self._generation_active = False
 
     def is_generating(self) -> bool:
         """Returns True if the background engine is actively generating schedules."""
-        if self._engine_process is None or self._engine_process._process is None:
-            return False
-        return self._engine_process._process.is_alive()
+        return self._generation_active
 
     def get_period_ids(self) -> list[str]:
         """Return period ids that have results in the cache (in arrival order)."""
@@ -478,6 +485,9 @@ class AppService(IAppService):
             return False
         try:
             total = engine.count(period_id)
+            if total == 0:
+                self._sorted_cache[period_id] = []
+                return True
             rows = engine.fetch_window(period_id, self._sort_cols, limit=total, offset=0)
             self._sorted_cache[period_id] = [(r[0], r[1]) for r in rows]
             return True

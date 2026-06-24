@@ -19,6 +19,7 @@ read-only connection.
 
 import multiprocessing
 import sqlite3
+from math import isfinite
 from pathlib import Path
 from typing import Optional
 
@@ -213,7 +214,7 @@ class ScoresDatabase:
                 period_id,
                 batch_number,
                 index_in_batch,
-                metrics.min_days_required,
+                self._finite_or_zero(metrics.min_days_required),
                 metrics.avg_days_all,
                 metrics.elective_conflicts,
                 metrics.span_required,
@@ -254,7 +255,7 @@ class ScoresDatabase:
                     period_id,
                     batch_num,
                     idx_in_batch,
-                    m.min_days_required,
+                    self._finite_or_zero(m.min_days_required),
                     m.avg_days_all,
                     m.elective_conflicts,
                     m.span_required,
@@ -266,6 +267,11 @@ class ScoresDatabase:
         self._conn.commit()
         if self._queue is not None:
             self._queue.put({"event": "batch_written", "period_id": period_id, "count": len(rows)})
+
+    @staticmethod
+    def _finite_or_zero(value: float) -> float:
+        """Normalize non-finite metric values before they enter scores.db."""
+        return float(value) if isfinite(float(value)) else 0.0
 
     def mark_done(self) -> None:
         """

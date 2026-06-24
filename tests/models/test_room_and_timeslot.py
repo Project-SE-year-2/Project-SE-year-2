@@ -34,6 +34,21 @@ def test_room_capacity_one_is_valid():
     assert room.capacity == 1
 
 
+def test_room_float_capacity_rejected():
+    with pytest.raises(ValueError):
+        Room(room_id="01", building="4", capacity=1.5)
+
+
+def test_room_bool_capacity_rejected():
+    with pytest.raises(ValueError):
+        Room(room_id="01", building="4", capacity=True)
+
+
+def test_room_string_capacity_rejected():
+    with pytest.raises(ValueError):
+        Room(room_id="01", building="4", capacity="30")
+
+
 # --- TimeSlot tests ---
 
 def test_timeslot_values_exist():

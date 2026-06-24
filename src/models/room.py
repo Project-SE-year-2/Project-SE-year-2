@@ -10,6 +10,9 @@ class Room:
     capacity: int
 
     def __post_init__(self) -> None:
-        # Room capacity must be a positive integer
+        # bool is a subclass of int so it passes the int check - must be excluded explicitly
+        # All other non-int types (str, float, etc.) are caught by the first condition
+        if not isinstance(self.capacity, int) or isinstance(self.capacity, bool):
+            raise ValueError("Room capacity must be an integer.")
         if self.capacity <= 0:
             raise ValueError(f"Room capacity must be a positive integer, got {self.capacity}.")

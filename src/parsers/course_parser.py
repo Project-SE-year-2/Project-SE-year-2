@@ -71,7 +71,10 @@ class CourseFileParser(IFileParser):
             name = lines[0]
             course_id = lines[1]
             instructor = lines[2]
-            evaluation = lines[-1]
+            
+            num_students, evaluation, first_req_index = (
+                self._extract_num_students_and_evaluation(lines)
+            )
 
             if "," in name:
                 raise ValueError("Missing course name")
@@ -85,14 +88,6 @@ class CourseFileParser(IFileParser):
             if evaluation not in ["Exam", "Project", "Attendance"]:
                 raise ValueError("Missing or invalid evaluation type")
             
-            # extract course metadata
-            name = lines[0]
-            course_id = lines[1]
-            instructor = lines[2]
-            num_students, evaluation, first_req_index = (
-                self._extract_num_students_and_evaluation(lines)
-            )
-
             course = Course(name=name, course_id=course_id, instructor=instructor, evaluation=Evaluation(evaluation), num_students=num_students)
             
             # extract program requirements

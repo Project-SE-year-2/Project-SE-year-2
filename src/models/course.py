@@ -27,6 +27,13 @@ class Course:
             raise ValueError("num_students must be non-negative.")
 
 
+    def __setstate__(self, state: dict) -> None:
+        """Restore old pickled Course objects safely."""
+        self.__dict__.update(state)
+
+        if "num_students" not in self.__dict__:
+            self.num_students = 0
+
     def add_requirement(self, req: ProgramRequirement):
         # add a program requirement to a course
         self.requirements.append(req)

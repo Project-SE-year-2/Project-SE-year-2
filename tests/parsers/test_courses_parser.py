@@ -341,3 +341,22 @@ Exam
     ):
         parser.parse(str(file_path))
 
+# Tests that negative num_students values in course files are rejected.
+def test_course_parser_rejects_negative_num_students_value(tmp_path):
+    content = """$$$$
+Algorithms
+89123
+Dr. Cohen
+num_students=-1
+83101,1,FALL,Obligatory
+Exam
+"""
+
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = CourseFileParser()
+
+    with pytest.raises(ValueError, match="num_students must be non-negative"):
+        parser.parse(str(file_path))
+

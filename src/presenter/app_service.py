@@ -80,6 +80,9 @@ class AppService(IAppService):
         # Populated lazily on first ranked access; cleared when sort changes or refresh requested.
         self._sorted_cache: dict[str, list[tuple[int, int]]] = {}
         self._constraint_settings = ConstraintSettings()
+        
+        self._finished_periods: set[str] = set()
+        self._infeasible_periods: set[str] = set()
 
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
@@ -266,6 +269,14 @@ class AppService(IAppService):
         """
         engine, scheduling_tasks = self._prepare_engine()
         self._results_by_period = {}
+        # Cleanup any previous state before generating
+        self._results.clear()
+        self._results_by_period.clear()
+        self._last_metadata.clear()
+        self._current_indices.clear()
+        self._sorted_cache.clear()
+        self._finished_periods.clear()
+        self._infeasible_periods.clear()
         self._generation_active = True
 
         # ── EP-83: Multiprocessing mode ───────────────────────────────────
@@ -303,11 +314,14 @@ class AppService(IAppService):
 
                     if msg["type"] == "period_infeasible":
                         pid = msg["period_id"]
+                        self._infeasible_periods.add(pid)
                         reason = msg.get("reason", "האילוצים שנבחרו אינם מאפשרים שיבוץ לתקופה זו.")
                         yield pid, [("infeasible", reason)]
 
                     if msg["type"] in ("period_done", "period_ready"):
                         pid = msg["period_id"]
+                        if msg["type"] == "period_done":
+                            self._finished_periods.add(pid)
                         self._current_indices.setdefault(pid, 0)
                         yield pid, []
             finally:
@@ -348,6 +362,12 @@ class AppService(IAppService):
     def is_generating(self) -> bool:
         """Returns True if the background engine is actively generating schedules."""
         return self._generation_active
+
+    def is_period_generating(self, period_id: str) -> bool:
+        """Returns True if a specific period is still actively being generated."""
+        if not self._generation_active:
+            return False
+        return period_id not in self._finished_periods and period_id not in self._infeasible_periods
 
     def get_period_ids(self) -> list[str]:
         """Return period ids that have results in the cache (in arrival order)."""

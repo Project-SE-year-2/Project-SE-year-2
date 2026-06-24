@@ -31,6 +31,14 @@ _CONSTRAINT_LABELS = {
     "daily_cap":           "Daily Cap (max exams)",
 }
 
+_CONSTRAINT_DESCRIPTIONS = {
+    "mandatory_gap": "Minimum days between obligatory exams for the same cohort.",
+    "all_gap": "Minimum days between any exams (including electives) for the same cohort.",
+    "elective_conflicts": "Maximum overlapping elective exams allowed per day for a program.",
+    "spread": "Minimum length of the exam period from the first to the last obligatory exam.",
+    "daily_cap": "Maximum total exams scheduled across the entire institution on a single day.",
+}
+
 # Sensible default K-values shown in the spinbox when the widget first loads.
 _DEFAULT_K = {
     "mandatory_gap":      3,
@@ -81,31 +89,33 @@ class ConstraintConfigWidget(QWidget):
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setSpacing(16)
 
         title = QLabel("Constraint Settings")
-        title.setStyleSheet("font-weight: bold; font-size: 14px; color: #1E293B;")
+        title.setStyleSheet("font-weight: bold; font-size: 18px; color: #0F172A;")
         layout.addWidget(title)
 
         layout.addWidget(self._make_divider())
 
         for key in _CONSTRAINT_LABELS:
-            layout.addLayout(self._make_row(key))
+            layout.addWidget(self._make_row(key))
 
         # Push all rows to the top; leave empty space below.
         layout.addStretch(1)
 
-    def _make_row(self, key: str) -> QHBoxLayout:
+    def _make_row(self, key: str) -> QWidget:
         """Build one checkbox + label + spinbox row for a single constraint."""
-        row = QHBoxLayout()
-        row.setSpacing(8)
+        container = QWidget()
+        row = QHBoxLayout(container)
+        row.setContentsMargins(0, 8, 0, 8)
+        row.setSpacing(16)
 
         check = QCheckBox()
         check.setChecked(False)
         check.setStyleSheet("""
             QCheckBox::indicator {
-                width: 18px; height: 18px;
-                border-radius: 4px;
+                width: 24px; height: 24px;
+                border-radius: 6px;
                 border: 2px solid #94A3B8;
             }
             QCheckBox::indicator:checked {
@@ -115,31 +125,60 @@ class ConstraintConfigWidget(QWidget):
             QCheckBox::indicator:unchecked {
                 background-color: #FFFFFF;
             }
+            QCheckBox::indicator:unchecked:hover {
+                border-color: #64748B;
+            }
         """)
         self._checks[key] = check
 
+        text_vbox = QVBoxLayout()
+        text_vbox.setSpacing(4)
+        
         label = QLabel(_CONSTRAINT_LABELS[key])
-        label.setMinimumWidth(160)
-        label.setStyleSheet("color: #1E293B; font-size: 14px;")
+        label.setStyleSheet("color: #0F172A; font-size: 16px; font-weight: 600;")
+        
+        desc = QLabel(_CONSTRAINT_DESCRIPTIONS[key])
+        desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        desc.setWordWrap(True)
+        
+        text_vbox.addWidget(label)
+        text_vbox.addWidget(desc)
 
         spin = QSpinBox()
         spin.setMinimum(_MIN_K[key])
         spin.setMaximum(_MAX_K[key])
         spin.setValue(_DEFAULT_K[key])
-        spin.setFixedWidth(64)
+        spin.setFixedWidth(72)
+        spin.setMinimumHeight(36)
         spin.setEnabled(False)  # disabled until the checkbox is checked
-        spin.setStyleSheet("QSpinBox:disabled { color: #94A3B8; background: #F1F5F9; }")
+        spin.setStyleSheet("""
+            QSpinBox {
+                border: 1px solid #CBD5E1;
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 16px;
+                color: #0F172A;
+                background: white;
+            }
+            QSpinBox:disabled { 
+                color: #94A3B8; 
+                background: #F1F5F9; 
+                border: 1px solid #E2E8F0;
+            }
+            QSpinBox::up-button, QSpinBox::down-button {
+                width: 24px;
+            }
+        """)
         self._spins[key] = spin
 
         # Link checkbox state → spinbox enabled state.
         check.toggled.connect(spin.setEnabled)
 
         row.addWidget(check)
-        row.addWidget(label)
-        row.addStretch(1)
+        row.addLayout(text_vbox, stretch=1)
         row.addWidget(spin)
 
-        return row
+        return container
 
     @staticmethod
     def _make_divider() -> QFrame:

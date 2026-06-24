@@ -88,6 +88,7 @@ def _solve_single_period(engine, period, courses_dict, writer, score_proxy, noti
             notify_queue.put({"type": "period_ready", "period_id": pid})
             first_batch_sent = True
 
+    print(f"[{period.period_id}] Starting generation. Constraint settings: {constraint_settings}")
     checker = ConstraintChecker(constraint_settings) if constraint_settings is not None else None
     scorer = ScheduleScorer.default()
 

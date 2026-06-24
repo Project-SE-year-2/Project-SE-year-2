@@ -37,8 +37,8 @@ class MinDaysCalculator(IMetricCalculator):
                 gap = (current_date - previous_date).days
                 min_gap = min(min_gap, gap)
 
-        # If no cohort had a pair, min_gap is still inf — the caller treats that
-        # as "no constraint to measure".
+        # If no cohort had a pair, min_gap is still inf — that's the documented
+        # "no mandatory pair to measure" value the scorer/tests expect.
         return float(min_gap)
 
     def _group_obligatory_dates_by_cohort(

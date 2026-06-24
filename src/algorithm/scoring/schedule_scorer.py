@@ -1,27 +1,9 @@
 """EP-102 — ScheduleScorer orchestrator.
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-Holds the registered IMetricCalculator instances and delegates to each in turn.
-compute_scores() collects { field_name: value } from every calculator and
-constructs a ScheduleMetrics in a single call, so adding a future metric
-requires only a new subclass and one line in _calculators.
-
-All five calculators are registered: MinDaysCalculator, AvgDaysCalculator,
-CollisionCalculator, SpreadCalculator, DailyCapCalculator.
-
-Use the default() factory to obtain a production-ready instance.
-=======
-=======
->>>>>>> dfbc859 (Added Comments)
 One place that turns a finished schedule into its five quality numbers. It owns
 the list of calculators and runs them; each calculator knows one metric and
 nothing about the others. Adding a sixth metric later is a new calculator class
-plus one line in the list below — nothing here needs to change otherwise.
-<<<<<<< HEAD
->>>>>>> 816e7a7 (Added Comments)
-=======
->>>>>>> dfbc859 (Added Comments)
+plus one line in the list below — nothing else here needs to change.
 """
 
 from src.algorithm.scoring.i_metric_calculator import IMetricCalculator
@@ -38,10 +20,9 @@ class ScheduleScorer:
     """Runs every registered calculator and packs the results into ScheduleMetrics."""
 
     def __init__(self) -> None:
-        # The active metric set. Order here doesn't affect the result (each
-        # calculator writes its own named field), it's just the run order.
-        # MinDaysCalculator lives in a separate PR, so min_days_required is
-        # filled in by compute_scores() until it's added here.
+        # All five metrics. Order here doesn't affect the result (each calculator
+        # writes its own named field), it's just the run order. Together these
+        # populate every field of ScheduleMetrics, so no field is left unset.
         self._calculators: list[IMetricCalculator] = [
             MinDaysCalculator(),
             AvgDaysCalculator(),
@@ -60,24 +41,9 @@ class ScheduleScorer:
     def compute_scores(self, schedule: ExamSchedule) -> ScheduleMetrics:
         # Ask each calculator for its single value and key it by the field name
         # it owns. field_name() is exactly the ScheduleMetrics attribute name,
-        # so the dict below unpacks straight into the dataclass.
+        # so the dict unpacks straight into the dataclass with no field missing.
         values = {
             calc.field_name(): calc.compute(schedule)
             for calc in self._calculators
         }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> dfbc859 (Added Comments)
-
-        # min_days_required has no calculator registered yet — supply a neutral
-        # value so the dataclass can still be built. Drop this line the moment
-        # MinDaysCalculator joins the list above.
-        values.setdefault("min_days_required", 0.0)
-
-<<<<<<< HEAD
->>>>>>> 816e7a7 (Added Comments)
-=======
->>>>>>> dfbc859 (Added Comments)
         return ScheduleMetrics(**values)

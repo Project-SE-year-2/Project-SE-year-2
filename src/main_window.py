@@ -88,7 +88,11 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def _on_settings_confirmed(self):
-        """Apply SettingsScreen constraint settings and show a validation dialog on invalid input."""
+        """Apply constraint settings and sort order from SettingsScreen to the service layer.
+
+        Validates the constraint settings first — shows a warning dialog and
+        stays on the Settings screen if the values are invalid.
+        """
         try:
             settings = self.settings_screen.get_constraint_settings()
         except ValueError as exc:
@@ -99,5 +103,9 @@ class MainWindow(QMainWindow):
             )
             return
 
+        # Push both constraint settings and sort order to the presenter.
         self.service.set_constraint_settings(settings)
+        sort_order = self.settings_screen.ranking_panel.get_sort_order()
+        self.service.set_sort_order(sort_order)
+
         self._return_to_input_without_wipe()

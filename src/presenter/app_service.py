@@ -71,6 +71,10 @@ class AppService(IAppService):
         # two-process architecture. None = legacy single-process mode (used by tests).
         self._engine_process = None
         self._constraint_settings = ConstraintSettings()
+        # Active sort column order for the ranking view (list of metric key strings).
+        # An empty list means "use engine default ordering".
+        self._sort_order: list[str] = []
+
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
     # ------------------------------------------------------------------ #
@@ -114,6 +118,14 @@ class AppService(IAppService):
         """Store active constraint settings for future generation runs."""
         self._constraint_settings = settings
 
+
+    def set_sort_order(self, sort_cols: list[str]) -> None:
+        """Persist the user's preferred metric sort order for schedule ranking."""
+        self._sort_order = list(sort_cols)
+
+    def get_sort_order(self) -> list[str]:
+        """Return the active sort column order (empty list = engine default)."""
+        return list(self._sort_order)
 
     def get_constraint_settings(self) -> ConstraintSettings:
         """Return the active constraint settings used by generation."""

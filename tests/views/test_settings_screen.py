@@ -195,5 +195,130 @@ class TestSettingsScreenInMainWindow(unittest.TestCase):
         self.assertIsInstance(settings, ConstraintSettings)
 
 
+class TestSettingsScreenApply(unittest.TestCase):
+    """EP-113 — verify the Apply workflow: _on_apply emits signal and MainWindow
+    persists both constraint settings and sort order to the service layer."""
+
+    def setUp(self):
+        from src.main_window import MainWindow
+        self.window = MainWindow()
+        self.screen = self.window.settings_screen
+        self.service = self.window.service
+
+    # ------------------------------------------------------------------
+    # _on_apply method
+    # ------------------------------------------------------------------
+
+    def test_on_apply_method_exists(self):
+        """SettingsScreen must expose a private _on_apply handler."""
+        self.assertTrue(
+            callable(getattr(self.screen, '_on_apply', None)),
+            "_on_apply must be a callable method on SettingsScreen",
+        )
+
+    def test_apply_button_connected_to_on_apply(self):
+        """Clicking apply_btn must emit settings_confirmed exactly once."""
+        received = []
+        self.screen.settings_confirmed.connect(lambda: received.append(1))
+        self.screen.apply_btn.click()
+        self.assertEqual(received, [1])
+
+    def test_on_apply_emits_settings_confirmed(self):
+        """_on_apply() must emit settings_confirmed."""
+        received = []
+        self.screen.settings_confirmed.connect(lambda: received.append(1))
+        self.screen._on_apply()
+        self.assertEqual(received, [1])
+
+    # ------------------------------------------------------------------
+    # Constraint settings are saved to the service on Apply
+    # ------------------------------------------------------------------
+
+    def test_apply_saves_constraint_settings_to_service(self):
+        """Clicking Apply must push constraint panel values into the service."""
+        # Set a known valid state on the constraint panel.
+        self.screen.constraint_panel.set_values({
+            "mandatory_gap_enabled": True,  "mandatory_gap_k": 5,
+            "all_gap_enabled": False,        "all_gap_k": 2,
+            "elective_conflicts_enabled": False, "elective_conflicts_k": 1,
+            "spread_enabled": False,          "spread_k": 7,
+            "daily_cap_enabled": False,       "daily_cap_k": 3,
+        })
+
+        self.screen._on_apply()
+        QApplication.processEvents()
+
+        saved = self.service.get_constraint_settings()
+        self.assertTrue(saved.mandatory_gap_enabled)
+        self.assertEqual(saved.mandatory_gap_k, 5)
+
+    def test_apply_with_invalid_k_does_not_navigate_away(self):
+        """If constraint settings are invalid, Apply must NOT switch to index 0."""
+        from unittest.mock import patch
+
+        # mandatory_gap enabled with K=0 is invalid (minimum is 1).
+        self.screen.constraint_panel._checks["mandatory_gap"].setChecked(True)
+        self.screen.constraint_panel._spins["mandatory_gap"].setValue(0)
+
+        self.window.stacked_widget.setCurrentIndex(2)
+
+        # Suppress the QMessageBox so no modal dialog blocks the test runner.
+        with patch("src.main_window.QMessageBox.warning"):
+            self.screen._on_apply()
+            QApplication.processEvents()
+
+        # The window must stay on the settings screen (index 2).
+        self.assertEqual(self.window.stacked_widget.currentIndex(), 2)
+
+    # ------------------------------------------------------------------
+    # Sort order is saved to the service on Apply
+    # ------------------------------------------------------------------
+
+    def test_apply_saves_sort_order_to_service(self):
+        """Clicking Apply must push ranking panel sort order into the service."""
+        # set_sort_order checks the first two metrics and orders them explicitly.
+        self.screen.ranking_panel.set_sort_order(
+            ["avg_days_all", "min_days_required"],
+            checked={"avg_days_all", "min_days_required"},
+        )
+
+        self.screen._on_apply()
+        QApplication.processEvents()
+
+        saved_order = self.service.get_sort_order()
+        self.assertEqual(saved_order, ["avg_days_all", "min_days_required"])
+
+    def test_apply_with_no_checked_metrics_saves_empty_sort_order(self):
+        """When no metrics are checked the saved sort order must be an empty list."""
+        # Uncheck everything by setting all metrics unchecked.
+        self.screen.ranking_panel.set_sort_order([], checked=set())
+
+        self.screen._on_apply()
+        QApplication.processEvents()
+
+        self.assertEqual(self.service.get_sort_order(), [])
+
+    # ------------------------------------------------------------------
+    # Navigation after Apply
+    # ------------------------------------------------------------------
+
+    def test_valid_apply_returns_to_input_screen(self):
+        """A valid Apply must switch the stacked widget back to index 0."""
+        # Put the constraint panel into a fully valid state before applying.
+        self.screen.constraint_panel.set_values({
+            "mandatory_gap_enabled": True,  "mandatory_gap_k": 3,
+            "all_gap_enabled": True,         "all_gap_k": 2,
+            "elective_conflicts_enabled": False, "elective_conflicts_k": 1,
+            "spread_enabled": True,           "spread_k": 7,
+            "daily_cap_enabled": True,        "daily_cap_k": 3,
+        })
+
+        self.window.stacked_widget.setCurrentIndex(2)
+        self.screen._on_apply()
+        QApplication.processEvents()
+
+        self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
+
+
 if __name__ == '__main__':
     unittest.main()

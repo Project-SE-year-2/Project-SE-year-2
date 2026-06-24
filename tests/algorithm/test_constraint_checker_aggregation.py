@@ -27,11 +27,16 @@ from src.models.exam_schedule import ExamSchedule
 
 
 class _SpyConstraint(IConstraint):
-    """Records how many times it was evaluated and returns a fixed verdict."""
+    """A constraint with a fixed answer that also remembers how often it ran.
+
+    We give it a hard-coded verdict so the test controls exactly which
+    constraint passes or fails, and the call counter is what lets us prove the
+    checker stopped early instead of evaluating everything.
+    """
 
     def __init__(self, verdict: bool) -> None:
-        self._verdict = verdict
-        self.calls = 0
+        self._verdict = verdict   # the True/False this spy always returns
+        self.calls = 0            # bumped every time the checker asks us
 
     def is_satisfied(self, schedule: ExamSchedule) -> bool:
         self.calls += 1
@@ -39,11 +44,13 @@ class _SpyConstraint(IConstraint):
 
 
 def _empty_checker() -> ConstraintChecker:
-    """A checker with no real constraints; spies are injected per test."""
+    # Build a real checker against blank settings (so its list starts empty),
+    # then each test overwrites _constraints with its own spies.
     return ConstraintChecker(ConstraintSettings())
 
 
-# A bare schedule is enough — spies ignore its contents.
+# The spies never read the schedule, so we skip __init__ and hand the checker a
+# bare object — it's only there to satisfy the method signature.
 _SCHEDULE = ExamSchedule.__new__(ExamSchedule)
 
 

@@ -48,9 +48,12 @@ class CollisionConstraint(IConstraint):
         counts: dict[tuple, int] = {}
 
         for course, exam_date in schedule.assignments.items():
-            for req in course.requirements:
-                if req.req_type == ReqType.Elective:
-                    key = (req.program_id, exam_date)
-                    counts[key] = counts.get(key, 0) + 1
+            elective_programs = {
+                req.program_id for req in course.requirements
+                if req.req_type == ReqType.Elective
+            }
+            for pid in elective_programs:
+                key = (pid, exam_date)
+                counts[key] = counts.get(key, 0) + 1
 
         return counts

@@ -625,7 +625,7 @@ class OutputScreen(QWidget):
             # If count > 0 the data simply isn't ready yet — keep loading.
             self._calendar_displaying_data = False
             try:
-                still_generating = bool(self.service.is_generating())
+                still_generating = bool(self.service.is_period_generating(pid))
             except Exception:
                 still_generating = False
             try:

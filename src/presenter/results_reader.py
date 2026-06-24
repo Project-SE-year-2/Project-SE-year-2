@@ -55,13 +55,14 @@ class ResultsReader:
             self._manifest_cache.pop(period_id, None)
             return {}
         try:
-            mtime = manifest_path.stat().st_mtime
+            stat = manifest_path.stat()
+            cache_key = (stat.st_mtime_ns, stat.st_size)
             cached = self._manifest_cache.get(period_id)
-            if cached and cached.get("_mtime") == mtime:
+            if cached and cached.get("_cache_key") == cache_key:
                 return cached
             with open(manifest_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            data["_mtime"] = mtime
+            data["_cache_key"] = cache_key
             self._manifest_cache[period_id] = data
             return data
         except Exception:
@@ -69,13 +70,14 @@ class ResultsReader:
 
     def _load_batch(self, period_id: str, batch_num: int, batch_path: Path) -> list:
         key = (period_id, batch_num)
-        mtime = batch_path.stat().st_mtime
+        stat = batch_path.stat()
+        cache_key = (stat.st_mtime_ns, stat.st_size)
         cached = self._batch_cache.get(key)
-        if cached and cached[0] == mtime:
+        if cached and cached[0] == cache_key:
             return cached[1]
         with open(batch_path, "rb") as f:
             batch = pickle.load(f)
-        self._batch_cache[key] = (mtime, batch)
+        self._batch_cache[key] = (cache_key, batch)
         return batch
 
     def _batch_path(self, period_id: str, batch_index: int) -> Path:

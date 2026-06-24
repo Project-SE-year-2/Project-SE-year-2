@@ -34,8 +34,11 @@ class PartialAllGapConstraint(IPartialConstraint):
         cohort_dates: dict[tuple[str, int], list[date]] = {}
 
         for course, exam_date in schedule.assignments.items():
+            seen_cohorts = set()
             for req in course.requirements:
                 key = (req.program_id, req.year)
-                cohort_dates.setdefault(key, []).append(exam_date)
+                if key not in seen_cohorts:
+                    seen_cohorts.add(key)
+                    cohort_dates.setdefault(key, []).append(exam_date)
 
         return cohort_dates

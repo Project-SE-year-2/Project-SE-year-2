@@ -22,6 +22,7 @@ class ConstraintSettingsLoader:
         ("spread_k", int),
         ("daily_cap_enabled", bool),
         ("daily_cap_k", int),
+        ("room_scheduling_enabled", bool),
     )
 
     @staticmethod

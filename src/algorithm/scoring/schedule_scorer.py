@@ -1,6 +1,7 @@
 """EP-102 — ScheduleScorer orchestrator.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 Holds the registered IMetricCalculator instances and delegates to each in turn.
 compute_scores() collects { field_name: value } from every calculator and
 constructs a ScheduleMetrics in a single call, so adding a future metric
@@ -11,11 +12,16 @@ CollisionCalculator, SpreadCalculator, DailyCapCalculator.
 
 Use the default() factory to obtain a production-ready instance.
 =======
+=======
+>>>>>>> dfbc859 (Added Comments)
 One place that turns a finished schedule into its five quality numbers. It owns
 the list of calculators and runs them; each calculator knows one metric and
 nothing about the others. Adding a sixth metric later is a new calculator class
 plus one line in the list below — nothing here needs to change otherwise.
+<<<<<<< HEAD
 >>>>>>> 816e7a7 (Added Comments)
+=======
+>>>>>>> dfbc859 (Added Comments)
 """
 
 from src.algorithm.scoring.i_metric_calculator import IMetricCalculator
@@ -60,12 +66,18 @@ class ScheduleScorer:
             for calc in self._calculators
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> dfbc859 (Added Comments)
 
         # min_days_required has no calculator registered yet — supply a neutral
         # value so the dataclass can still be built. Drop this line the moment
         # MinDaysCalculator joins the list above.
         values.setdefault("min_days_required", 0.0)
 
+<<<<<<< HEAD
 >>>>>>> 816e7a7 (Added Comments)
+=======
+>>>>>>> dfbc859 (Added Comments)
         return ScheduleMetrics(**values)

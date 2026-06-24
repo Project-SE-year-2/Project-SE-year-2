@@ -5,9 +5,8 @@ compute_scores() collects { field_name: value } from every calculator and
 constructs a ScheduleMetrics in a single call, so adding a future metric
 requires only a new subclass and one line in _calculators.
 
-Note: MinDaysCalculator (min_days_required) is delivered in a separate PR.
-Until it is registered here, compute_scores() supplies a neutral placeholder
-for that field so the orchestrator stays functional.
+All five calculators are registered: MinDaysCalculator, AvgDaysCalculator,
+CollisionCalculator, SpreadCalculator, DailyCapCalculator.
 
 Use the default() factory to obtain a production-ready instance.
 """
@@ -46,5 +45,4 @@ class ScheduleScorer:
             calc.field_name(): calc.compute(schedule)
             for calc in self._calculators
         }
-        values.setdefault("min_days_required", 0.0)
         return ScheduleMetrics(**values)

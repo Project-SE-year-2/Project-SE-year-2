@@ -299,12 +299,6 @@ class AppService(IAppService):
                     yield pid, []
             return
 
-    def is_generating(self) -> bool:
-        """Returns True if the background engine is actively generating schedules."""
-        if self._engine_process is None or self._engine_process._process is None:
-            return False
-        return self._engine_process._process.is_alive()
-
         # ── EP-82: File-based single-process mode ─────────────────────────
         if self._results_writer is not None:
             self._current_indices = {}
@@ -329,6 +323,12 @@ class AppService(IAppService):
         combined = ScheduleCombiner().combineSubResults(all_sub_results)
         combined.sort(key=lambda s: s.sort_key)
         self._results = combined
+
+    def is_generating(self) -> bool:
+        """Returns True if the background engine is actively generating schedules."""
+        if self._engine_process is None or self._engine_process._process is None:
+            return False
+        return self._engine_process._process.is_alive()
 
     def get_period_ids(self) -> list[str]:
         """Return period ids that have results in the cache (in arrival order)."""
@@ -377,8 +377,11 @@ class AppService(IAppService):
                     for pid in self._current_indices
                 )
             return 0
-        # Ranked mode - return snapshot size so navigator stays within sorted view
-        if self._sort_cols and period_id in self._sorted_cache:
+        # Ranked mode - always return snapshot size, building cache if needed
+        if self._sort_cols:
+            if period_id not in self._sorted_cache:
+                if not self._build_sorted_cache(period_id):
+                    return 0
             return len(self._sorted_cache[period_id])
         # Per-period count — disk first
         disk_count = self._results_reader.get_count(period_id)

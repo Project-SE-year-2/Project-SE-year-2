@@ -834,6 +834,7 @@ class OutputScreen(QWidget):
         for state in self._window_states.values():
             state.clear()
         self._global_index = 0
+        self._refresh_screen_display()
 
     def _on_back_clicked(self) -> None:
         if self._day_dialog is not None:

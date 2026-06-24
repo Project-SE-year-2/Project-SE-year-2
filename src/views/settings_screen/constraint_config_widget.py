@@ -102,10 +102,25 @@ class ConstraintConfigWidget(QWidget):
 
         check = QCheckBox()
         check.setChecked(False)
+        check.setStyleSheet("""
+            QCheckBox::indicator {
+                width: 18px; height: 18px;
+                border-radius: 4px;
+                border: 2px solid #94A3B8;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #3B82F6;
+                border-color: #3B82F6;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #FFFFFF;
+            }
+        """)
         self._checks[key] = check
 
         label = QLabel(_CONSTRAINT_LABELS[key])
         label.setMinimumWidth(160)
+        label.setStyleSheet("color: #1E293B; font-size: 14px;")
 
         spin = QSpinBox()
         spin.setMinimum(_MIN_K[key])

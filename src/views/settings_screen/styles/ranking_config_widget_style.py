@@ -82,7 +82,7 @@ BADGE_INACTIVE = (
 # ── Drag handle ───────────────────────────────────────────────────────────────
 # Light grey braille-dots character used as a visual grip icon.
 # font-size: 16px makes it large enough to be visible without being intrusive.
-DRAG_HANDLE = "color: #CBD5E1; font-size: 16px;"
+DRAG_HANDLE = "color: #64748B; font-size: 16px;"
 
 # ── Row title text (main idea, shown large and bold) ─────────────────────────
 ROW_TITLE_LABEL = "color: #1E293B; font-size: 16px; font-weight: bold;"

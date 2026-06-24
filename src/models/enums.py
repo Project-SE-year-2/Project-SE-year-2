@@ -22,8 +22,3 @@ class Evaluation(Enum):
 class CalendarMode(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
-
-class TimeSlot(Enum):
-    MORNING = "MORNING"
-    AFTERNOON = "AFTERNOON"
-    EVENING = "EVENING"

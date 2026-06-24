@@ -79,6 +79,10 @@ class AppService(IAppService):
         # Populated lazily on first ranked access; cleared when sort changes or refresh requested.
         self._sorted_cache: dict[str, list[tuple[int, int]]] = {}
         self._constraint_settings = ConstraintSettings()
+        # Active sort column order for the ranking view (list of metric key strings).
+        # An empty list means "use engine default ordering".
+        self._sort_order: list[str] = []
+
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
     # ------------------------------------------------------------------ #
@@ -137,6 +141,14 @@ class AppService(IAppService):
         """Return the active sort column list."""
         return self._sort_cols
 
+
+    def set_sort_order(self, sort_cols: list[str]) -> None:
+        """Persist the user's preferred metric sort order for schedule ranking."""
+        self._sort_order = list(sort_cols)
+
+    def get_sort_order(self) -> list[str]:
+        """Return the active sort column order (empty list = engine default)."""
+        return list(self._sort_order)
 
     def get_constraint_settings(self) -> ConstraintSettings:
         """Return the active constraint settings used by generation."""

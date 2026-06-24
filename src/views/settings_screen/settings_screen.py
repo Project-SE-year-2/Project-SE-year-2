@@ -84,7 +84,7 @@ class SettingsScreen(QWidget):
             "QPushButton { background-color: #3B82F6; color: white; border-radius: 6px; font-size: 14px; }"
             "QPushButton:hover { background-color: #2563EB; }"
         )
-        self.apply_btn.clicked.connect(self.settings_confirmed.emit)
+        self.apply_btn.clicked.connect(self._on_apply)
 
         layout.addWidget(self.back_btn)
         layout.addWidget(title, stretch=1)
@@ -119,6 +119,14 @@ class SettingsScreen(QWidget):
 
         return panels
 
+
+    def _on_apply(self) -> None:
+        """Private click handler for the Apply button.
+
+        Emits settings_confirmed so MainWindow can read both constraint settings
+        and sort order from this screen and push them to the service layer.
+        """
+        self.settings_confirmed.emit()
 
     def get_constraint_settings(self) -> ConstraintSettings:
         """Return typed constraint settings collected from the constraint panel."""

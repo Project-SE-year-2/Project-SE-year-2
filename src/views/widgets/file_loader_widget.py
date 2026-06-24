@@ -81,7 +81,7 @@ class LoadedFilesPanel(QFrame):
         self.setVisible(False)
 
 _FILE_FILTER = "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
-_DROP_ZONE_MIN_HEIGHT = 155
+_DROP_ZONE_MIN_HEIGHT = 240
 _TOGGLE_BTN_MIN_WIDTH = 144
 
 
@@ -130,7 +130,7 @@ class DropZoneCard(QFrame):
         self._apply_idle_style()
 
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setContentsMargins(10, 16, 10, 16)
         layout.setSpacing(th.SPACING_SMALL)
 
         self._icon_lbl = QLabel()
@@ -168,10 +168,12 @@ class DropZoneCard(QFrame):
             " background: transparent; border: none;"
         )
 
+        layout.addStretch()
         layout.addWidget(self._icon_lbl)
         layout.addWidget(self._title_lbl)
         layout.addWidget(self._hint_lbl)
         layout.addWidget(self._file_lbl)
+        layout.addStretch()
 
     # Public API
 
@@ -391,13 +393,13 @@ class FileLoaderWidget(QWidget):
         self._courses_zone = DropZoneCard(
             icon=ICON_FILE,
             title="Courses File",
-            hint="Drag & drop courses file here\n(or click to browse)\n\nCSV, Text (.csv, .txt)",
+            hint="Drag & drop courses file here\n(or click to browse)\nCSV, Text (.csv, .txt)",
             dialog_caption="Select Courses File",
         )
         self._dates_zone = DropZoneCard(
             icon=ICON_CALENDAR,
             title="Dates File",
-            hint="Drag & drop dates file here\n(or click to browse)\n\nCSV, Text (.csv, .txt)",
+            hint="Drag & drop dates file here\n(or click to browse)\nCSV, Text (.csv, .txt)",
             dialog_caption="Select Dates File",
             single_file=True,   # dates zone always holds exactly one file
         )

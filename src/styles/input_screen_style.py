@@ -109,6 +109,20 @@ QPushButton#generateBtn {
 QPushButton#generateBtn:hover    { background-color: #1D4ED8; }
 QPushButton#generateBtn:disabled { background-color: #9CA3AF; color: #F9FAFB; }
 
+QPushButton#settingsBtn {
+    background-color: transparent;
+    color: #475569;
+    font-size: 16px;
+    font-weight: 500;
+    border: none;
+    padding: 8px 12px;
+}
+QPushButton#settingsBtn:hover {
+    color: #0F172A;
+    background-color: #E2E8F0;
+    border-radius: 6px;
+}
+
 QPushButton#viewCalendarBtn {
     background-color: #10B981;
     color:            white;

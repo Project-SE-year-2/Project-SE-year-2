@@ -275,3 +275,88 @@ Quiz
     with pytest.raises(ValueError, match="Missing or invalid evaluation type"):
         parser.parse(str(file_path))
 
+
+# Test that old course files without num_students still load with default zero.
+def test_course_parser_defaults_num_students_to_zero_when_missing(tmp_path):
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(
+        "\n".join([
+            "Algorithms",
+            "89123",
+            "Dr. Cohen",
+            "83101,1,FALL,Obligatory",
+            "Exam",
+            "$$$$",
+        ]),
+        encoding="utf-8",
+    )
+
+    courses = CourseFileParser().parse(str(file_path))
+
+    assert len(courses) == 1
+    assert courses[0].num_students == 0
+
+
+# Test that course parser loads num_students when the optional field exists.
+def test_course_parser_loads_num_students_when_present(tmp_path):
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(
+        "\n".join([
+            "Algorithms",
+            "89123",
+            "Dr. Cohen",
+            "num_students=120",
+            "83101,1,FALL,Obligatory",
+            "Exam",
+            "$$$$",
+        ]),
+        encoding="utf-8",
+    )
+
+    courses = CourseFileParser().parse(str(file_path))
+
+    assert len(courses) == 1
+    assert courses[0].num_students == 120
+
+
+# Tests that invalid num_students values produce a clear error message.
+def test_course_parser_rejects_invalid_num_students_value(tmp_path):
+    content = """$$$$
+Algorithms
+89123
+Dr. Cohen
+num_students=abc
+83101,1,FALL,Obligatory
+Exam
+"""
+
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = CourseFileParser()
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid num_students value"
+    ):
+        parser.parse(str(file_path))
+
+# Tests that negative num_students values in course files are rejected.
+def test_course_parser_rejects_negative_num_students_value(tmp_path):
+    content = """$$$$
+Algorithms
+89123
+Dr. Cohen
+num_students=-1
+83101,1,FALL,Obligatory
+Exam
+"""
+
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(content, encoding="utf-8")
+
+    parser = CourseFileParser()
+
+    with pytest.raises(ValueError, match="num_students must be non-negative"):
+        parser.parse(str(file_path))
+

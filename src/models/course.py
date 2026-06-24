@@ -2,7 +2,8 @@ from src.models.program_requirement import ProgramRequirement
 from src.models.enums import Evaluation
 
 class Course:
-    def __init__(self, name: str, course_id: str, instructor: str, evaluation: Evaluation):
+    def __init__(self, name: str, course_id: str, instructor: str, evaluation: Evaluation, num_students: int = 0):
+        self._validate_num_students(num_students)
         # course name
         self.name = name
         # course ID
@@ -11,8 +12,27 @@ class Course:
         self.instructor = instructor
         # course exam type - exam or paper work
         self.evaluation = evaluation
+        # number of students enrolled in the course
+        self.num_students = num_students
         # List to multiple program req
         self.requirements = []
+
+    @staticmethod
+    def _validate_num_students(num_students: int) -> None:
+        """Validate that student count is a non-negative integer."""
+        if not isinstance(num_students, int) or isinstance(num_students, bool):
+            raise ValueError("num_students must be an integer.")
+
+        if num_students < 0:
+            raise ValueError("num_students must be non-negative.")
+
+
+    def __setstate__(self, state: dict) -> None:
+        """Restore old pickled Course objects safely."""
+        self.__dict__.update(state)
+
+        if "num_students" not in self.__dict__:
+            self.num_students = 0
 
     def add_requirement(self, req: ProgramRequirement):
         # add a program requirement to a course

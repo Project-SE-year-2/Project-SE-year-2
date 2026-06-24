@@ -14,6 +14,7 @@ import pytest
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+from src.algorithm.period_results_writer import BATCH_SIZE
 from src.presenter.app_service import AppService
 from src.presenter.data_store import DataStore
 from src.models.course import Course
@@ -697,3 +698,71 @@ def test_load_data_raises_file_not_found_for_missing_programs_path(monkeypatch, 
     with pytest.raises(FileNotFoundError):
         # We explicitly pass a path that does not exist
         service.load_data(str(courses_file), str(dates_file), "replace", programs_path=str(missing_p_file))
+
+
+# ------------------------------------------------------------------ #
+# EP-119 — ranked sort order and frozen cache                         #
+# ------------------------------------------------------------------ #
+
+def test_set_sort_order_stores_columns(monkeypatch):
+    service = _make_service(monkeypatch)
+    service.set_sort_order(["min_days_required", "avg_days_all"])
+    assert service.get_sort_order() == ["min_days_required", "avg_days_all"]
+
+
+def test_set_sort_order_clears_sorted_cache(monkeypatch):
+    service = _make_service(monkeypatch)
+    service._sorted_cache["FALL_Aleph"] = [(0, 0), (0, 1)]
+    service.set_sort_order(["avg_days_all"])
+    assert service._sorted_cache == {}
+
+
+def test_refresh_ranked_view_clears_sorted_cache(monkeypatch):
+    service = _make_service(monkeypatch)
+    service._sorted_cache["FALL_Aleph"] = [(0, 0)]
+    service._sorted_cache["SPRI_Aleph"] = [(1, 2)]
+    service.refresh_ranked_view()
+    assert service._sorted_cache == {}
+
+
+def test_get_period_schedule_uses_frozen_cache_when_sort_active(monkeypatch):
+    """With sort active and a pre-built cache, get_period_schedule reads the
+    schedule pointed to by the cache entry at the requested rank."""
+    service = _make_service(monkeypatch)
+    service.set_sort_order(["min_days_required"])
+
+    # Inject a pre-built frozen cache: rank 0 → batch 0 position 2
+    service._sorted_cache["FALL_Aleph"] = [(0, 2), (0, 0), (0, 1)]
+
+    captured_index = []
+    fake_schedule = MagicMock()
+    monkeypatch.setattr(
+        service._results_reader, "get_schedule_at",
+        lambda pid, idx: (captured_index.append(idx) or fake_schedule),
+    )
+    monkeypatch.setattr(service, "_format_schedule_rows", lambda s: [{"ok": True}])
+
+    result = service.get_period_schedule("FALL_Aleph", 0)
+
+    assert result == [{"ok": True}]
+    assert captured_index == [0 * BATCH_SIZE + 2]
+
+
+def test_get_period_schedule_falls_back_when_no_sort_active(monkeypatch):
+    """With no sort order set, get_period_schedule must not touch scores.db."""
+    service = _make_service(monkeypatch)
+    # No set_sort_order call - _sort_cols stays empty
+
+    disk_called = []
+    monkeypatch.setattr(
+        service._results_reader, "get_count",
+        lambda pid: (disk_called.append(pid) or 1),
+    )
+    fake_schedule = MagicMock()
+    monkeypatch.setattr(service._results_reader, "get_schedule_at", lambda pid, idx: fake_schedule)
+    monkeypatch.setattr(service, "_format_schedule_rows", lambda s: [])
+
+    service.get_period_schedule("FALL_Aleph", 0)
+
+    # went through disk path, not ranked path
+    assert "FALL_Aleph" in disk_called  

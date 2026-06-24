@@ -220,5 +220,31 @@ class TestRankingConfigWidgetItemData(unittest.TestCase):
             self.assertEqual(w.key, item.data(Qt.UserRole))
 
 
+class TestRankingConfigWidgetSignal(unittest.TestCase):
+    """sort_order_changed signal fires correctly on checkbox toggle."""
+
+    def setUp(self):
+        self.widget = RankingConfigWidget()
+        self.received: list = []
+        self.widget.sort_order_changed.connect(self.received.append)
+
+    def _row_widget(self, index: int) -> _RowWidget:
+        return self.widget._list.itemWidget(self.widget._list.item(index))
+
+    def test_signal_emits_when_checkbox_is_checked(self):
+        self._row_widget(0).checkbox.setChecked(True)
+        self.assertTrue(len(self.received) > 0)
+
+    def test_signal_payload_contains_checked_keys_in_visual_order(self):
+        self._row_widget(0).checkbox.setChecked(True)
+        self._row_widget(1).checkbox.setChecked(True)
+        self.assertEqual(self.received[-1], [_DEFAULT_ORDER[0], _DEFAULT_ORDER[1]])
+
+    def test_signal_emits_empty_list_when_all_unchecked(self):
+        self._row_widget(0).checkbox.setChecked(True)
+        self._row_widget(0).checkbox.setChecked(False)
+        self.assertEqual(self.received[-1], [])
+
+
 if __name__ == "__main__":
     unittest.main()

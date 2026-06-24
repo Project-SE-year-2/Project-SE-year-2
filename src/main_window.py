@@ -52,6 +52,9 @@ class MainWindow(QMainWindow):
         # Settings back-navigation must NOT wipe results — user is just browsing settings.
         self.settings_screen.switch_to_input.connect(self._return_to_input_without_wipe)
         self.settings_screen.settings_confirmed.connect(self._on_settings_confirmed)
+        # Route sort changes to AppService and reset output screen position
+        self.settings_screen.ranking_panel.sort_order_changed.connect(self.service.set_sort_order)
+        self.settings_screen.ranking_panel.sort_order_changed.connect(self.output_screen.on_sort_changed)
 
     def _show_output_screen(self):
         """Switches the stacked widget to the Output Screen (Index 1)."""

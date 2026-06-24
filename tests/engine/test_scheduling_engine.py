@@ -10,6 +10,7 @@ from src.algorithm.basic_version_validator import BasicVersionValidator
 from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
 from src.models.enums import Evaluation, Semester, Moed, ReqType
+from src.models.constraint_settings import ConstraintSettings
 
 
 def _build_engine(courses, programs, periods):
@@ -109,3 +110,17 @@ def test_engine_returns_no_schedules_when_conflict_cannot_be_avoided():
 
     assert schedules == []
     assert metadata[period]["valid_count"] == 0
+
+
+# Tests that ConstraintSettings (including room_scheduling_enabled) is stored on the engine
+def test_engine_receives_and_stores_constraint_settings():
+    index = ConstraintIndex()
+    index.build([], [])
+    catalog = ExamPeriodCatalog([])
+    collision_validator = BasicVersionValidator(index)
+    constraint_validator = ConstraintValidator(index, collision_validator)
+
+    settings = ConstraintSettings(room_scheduling_enabled=True)
+    engine = SchedulingEngine(constraint_validator, catalog, index, constraint_settings=settings)
+
+    assert engine._constraint_settings.room_scheduling_enabled is True

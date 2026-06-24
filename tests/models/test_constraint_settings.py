@@ -17,6 +17,7 @@ def test_default_values_are_disabled_and_zero():
     assert settings.spread_k == 0
     assert settings.daily_cap_enabled is False
     assert settings.daily_cap_k == 0
+    assert settings.room_scheduling_enabled is False
 
 
 # Test that to_dict returns all settings fields as a plain dictionary.
@@ -45,6 +46,7 @@ def test_to_dict_returns_expected_values():
         "spread_k": 4,
         "daily_cap_enabled": True,
         "daily_cap_k": 1,
+        "room_scheduling_enabled": False,
     }
 
 
@@ -190,3 +192,39 @@ def test_elective_conflicts_rejects_negative_value_when_enabled():
 
     with pytest.raises(ValueError):
         ConstraintSettings.from_dict(data)
+
+
+# Test that room_scheduling_enabled defaults to False.
+def test_room_scheduling_enabled_defaults_to_false():
+    settings = ConstraintSettings()
+    assert settings.room_scheduling_enabled is False
+
+
+# Test that room_scheduling_enabled can be set to True directly.
+def test_room_scheduling_enabled_can_be_set_to_true():
+    settings = ConstraintSettings(room_scheduling_enabled=True)
+    assert settings.room_scheduling_enabled is True
+
+
+# Test that room_scheduling_enabled is loaded correctly as True from a dictionary.
+def test_room_scheduling_enabled_loaded_as_true_from_dict():
+    settings = ConstraintSettings.from_dict({"room_scheduling_enabled": "true"})
+    assert settings.room_scheduling_enabled is True
+
+
+# Test that room_scheduling_enabled is loaded correctly as False from a dictionary.
+def test_room_scheduling_enabled_loaded_as_false_from_dict():
+    settings = ConstraintSettings.from_dict({"room_scheduling_enabled": "false"})
+    assert settings.room_scheduling_enabled is False
+
+
+# Test that room_scheduling_enabled is included in to_dict output when True.
+def test_room_scheduling_enabled_included_in_to_dict_as_true():
+    settings = ConstraintSettings(room_scheduling_enabled=True)
+    assert settings.to_dict()["room_scheduling_enabled"] is True
+
+
+# Test that room_scheduling_enabled is included in to_dict output when False.
+def test_room_scheduling_enabled_included_in_to_dict_as_false():
+    settings = ConstraintSettings(room_scheduling_enabled=False)
+    assert settings.to_dict()["room_scheduling_enabled"] is False

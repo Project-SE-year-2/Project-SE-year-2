@@ -197,3 +197,23 @@ def test_from_cli_args_enabled_flag_without_k_raises_value_error():
         ConstraintSettingsLoader.from_cli_args([
             "--daily-cap-enabled",
         ])
+
+
+def test_loader_from_cli_loads_room_scheduling_enabled():
+    """Verify that --room-scheduling-enabled CLI flag sets room_scheduling_enabled to True."""
+    settings = ConstraintSettingsLoader.from_cli_args(["--room-scheduling-enabled"])
+    assert settings.room_scheduling_enabled is True
+
+
+def test_loader_from_file_loads_room_scheduling_enabled(tmp_path):
+    """Verify that room_scheduling_enabled=true is parsed correctly from a config file."""
+    config = tmp_path / "constraints.txt"
+    config.write_text(
+        "# ADVANCED_CONSTRAINTS\n"
+        "room_scheduling_enabled=true\n",
+        encoding="utf-8",
+    )
+
+    settings = ConstraintSettingsLoader.from_file(str(config))
+
+    assert settings.room_scheduling_enabled is True

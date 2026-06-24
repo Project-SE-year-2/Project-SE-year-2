@@ -21,6 +21,8 @@ class ConstraintSettings:
     daily_cap_enabled: bool = False
     daily_cap_k: int = 0
 
+    room_scheduling_enabled: bool = False
+
     # Convert the settings object into a plain dictionary.
     def to_dict(self) -> dict:
         return asdict(self)

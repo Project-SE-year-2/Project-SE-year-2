@@ -14,9 +14,12 @@ Communication protocol (lightweight — no ExamSchedule objects cross the bounda
 """
 
 import multiprocessing as mp
+from pathlib import Path
 
 from src.algorithm.period_results_writer import PeriodResultsWriter
 from src.algorithm.constraints.constraint_checker import ConstraintChecker
+from src.algorithm.scoring.schedule_scorer import ScheduleScorer
+from src.presenter.scores_database import ScoresDatabase
 
 
 # ------------------------------------------------------------------ #
@@ -36,8 +39,12 @@ def _solve_single_period(engine, period, courses_dict, root_path, notify_queue, 
 
     checker = ConstraintChecker(constraint_settings) if constraint_settings is not None else None
 
+    scorer = ScheduleScorer.default()
+    root = Path(root_path) if root_path else Path(__file__).parents[2] / "data" / "results"
+
     try:
-        engine.solve_to_disk(period, courses_dict, writer, on_batch_written=on_batch, constraint_checker=checker)
+        with ScoresDatabase(root / "scores.db") as scores_db:
+            engine.solve_to_disk(period, courses_dict, writer, on_batch_written=on_batch, constraint_checker=checker, scorer=scorer, scores_db=scores_db)
     except Exception as exc:
         notify_queue.put({"type": "error", "message": f"Error in {period.period_id}: {str(exc)}"})
     finally:

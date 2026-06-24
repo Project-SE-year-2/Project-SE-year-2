@@ -444,7 +444,7 @@ class OutputScreen(QWidget):
 
         # Guard: on Windows a modal QMessageBox (e.g. the "download success"
         # popup) re-fires showEvent on the active QStackedWidget page when it
-        # closes.  We must NOT reset _period_indices in that case or the user
+        # closes.  We must NOT reset _window_states in that case or the user
         # would silently jump back to schedule 0.
         #
         # Rule:
@@ -901,6 +901,13 @@ class OutputScreen(QWidget):
         self.semester_tabs.set_enabled_all(True)
 
     # ── Toolbar ───────────────────────────────────────────────────────────────
+
+    def on_sort_changed(self, _sort_cols: list = None) -> None:
+        """Reset all period navigation states to 0 when the sort order changes."""
+        for state in self._window_states.values():
+            state.clear()
+        self._global_index = 0
+        self._refresh_screen_display()
 
     def _on_back_clicked(self) -> None:
         if self._day_dialog is not None:

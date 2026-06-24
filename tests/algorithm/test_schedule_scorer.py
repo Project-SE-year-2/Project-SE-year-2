@@ -37,7 +37,8 @@ def test_compute_scores_empty_schedule_all_zero(scorer):
     sched = make_schedule()
     result = scorer.compute_scores(sched)
     assert result.avg_days_all == 0.0
-    assert result.min_days_required == 0.0
+    # no mandatory pairs → undefined minimum
+    assert result.min_days_required == float("inf")  
     assert result.elective_conflicts == 0
     assert result.span_required == 0
     assert result.max_exams_per_day == 0

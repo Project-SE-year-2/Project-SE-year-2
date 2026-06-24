@@ -122,7 +122,7 @@ class SchedulingEngine:
         combined.sort(key=lambda s: s.sort_key)
         return combined, metadata
 
-    def solve_to_disk(self, period: ExamPeriod, courses_dict: dict, writer, on_batch_written=None, constraint_checker=None) -> int:
+    def solve_to_disk(self, period: ExamPeriod, courses_dict: dict, writer, on_batch_written=None, constraint_checker=None, scorer=None, scores_db=None) -> int:
         """Solve one period with solve_stream() and write every BATCH_SIZE schedules
         directly to disk - at most one batch is in RAM at any moment.
 
@@ -130,40 +130,58 @@ class SchedulingEngine:
         enabled advanced constraints before being accepted; failing schedules are
         silently discarded. Passing None disables filtering (default behaviour).
 
+        If scorer and scores_db are provided, quality metrics are computed for every
+        accepted schedule and persisted to scores.db so the UI can sort by them.
+
         Returns the total number of valid schedules written to disk.
         """
         pid = period.period_id
         # Clear stale results from any previous run before writing new ones.
         # Also ensures manifest stays at 0 when the solver finds no valid schedules.
         writer.clear_period(pid)
+        if scores_db is not None:
+            scores_db.clear_period(pid)
 
         courses = list(courses_dict.keys())
         if not courses:
             return 0
 
         batch: list = []
+        score_rows: list = []  # (batch_number, index_in_batch, metrics)
         total = 0
         for sched in self._solver.solve_stream(courses, period, self._validator):
             if constraint_checker is not None and not constraint_checker.is_valid(sched):
                 continue
 
+            # Linear index determines (batch_number, index_in_batch) in PKL files
+            linear = total
             batch.append(sched)
+            if scorer is not None and scores_db is not None:
+                score_rows.append((linear // BATCH_SIZE, linear % BATCH_SIZE, scorer.compute_scores(sched)))
             total += 1
 
             # Eagerly write the very first schedule to disk to unblock the UI instantly
             if total == 1:
                 writer.write_batch(pid, batch)
+                if score_rows:
+                    scores_db.insert_batch(pid, score_rows)
                 if on_batch_written:
                     on_batch_written()
                 batch = []
+                score_rows = []
             elif len(batch) >= BATCH_SIZE:
                 writer.write_batch(pid, batch)
+                if score_rows:
+                    scores_db.insert_batch(pid, score_rows)
                 if on_batch_written:
                     on_batch_written()
                 batch = []
+                score_rows = []
 
         if batch:
             writer.write_batch(pid, batch)
+            if score_rows:
+                scores_db.insert_batch(pid, score_rows)
             if on_batch_written:
                 on_batch_written()
         return total

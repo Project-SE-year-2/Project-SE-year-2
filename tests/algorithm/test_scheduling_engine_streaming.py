@@ -1,11 +1,13 @@
+import sqlite3
 from datetime import date
 from threading import Event
 
 import pytest
 
 from src.algorithm.generation_result import PeriodGenerationResult
-from src.algorithm.period_results_writer import PeriodResultsWriter
+from src.algorithm.period_results_writer import PeriodResultsWriter, BATCH_SIZE
 from src.algorithm.scheduling_engine import SchedulingEngine
+from src.algorithm.scoring.schedule_scorer import ScheduleScorer
 from src.algorithm.constraint_index import ConstraintIndex
 from src.algorithm.exam_period_catalog import ExamPeriodCatalog
 from src.algorithm.basic_version_validator import BasicVersionValidator
@@ -18,6 +20,8 @@ from src.models.exam_schedule import ExamSchedule
 from src.models.enums import Evaluation, Moed, ReqType, Semester
 from src.models.program_requirement import ProgramRequirement
 from src.presenter.results_reader import ResultsReader
+from src.presenter.scores_database import ScoresDatabase
+from src.presenter.ranking_query_engine import RankingQueryEngine
 from tests.algorithm.constraint_helpers import make_elective_course
 
 
@@ -561,3 +565,111 @@ def test_return_value_matches_disk_count(tmp_path):
     reader = ResultsReader(root_path=tmp_path / "results")
     assert total == reader.get_count("FALL_Aleph")
     assert total < 9
+
+
+# ================================================================== #
+# solve_to_disk - scoring pipeline                                    #
+# ================================================================== #
+
+def test_solve_to_disk_with_scoring_writes_one_row_per_schedule(tmp_path):
+    """Each accepted schedule must produce exactly one row in scores.db."""
+    c1 = _make_independent_course("10001")
+    c2 = _make_independent_course("10002")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1, c2], ["10001", "10002"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+    db_path = tmp_path / "scores.db"
+
+    with ScoresDatabase(db_path) as scores_db:
+        total = engine.solve_to_disk(
+            fall, {c1: ["10001"], c2: ["10002"]}, writer,
+            scorer=ScheduleScorer.default(), scores_db=scores_db,
+        )
+
+    with sqlite3.connect(db_path) as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM scores WHERE period_id = ?", ("FALL_Aleph",)
+        ).fetchone()[0]
+
+    assert total == 9
+    assert count == 9
+
+
+def test_solve_to_disk_scoring_indices_point_to_readable_schedules(tmp_path):
+    """batch_number and index_in_batch stored in scores.db must resolve to
+    readable schedules via ResultsReader."""
+    c1 = _make_independent_course("10001")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1], ["10001"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+
+    results_path = tmp_path / "results"
+    db_path = tmp_path / "scores.db"
+
+    with ScoresDatabase(db_path) as scores_db:
+        engine.solve_to_disk(
+            fall, {c1: ["10001"]}, PeriodResultsWriter(root_path=results_path),
+            scorer=ScheduleScorer.default(), scores_db=scores_db,
+        )
+
+    reader = ResultsReader(root_path=results_path)
+    rqe = RankingQueryEngine(db_path)
+    rows = rqe.fetch_window("FALL_Aleph", ["avg_days_all"], limit=2**31 - 1, offset=0)
+    rqe.close()
+
+    assert len(rows) == 3
+    for batch_number, index_in_batch, *_ in rows:
+        linear = batch_number * BATCH_SIZE + index_in_batch
+        sched = reader.get_schedule_at("FALL_Aleph", linear)
+        assert sched is not None, f"No schedule at batch={batch_number}, idx={index_in_batch}"
+
+
+def test_solve_to_disk_second_run_clears_old_scores(tmp_path):
+    """A second solve_to_disk call must replace scores from the first run."""
+    c1 = _make_independent_course("10001")
+
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "03-01-2026")
+    fall.possible_dates = [date(2026, 1, 1), date(2026, 1, 2), date(2026, 1, 3)]
+
+    index = ConstraintIndex()
+    index.build([c1], ["10001"])
+    engine = SchedulingEngine(
+        ConstraintValidator(index, BasicVersionValidator(index)),
+        ExamPeriodCatalog([fall]),
+        index,
+    )
+
+    writer = PeriodResultsWriter(root_path=tmp_path / "results")
+    db_path = tmp_path / "scores.db"
+    scorer = ScheduleScorer.default()
+
+    with ScoresDatabase(db_path) as scores_db:
+        engine.solve_to_disk(fall, {c1: ["10001"]}, writer, scorer=scorer, scores_db=scores_db)
+
+    with ScoresDatabase(db_path) as scores_db:
+        engine.solve_to_disk(fall, {c1: ["10001"]}, writer, scorer=scorer, scores_db=scores_db)
+
+    with sqlite3.connect(db_path) as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM scores WHERE period_id = ?", ("FALL_Aleph",)
+        ).fetchone()[0]
+
+    assert count == 3  # 3 schedules, not 6

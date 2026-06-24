@@ -12,7 +12,6 @@ if app is None:
 
 from src.views.settings_screen.settings_screen import SettingsScreen
 from src.views.settings_screen.constraint_config_widget import ConstraintConfigWidget
-from src.views.settings_screen.ranking_config_widget import RankingConfigWidget
 from src.models.constraint_settings import ConstraintSettings
 
 
@@ -42,10 +41,6 @@ class TestSettingsScreen(unittest.TestCase):
         """constraint_panel must be a ConstraintConfigWidget."""
         self.assertIsInstance(self.screen.constraint_panel, ConstraintConfigWidget)
 
-    def test_ranking_panel_exists(self):
-        """ranking_panel must be a RankingConfigWidget."""
-        self.assertIsInstance(self.screen.ranking_panel, RankingConfigWidget)
-
     def test_back_button_exists(self):
         """Header must expose a back_btn QPushButton."""
         from PyQt5.QtWidgets import QPushButton
@@ -70,37 +65,15 @@ class TestSettingsScreen(unittest.TestCase):
     # Layout — no visual overlap
     # ------------------------------------------------------------------
 
-    def test_two_panels_are_different_objects(self):
-        """constraint_panel and ranking_panel must be separate widget instances."""
-        self.assertIsNot(self.screen.constraint_panel, self.screen.ranking_panel)
-
-    def test_panels_have_positive_size_when_shown(self):
-        """Both panels must have non-zero geometry after the screen is shown."""
+    def test_constraint_panel_has_positive_size_when_shown(self):
+        """The constraint panel must have non-zero geometry after the screen is shown."""
         self.screen.resize(800, 600)
         self.screen.show()
         QApplication.processEvents()
 
         cp = self.screen.constraint_panel
-        rp = self.screen.ranking_panel
         self.assertGreater(cp.width(), 0)
-        self.assertGreater(rp.width(), 0)
 
-        self.screen.hide()
-
-    def test_panels_do_not_overlap(self):
-        """constraint_panel right edge must not exceed ranking_panel left edge."""
-        self.screen.resize(800, 600)
-        self.screen.show()
-        QApplication.processEvents()
-
-        cp_right = (self.screen.constraint_panel
-                    .mapTo(self.screen, self.screen.constraint_panel.rect().topRight())
-                    .x())
-        rp_left = (self.screen.ranking_panel
-                   .mapTo(self.screen, self.screen.ranking_panel.rect().topLeft())
-                   .x())
-
-        self.assertLessEqual(cp_right, rp_left)
         self.screen.hide()
 
 
@@ -269,34 +242,6 @@ class TestSettingsScreenApply(unittest.TestCase):
 
         # The window must stay on the settings screen (index 2).
         self.assertEqual(self.window.stacked_widget.currentIndex(), 2)
-
-    # ------------------------------------------------------------------
-    # Sort order is saved to the service on Apply
-    # ------------------------------------------------------------------
-
-    def test_apply_saves_sort_order_to_service(self):
-        """Clicking Apply must push ranking panel sort order into the service."""
-        # set_sort_order checks the first two metrics and orders them explicitly.
-        self.screen.ranking_panel.set_sort_order(
-            ["avg_days_all", "min_days_required"],
-            checked={"avg_days_all", "min_days_required"},
-        )
-
-        self.screen._on_apply()
-        QApplication.processEvents()
-
-        saved_order = self.service.get_sort_order()
-        self.assertEqual(saved_order, ["avg_days_all", "min_days_required"])
-
-    def test_apply_with_no_checked_metrics_saves_empty_sort_order(self):
-        """When no metrics are checked the saved sort order must be an empty list."""
-        # Uncheck everything by setting all metrics unchecked.
-        self.screen.ranking_panel.set_sort_order([], checked=set())
-
-        self.screen._on_apply()
-        QApplication.processEvents()
-
-        self.assertEqual(self.service.get_sort_order(), [])
 
     # ------------------------------------------------------------------
     # Navigation after Apply

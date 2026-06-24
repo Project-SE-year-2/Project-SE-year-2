@@ -221,7 +221,7 @@ class TestRankingConfigWidgetItemData(unittest.TestCase):
 
 
 class TestRankingConfigWidgetSignal(unittest.TestCase):
-    """sort_order_changed signal fires correctly on checkbox toggle."""
+    """sort_order_changed signal fires only when Apply is clicked."""
 
     def setUp(self):
         self.widget = RankingConfigWidget()
@@ -231,18 +231,20 @@ class TestRankingConfigWidgetSignal(unittest.TestCase):
     def _row_widget(self, index: int) -> _RowWidget:
         return self.widget._list.itemWidget(self.widget._list.item(index))
 
-    def test_signal_emits_when_checkbox_is_checked(self):
+    def test_signal_does_not_emit_when_checkbox_is_checked(self):
         self._row_widget(0).checkbox.setChecked(True)
-        self.assertTrue(len(self.received) > 0)
+        self.assertEqual(self.received, [])
 
-    def test_signal_payload_contains_checked_keys_in_visual_order(self):
+    def test_apply_signal_payload_contains_checked_keys_in_visual_order(self):
         self._row_widget(0).checkbox.setChecked(True)
         self._row_widget(1).checkbox.setChecked(True)
+        self.widget.apply_btn.click()
         self.assertEqual(self.received[-1], [_DEFAULT_ORDER[0], _DEFAULT_ORDER[1]])
 
-    def test_signal_emits_empty_list_when_all_unchecked(self):
+    def test_apply_signal_emits_empty_list_when_all_unchecked(self):
         self._row_widget(0).checkbox.setChecked(True)
         self._row_widget(0).checkbox.setChecked(False)
+        self.widget.apply_btn.click()
         self.assertEqual(self.received[-1], [])
 
 

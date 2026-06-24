@@ -181,6 +181,9 @@ def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue, results_path: s
 
                 notify_queue.put({"type": "all_done"})
 
+            except (KeyboardInterrupt, SystemExit):
+                return  # parent terminated us — exit cleanly, no traceback
+
             except Exception as exc:
                 notify_queue.put({"type": "error", "message": str(exc)})
 

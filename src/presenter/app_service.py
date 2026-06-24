@@ -416,12 +416,6 @@ class AppService(IAppService):
                     for pid in self._current_indices
                 )
             return 0
-        # Ranked mode - always return snapshot size, building cache if needed
-        if self._sort_cols:
-            if period_id not in self._sorted_cache:
-                if not self._build_sorted_cache(period_id):
-                    return 0
-            return len(self._sorted_cache[period_id])
         # Per-period count — disk first
         disk_count = self._results_reader.get_count(period_id)
         if disk_count > 0:
@@ -443,8 +437,10 @@ class AppService(IAppService):
             ranked = self._get_ranked_schedule(period_id, index)
             if ranked is not None:
                 return ranked
-            # Rank out of snapshot range - do not fall back to unsorted disk order    
-            return []  
+            # If ranking data is not available yet, keep showing the regular
+            # disk/in-memory schedule instead of blanking the output screen.
+            if self._sorted_cache.get(period_id):
+                return []
 
         # ── Disk mode ─────────────────────────────────────────────────────────
         disk_count = self._results_reader.get_count(period_id)
@@ -471,16 +467,23 @@ class AppService(IAppService):
         return []
 
     def _get_ranked_schedule(self, period_id: str, rank: int) -> list[dict] | None:
-        """Return the schedule at the given rank using a frozen sorted snapshot.
+        """Return the schedule at the given rank using the current sorted index.
 
-        On first call for a period (or after cache is cleared), queries scores.db
-        once and caches the full sorted index list. Subsequent calls for the same
-        period use the cache so the displayed order stays stable while generation
-        continues writing new scores in the background.
+        The sorted index is refreshed when scores.db receives more rows, so
+        applying a sort changes only retrieval order while generation, polling,
+        and the visible counter continue to progress normally.
         """
         if period_id not in self._sorted_cache:
             if not self._build_sorted_cache(period_id):
                 return None
+        else:
+            engine = self._get_ranking_engine()
+            if engine is not None:
+                try:
+                    if engine.count(period_id) > len(self._sorted_cache[period_id]):
+                        self._build_sorted_cache(period_id)
+                except Exception:
+                    pass
         indices = self._sorted_cache[period_id]
         if rank >= len(indices):
             return None
@@ -497,8 +500,7 @@ class AppService(IAppService):
 
         Only (batch_number, index_in_batch) tuples are loaded - not the full schedule
         data, which stays in batch files on disk. Memory cost is negligible regardless
-        of result set size. Loading everything at once guarantees a stable snapshot so
-        the display order won't silently change while generation writes new scores.
+        of result set size. The cache is refreshed when new scored rows appear.
         """
         engine = self._get_ranking_engine()
         if engine is None:

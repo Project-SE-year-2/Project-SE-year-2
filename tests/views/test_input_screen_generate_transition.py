@@ -83,6 +83,7 @@ class MockAppService:
 
 class FakeGenerateWorker(QObject):
     period_ready = pyqtSignal(str)
+    period_infeasible = pyqtSignal(str, str)
     finished = pyqtSignal(int)
     error = pyqtSignal(str)
 

@@ -2,6 +2,7 @@ import pytest
 
 from src.parsers.course_parser import CourseFileParser
 from src.models.enums import Evaluation, Semester, ReqType
+from src.parsers.course_parser import CourseFileParser
 
 def test_parse_courses_file_loads_courses_correctly(tmp_path):
     content = """$$$$
@@ -274,4 +275,47 @@ Quiz
 
     with pytest.raises(ValueError, match="Missing or invalid evaluation type"):
         parser.parse(str(file_path))
+
+
+# Test that old course files without num_students still load with default zero.
+def test_course_parser_defaults_num_students_to_zero_when_missing(tmp_path):
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(
+        "\n".join([
+            "Algorithms",
+            "89123",
+            "Dr. Cohen",
+            "83101,1,FALL,Obligatory",
+            "Exam",
+            "$$$$",
+        ]),
+        encoding="utf-8",
+    )
+
+    courses = CourseFileParser().parse(str(file_path))
+
+    assert len(courses) == 1
+    assert courses[0].num_students == 0
+
+
+# Test that course parser loads num_students when the optional field exists.
+def test_course_parser_loads_num_students_when_present(tmp_path):
+    file_path = tmp_path / "courses.txt"
+    file_path.write_text(
+        "\n".join([
+            "Algorithms",
+            "89123",
+            "Dr. Cohen",
+            "num_students=120",
+            "83101,1,FALL,Obligatory",
+            "Exam",
+            "$$$$",
+        ]),
+        encoding="utf-8",
+    )
+
+    courses = CourseFileParser().parse(str(file_path))
+
+    assert len(courses) == 1
+    assert courses[0].num_students == 120
 

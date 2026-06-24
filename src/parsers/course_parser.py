@@ -7,7 +7,6 @@ from src.models.enums import Evaluation, Semester, ReqType
 class CourseFileParser(IFileParser):
     @staticmethod
     def _extract_num_students_and_evaluation(
-        self,
         lines: list[str],
     ) -> tuple[int, str, int]:
         """

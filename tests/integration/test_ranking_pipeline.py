@@ -32,13 +32,14 @@ from tests.algorithm.constraint_helpers import (
 )
 
 # Column positions in the tuples fetch_window() returns.
-IDX_BATCH = 0
-IDX_INDEX = 1
-IDX_MIN_DAYS = 2
-IDX_AVG_DAYS = 3
+IDX_BATCH     = 0
+IDX_INDEX     = 1
+IDX_MIN_DAYS  = 2
+IDX_AVG_DAYS  = 3
 IDX_CONFLICTS = 4
-IDX_SPAN = 5
+IDX_SPAN      = 5
 IDX_DAILY_CAP = 6
+IDX_ROOM_DIST = 7
 
 PERIOD = "fall_a"
 
@@ -71,7 +72,7 @@ def _score_and_insert(scorer, db, schedule, batch=0, index=0, period=PERIOD):
 # Full round-trip: every scored value survives the storage layer
 # ---------------------------------------------------------------------------
 
-def test_all_five_metrics_persist_through_pipeline(scorer, db, engine):
+def test_all_six_metrics_persist_through_pipeline(scorer, db, engine):
     """What the scorer computes is exactly what the query returns."""
     c1 = make_obligatory_course("C1", "P1")
     c2 = make_obligatory_course("C2", "P1")
@@ -82,10 +83,11 @@ def test_all_five_metrics_persist_through_pipeline(scorer, db, engine):
     rows = engine.fetch_window(PERIOD, ["avg_days_all"], limit=10, offset=0)
     assert len(rows) == 1
     row = rows[0]
-    assert row[IDX_AVG_DAYS] == metrics.avg_days_all
-    assert row[IDX_CONFLICTS] == metrics.elective_conflicts
-    assert row[IDX_SPAN] == metrics.span_required
-    assert row[IDX_DAILY_CAP] == metrics.max_exams_per_day
+    assert row[IDX_AVG_DAYS]   == metrics.avg_days_all
+    assert row[IDX_CONFLICTS]  == metrics.elective_conflicts
+    assert row[IDX_SPAN]       == metrics.span_required
+    assert row[IDX_DAILY_CAP]  == metrics.max_exams_per_day
+    assert row[IDX_ROOM_DIST]  == metrics.avg_room_distance
 
 
 def test_pointer_columns_round_trip(scorer, db, engine):

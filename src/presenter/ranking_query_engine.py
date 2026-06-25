@@ -5,7 +5,7 @@ Read-only query interface for scores.db.
 
 fetch_window() returns list[tuple] with columns in this fixed order:
     (batch_number, index_in_batch, min_days_required, avg_days_all,
-     elective_conflicts, span_required, max_exams_per_day)
+     elective_conflicts, span_required, max_exams_per_day, avg_room_distance)
 """
 
 import sqlite3
@@ -14,17 +14,18 @@ from typing import Optional
 
 VALID_METRIC_COLUMNS: frozenset = frozenset({
     "min_days_required", "avg_days_all", "elective_conflicts",
-    "span_required", "max_exams_per_day",
+    "span_required", "max_exams_per_day", "avg_room_distance",
 })
 
 ASCENDING_COLS: frozenset = frozenset({
-    "elective_conflicts", "max_exams_per_day",
+    "elective_conflicts", "max_exams_per_day", "avg_room_distance",
 })
 
 ROW_COLUMNS: tuple = (
     "batch_number", "index_in_batch",
     "min_days_required", "avg_days_all",
     "elective_conflicts", "span_required", "max_exams_per_day",
+    "avg_room_distance",
 )
 
 
@@ -48,7 +49,7 @@ class RankingQueryEngine:
         # when multiple rows share identical metric values.
         rows = self._conn.execute(
             f"SELECT batch_number, index_in_batch, min_days_required, avg_days_all, "
-            f"elective_conflicts, span_required, max_exams_per_day "
+            f"elective_conflicts, span_required, max_exams_per_day, avg_room_distance "
             f"FROM scores WHERE period_id = ? "
             f"ORDER BY {order_clause}, batch_number ASC, index_in_batch ASC "
             f"LIMIT ? OFFSET ?",

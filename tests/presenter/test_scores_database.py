@@ -4,12 +4,13 @@ Tests for ScoresDatabase.
 Covers:
   - WAL journal mode is active after __init__
   - scores table exists with the correct columns
-  - all five ranking indexes are created
+  - all six ranking indexes are created
   - insert() stores a single row
   - insert_batch() stores multiple rows in one transaction
   - clear_period() removes only the targeted period's rows
   - rows from different periods are isolated from each other
   - context-manager protocol (with statement) closes cleanly
+  - _migrate() adds avg_room_distance to legacy databases without data loss
 """
 
 import multiprocessing
@@ -29,6 +30,7 @@ def _metrics(
     conflicts: int = 0,
     span: int = 14,
     daily_cap: int = 2,
+    avg_room_distance: float = 0.0,
 ) -> ScheduleMetrics:
     """Return a ScheduleMetrics instance with sensible defaults."""
     return ScheduleMetrics(
@@ -37,6 +39,7 @@ def _metrics(
         elective_conflicts=conflicts,
         span_required=span,
         max_exams_per_day=daily_cap,
+        avg_room_distance=avg_room_distance,
     )
 
 
@@ -101,6 +104,7 @@ def test_scores_table_has_required_columns(db: ScoresDatabase) -> None:
         "elective_conflicts",
         "span_required",
         "max_exams_per_day",
+        "avg_room_distance",
     }
     assert required.issubset(columns)
 
@@ -109,9 +113,9 @@ def test_scores_table_has_required_columns(db: ScoresDatabase) -> None:
 # Ranking indexes
 # ---------------------------------------------------------------------------
 
-def test_all_five_ranking_indexes_exist(db: ScoresDatabase) -> None:
+def test_all_six_ranking_indexes_exist(db: ScoresDatabase) -> None:
     """
-    One composite index must exist for each of the five metric columns.
+    One composite index must exist for each of the six metric columns.
     Missing indexes would force full-table scans on every page fetch.
     """
     indexes = {
@@ -126,6 +130,7 @@ def test_all_five_ranking_indexes_exist(db: ScoresDatabase) -> None:
         "idx_scores_span",
         "idx_scores_conflicts",
         "idx_scores_daily_cap",
+        "idx_scores_room_dist",
     }
     assert expected.issubset(indexes)
 
@@ -141,14 +146,14 @@ def test_insert_stores_one_row(db: ScoresDatabase) -> None:
 
 
 def test_insert_persists_correct_values(db: ScoresDatabase) -> None:
-    """All five metric values must be stored and retrieved exactly."""
-    m = _metrics(min_days=7.5, avg_days=3.2, conflicts=2, span=21, daily_cap=4)
+    """All six metric values must be stored and retrieved exactly."""
+    m = _metrics(min_days=7.5, avg_days=3.2, conflicts=2, span=21, daily_cap=4, avg_room_distance=1.75)
     db.insert("fall_a", batch_number=1, index_in_batch=3, metrics=m)
 
     row = db._conn.execute(
         "SELECT batch_number, index_in_batch, "
         "min_days_required, avg_days_all, elective_conflicts, "
-        "span_required, max_exams_per_day "
+        "span_required, max_exams_per_day, avg_room_distance "
         "FROM scores WHERE period_id = 'fall_a'"
     ).fetchone()
 
@@ -159,6 +164,7 @@ def test_insert_persists_correct_values(db: ScoresDatabase) -> None:
     assert row[4] == 2        # elective_conflicts
     assert row[5] == 21       # span_required
     assert row[6] == 4        # max_exams_per_day
+    assert row[7] == 1.75     # avg_room_distance
 
 
 def test_insert_normalizes_infinite_min_days_to_zero(db: ScoresDatabase) -> None:
@@ -284,6 +290,78 @@ def test_no_queue_insert_does_not_raise(db: ScoresDatabase) -> None:
 def test_no_queue_mark_done_does_not_raise(db: ScoresDatabase) -> None:
     """When no queue is supplied, mark_done() must be a silent no-op."""
     db.mark_done()  # queue=None by default in fixture
+
+
+# ---------------------------------------------------------------------------
+# Migration
+# ---------------------------------------------------------------------------
+
+def test_migrate_adds_column_to_legacy_database(tmp_path: Path) -> None:
+    """
+    Opening a database that is missing avg_room_distance must add the column
+    without losing any existing rows.
+    """
+    import sqlite3
+
+    legacy_db_path = tmp_path / "legacy.db"
+
+    # Build a database that looks like it was created before avg_room_distance existed
+    conn = sqlite3.connect(str(legacy_db_path))
+    conn.execute("""
+        CREATE TABLE scores (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_id          TEXT    NOT NULL,
+            batch_number       INTEGER NOT NULL,
+            index_in_batch     INTEGER NOT NULL,
+            min_days_required  REAL    NOT NULL,
+            avg_days_all       REAL    NOT NULL,
+            elective_conflicts INTEGER NOT NULL,
+            span_required      INTEGER NOT NULL,
+            max_exams_per_day  INTEGER NOT NULL
+        )
+    """)
+    conn.execute(
+        "INSERT INTO scores "
+        "(period_id, batch_number, index_in_batch, "
+        "min_days_required, avg_days_all, elective_conflicts, "
+        "span_required, max_exams_per_day) "
+        "VALUES ('fall_a', 0, 0, 3.0, 4.0, 0, 14, 2)"
+    )
+    conn.commit()
+    conn.close()
+
+    # Opening via ScoresDatabase must silently migrate the schema
+    db = ScoresDatabase(legacy_db_path)
+
+    columns = {
+        row[1]
+        for row in db._conn.execute("PRAGMA table_info(scores)").fetchall()
+    }
+    assert "avg_room_distance" in columns
+
+    # The pre-existing row must still be present and its new column defaults to 0
+    row = db._conn.execute(
+        "SELECT avg_room_distance FROM scores WHERE period_id = 'fall_a'"
+    ).fetchone()
+    assert row is not None
+    assert row[0] == 0.0
+
+    db.close()
+
+
+def test_migrate_is_idempotent_on_fresh_database(db: ScoresDatabase) -> None:
+    """
+    Calling _migrate() on a database that already has avg_room_distance must
+    not raise an error or create a duplicate column.
+    """
+    # second call - column already exists
+    db._migrate()  
+
+    columns = [
+        row[1]
+        for row in db._conn.execute("PRAGMA table_info(scores)").fetchall()
+    ]
+    assert columns.count("avg_room_distance") == 1
 
 
 # ---------------------------------------------------------------------------

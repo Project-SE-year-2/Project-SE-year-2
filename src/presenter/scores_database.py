@@ -75,6 +75,7 @@ class ScoresDatabase:
         self._queue: Optional[multiprocessing.Queue] = queue
         self._enable_wal()
         self._create_scores_table()
+        self._migrate()
         self._create_ranking_indexes()
 
     # ------------------------------------------------------------------
@@ -131,10 +132,34 @@ class ScoresDatabase:
                 avg_days_all        REAL    NOT NULL,
                 elective_conflicts  INTEGER NOT NULL,
                 span_required       INTEGER NOT NULL,
-                max_exams_per_day   INTEGER NOT NULL
+                max_exams_per_day   INTEGER NOT NULL,
+                avg_room_distance   REAL    NOT NULL DEFAULT 0
             )
         """)
         self._conn.commit()
+
+    # ------------------------------------------------------------------
+    # Migration
+    # ------------------------------------------------------------------
+
+    def _migrate(self) -> None:
+        """
+        Add columns introduced after the initial schema without touching existing rows.
+
+        SQLite's ALTER TABLE … ADD COLUMN is non-destructive: existing rows receive
+        the column's DEFAULT value.  The operation is a no-op when the column is
+        already present (caught via OperationalError), so this method is safe to
+        call on both fresh and legacy database files.
+        """
+        existing = {
+            row[1]
+            for row in self._conn.execute("PRAGMA table_info(scores)").fetchall()
+        }
+        if "avg_room_distance" not in existing:
+            self._conn.execute(
+                "ALTER TABLE scores ADD COLUMN avg_room_distance REAL NOT NULL DEFAULT 0"
+            )
+            self._conn.commit()
 
     # ------------------------------------------------------------------
     # Ranking indexes
@@ -166,12 +191,13 @@ class ScoresDatabase:
         """
         index_definitions = [
             # higher-is-better: ORDER BY DESC puts the best schedule first
-            ("idx_scores_min_days",  "min_days_required",  "DESC"),
-            ("idx_scores_avg_days",  "avg_days_all",       "DESC"),
-            ("idx_scores_span",      "span_required",      "DESC"),
+            ("idx_scores_min_days",    "min_days_required",  "DESC"),
+            ("idx_scores_avg_days",    "avg_days_all",       "DESC"),
+            ("idx_scores_span",        "span_required",      "DESC"),
             # lower-is-better: ORDER BY ASC puts the best schedule first
-            ("idx_scores_conflicts", "elective_conflicts",  "ASC"),
-            ("idx_scores_daily_cap", "max_exams_per_day",   "ASC"),
+            ("idx_scores_conflicts",   "elective_conflicts",  "ASC"),
+            ("idx_scores_daily_cap",   "max_exams_per_day",   "ASC"),
+            ("idx_scores_room_dist",   "avg_room_distance",   "ASC"),
         ]
         for idx_name, col, direction in index_definitions:
             self._conn.execute(
@@ -207,8 +233,8 @@ class ScoresDatabase:
             INSERT INTO scores
                 (period_id, batch_number, index_in_batch,
                  min_days_required, avg_days_all, elective_conflicts,
-                 span_required, max_exams_per_day)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 span_required, max_exams_per_day, avg_room_distance)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 period_id,
@@ -219,6 +245,7 @@ class ScoresDatabase:
                 metrics.elective_conflicts,
                 metrics.span_required,
                 metrics.max_exams_per_day,
+                metrics.avg_room_distance,
             ),
         )
         self._conn.commit()
@@ -247,8 +274,8 @@ class ScoresDatabase:
             INSERT INTO scores
                 (period_id, batch_number, index_in_batch,
                  min_days_required, avg_days_all, elective_conflicts,
-                 span_required, max_exams_per_day)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 span_required, max_exams_per_day, avg_room_distance)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -260,6 +287,7 @@ class ScoresDatabase:
                     m.elective_conflicts,
                     m.span_required,
                     m.max_exams_per_day,
+                    m.avg_room_distance,
                 )
                 for batch_num, idx_in_batch, m in rows
             ],

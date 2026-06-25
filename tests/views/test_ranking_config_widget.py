@@ -31,7 +31,7 @@ class TestRankingConfigWidgetStructure(unittest.TestCase):
     def test_list_widget_exists(self):
         self.assertIsInstance(self.widget._list, QListWidget)
 
-    def test_list_has_five_rows(self):
+    def test_list_row_count_matches_all_keys(self):
         self.assertEqual(self.widget._list.count(), len(ALL_KEYS))
 
     def test_drag_drop_mode_is_internal_move(self):

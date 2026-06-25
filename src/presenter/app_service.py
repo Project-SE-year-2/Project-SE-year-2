@@ -30,6 +30,7 @@ from src.models.constraint_settings import ConstraintSettings
 from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
 from src.presenter.ranking_query_engine import RankingQueryEngine
 from src.algorithm.period_results_writer import BATCH_SIZE
+from src.output.pdf_schedule_report_writer import PdfScheduleReportWriter
 
 
 _PROJECT_ROOT = Path(__file__).parents[2]
@@ -662,7 +663,7 @@ class AppService(IAppService):
         if index < 0 or index >= len(self._results):
             raise IndexError(f"Schedule index {index} is out of range.")
         schedule = self._results[index]
-        writer = ScheduleReportWriter()
+        writer = self._create_export_writer(path)
         writer.write(
             schedules=[schedule],
             metadata=self._last_metadata,
@@ -826,7 +827,7 @@ class AppService(IAppService):
             raise ValueError("No schedule data available to export.")
 
         combined = ScheduleCombiner().combineSubResults(schedules_to_merge)
-        ScheduleReportWriter().write(
+        self._create_export_writer(path).write(
             schedules=combined,
             metadata=self._last_metadata,
             programs=self._selected_programs,
@@ -861,7 +862,7 @@ class AppService(IAppService):
         combined_schedules = ScheduleCombiner().combineSubResults(period_schedules)
 
         # 3. Write the merged schedule(s) to disk.
-        ScheduleReportWriter().write(
+        self._create_export_writer(path).write(
             schedules=combined_schedules,
             metadata=self._last_metadata,
             programs=self._selected_programs,
@@ -871,6 +872,14 @@ class AppService(IAppService):
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
     # ------------------------------------------------------------------ #
+
+    def _create_export_writer(self, path: str):
+        """Return the correct report writer according to the requested output file extension."""
+        if path.lower().endswith(".pdf"):
+            return PdfScheduleReportWriter()
+
+        return ScheduleReportWriter()
+
 
     def _validate_paths(self, *paths: str) -> None:
         """Check that each path exists and is not empty. Raises FileNotFoundError or ValueError."""

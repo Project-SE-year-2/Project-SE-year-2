@@ -113,4 +113,4 @@ def test_export_does_not_duplicate_schedule_trailing_divider(tmp_path):
 
     text = _write_report(tmp_path, schedule)
 
-    assert "\n  " + ("-" * 70) + "\n  " + ("-" * 70) not in text
+    assert "\n  " + ("-" * 60) + "\n  " + ("-" * 60) not in text

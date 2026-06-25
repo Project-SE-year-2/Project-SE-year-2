@@ -79,6 +79,7 @@ class AppService(IAppService):
         # Frozen snapshot: per-period list of (batch_number, index_in_batch) in sorted order.
         # Populated lazily on first ranked access; cleared when sort changes or refresh requested.
         self._sorted_cache: dict[str, list[tuple[int, int]]] = {}
+        self._sorted_cache_counts: dict[str, int] = {}
         self._constraint_settings = ConstraintSettings()
         
         self._finished_periods: set[str] = set()
@@ -137,11 +138,13 @@ class AppService(IAppService):
         """
         self._sort_cols = list(sort_cols)
         self._sorted_cache.clear()
+        self._sorted_cache_counts.clear()
 
     def refresh_ranked_view(self) -> None:
         """Clear the frozen snapshot so the next navigation re-queries scores.db.
         Called by the 'Refresh View' banner (Task 121) to accept newly written scores."""
         self._sorted_cache.clear()
+        self._sorted_cache_counts.clear()
 
     def get_sort_order(self) -> list[str]:
         """Return the active sort column list."""
@@ -275,6 +278,7 @@ class AppService(IAppService):
         self._last_metadata.clear()
         self._current_indices.clear()
         self._sorted_cache.clear()
+        self._sorted_cache_counts.clear()
         self._finished_periods.clear()
         self._infeasible_periods.clear()
         self._generation_active = True
@@ -476,7 +480,17 @@ class AppService(IAppService):
         if period_id not in self._sorted_cache:
             if not self._build_sorted_cache(period_id):
                 return None
-        
+        else:
+            engine = self._get_ranking_engine()
+            cached_count = self._sorted_cache_counts.get(period_id)
+
+            if engine is not None and cached_count is not None:
+                try:
+                    current_count = engine.count(period_id)
+                    if current_count > cached_count:
+                        self._build_sorted_cache(period_id)
+                except Exception:
+                    pass
         indices = self._sorted_cache[period_id]
         if rank >= len(indices):
             return None
@@ -500,6 +514,7 @@ class AppService(IAppService):
             return False
         try:
             total = engine.count(period_id)
+            self._sorted_cache_counts[period_id] = total
             if total == 0:
                 self._sorted_cache[period_id] = []
                 return True

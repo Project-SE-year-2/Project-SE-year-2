@@ -146,7 +146,7 @@ def _sorted_placements(schedule: ExamSchedule) -> list[tuple[ExamPeriod, Course,
 def _time_slot_sort_value(placement: ExamPlacement) -> int:
     """Return the sorting value for a placement time slot."""
     if placement.time_slot is None:
-        return -1
+        return 99
 
     return _TIME_SLOT_ORDER.get(placement.time_slot, 99)
 
@@ -154,7 +154,7 @@ def _time_slot_sort_value(placement: ExamPlacement) -> int:
 def _format_rooms(placement: ExamPlacement) -> str:
     """Return assigned rooms as a comma-separated string."""
     if not placement.rooms:
-        return ""
+        return "—"
 
     return ", ".join(
         f"{room.building}-{room.room_id}"
@@ -165,7 +165,7 @@ def _format_rooms(placement: ExamPlacement) -> str:
 def _format_time_slot(placement: ExamPlacement) -> str:
     """Return the time slot string for export."""
     if placement.time_slot is None:
-        return ""
+        return "—"
 
     return placement.time_slot.value
 

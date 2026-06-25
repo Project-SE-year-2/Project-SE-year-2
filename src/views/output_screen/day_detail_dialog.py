@@ -47,6 +47,7 @@ from src.styles.day_detail_dialog_style import (
     ROOM_BULLET_STYLE,
     ROOM_CAPACITY_STYLE,
     ROOM_SECTION_LABEL_STYLE,
+    ROOM_SEPARATOR_STYLE,
     TIME_SLOT_STYLE,
     TITLE_STYLE,
     exam_row_style,
@@ -149,7 +150,7 @@ class _ExamRow(QFrame):
             # Separator between programs and room info
             sep = QFrame()
             sep.setFrameShape(QFrame.HLine)
-            sep.setStyleSheet("color: #E2E8F0; background: #E2E8F0; border: none; max-height: 1px;")
+            sep.setStyleSheet(ROOM_SEPARATOR_STYLE)
             outer.addWidget(sep)
 
         if time_slot:
@@ -214,6 +215,24 @@ class DayDetailDialog(QDialog):
             self.move(anchor_pos)
 
         QTimer.singleShot(0, lambda: QApplication.instance().installEventFilter(self))
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._clamp_to_screen()
+
+    def _clamp_to_screen(self) -> None:
+        """Nudge the dialog inward if it would be clipped by a screen edge."""
+        screen = QApplication.primaryScreen().availableGeometry()
+        geo = self.frameGeometry()
+        x, y = geo.x(), geo.y()
+        if geo.bottom() > screen.bottom():
+            y = screen.bottom() - geo.height()
+        if geo.right() > screen.right():
+            x = screen.right() - geo.width()
+        x = max(x, screen.left())
+        y = max(y, screen.top())
+        if x != geo.x() or y != geo.y():
+            self.move(x, y)
 
     # ------------------------------------------------------------------
     # Build

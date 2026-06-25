@@ -136,3 +136,6 @@ ROOM_BULLET_STYLE = (
 ROOM_CAPACITY_STYLE = (
     "color: #64748B; font-size: 13px; font-weight: 400; background: transparent;"
 )
+
+# Thin horizontal rule between programs section and room info
+ROOM_SEPARATOR_STYLE = "color: #E2E8F0; background: #E2E8F0; border: none; max-height: 1px;"

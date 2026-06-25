@@ -28,6 +28,7 @@ from src.output.schedule_report_writer import ScheduleReportWriter
 from src.models.exam_schedule import ExamSchedule
 from src.models.constraint_settings import ConstraintSettings
 from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
+from src.parsers.room_file_parser import RoomFileParser
 from src.presenter.ranking_query_engine import RankingQueryEngine
 from src.algorithm.period_results_writer import BATCH_SIZE
 
@@ -107,7 +108,6 @@ class AppService(IAppService):
             FileNotFoundError: if the path does not exist.
             ValueError:        if the file is empty or malformed.
         """
-        from src.parsers.room_file_parser import RoomFileParser
         self._validate_paths(path)
         rooms = RoomFileParser().parse(path)
         self._datastore.set_rooms(rooms)

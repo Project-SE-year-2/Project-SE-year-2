@@ -72,6 +72,27 @@ _MAX_K = {
     "daily_cap":          10,
 }
 
+# Shared styles reused in both K-constraint rows and the room scheduling row.
+_CHECKBOX_STYLE = """
+    QCheckBox::indicator {
+        width: 24px; height: 24px;
+        border-radius: 6px;
+        border: 2px solid #94A3B8;
+    }
+    QCheckBox::indicator:checked {
+        background-color: #3B82F6;
+        border-color: #3B82F6;
+    }
+    QCheckBox::indicator:unchecked {
+        background-color: #FFFFFF;
+    }
+    QCheckBox::indicator:unchecked:hover {
+        border-color: #64748B;
+    }
+"""
+_ROW_LABEL_STYLE = "color: #0F172A; font-size: 16px; font-weight: 600;"
+_ROW_DESC_STYLE  = "color: #64748B; font-size: 13px;"
+
 
 class ConstraintConfigWidget(QWidget):
     """Left panel of SettingsScreen - one checkbox+spinbox row per K-constraint,
@@ -126,33 +147,17 @@ class ConstraintConfigWidget(QWidget):
 
         check = QCheckBox()
         check.setChecked(False)
-        check.setStyleSheet("""
-            QCheckBox::indicator {
-                width: 24px; height: 24px;
-                border-radius: 6px;
-                border: 2px solid #94A3B8;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #3B82F6;
-                border-color: #3B82F6;
-            }
-            QCheckBox::indicator:unchecked {
-                background-color: #FFFFFF;
-            }
-            QCheckBox::indicator:unchecked:hover {
-                border-color: #64748B;
-            }
-        """)
+        check.setStyleSheet(_CHECKBOX_STYLE)
         self._checks[key] = check
 
         text_vbox = QVBoxLayout()
         text_vbox.setSpacing(4)
-        
+
         label = QLabel(_CONSTRAINT_LABELS[key])
-        label.setStyleSheet("color: #0F172A; font-size: 16px; font-weight: 600;")
-        
+        label.setStyleSheet(_ROW_LABEL_STYLE)
+
         desc = QLabel(_CONSTRAINT_DESCRIPTIONS[key])
-        desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        desc.setStyleSheet(_ROW_DESC_STYLE)
         desc.setWordWrap(True)
         
         text_vbox.addWidget(label)
@@ -213,36 +218,20 @@ class ConstraintConfigWidget(QWidget):
 
         check = QCheckBox()
         check.setChecked(False)
-        check.setStyleSheet("""
-            QCheckBox::indicator {
-                width: 24px; height: 24px;
-                border-radius: 6px;
-                border: 2px solid #94A3B8;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #3B82F6;
-                border-color: #3B82F6;
-            }
-            QCheckBox::indicator:unchecked {
-                background-color: #FFFFFF;
-            }
-            QCheckBox::indicator:unchecked:hover {
-                border-color: #64748B;
-            }
-        """)
+        check.setStyleSheet(_CHECKBOX_STYLE)
         self._room_scheduling_check = check
 
         text_vbox = QVBoxLayout()
         text_vbox.setSpacing(4)
 
         label = QLabel("Enable Room Scheduling")
-        label.setStyleSheet("color: #0F172A; font-size: 16px; font-weight: 600;")
+        label.setStyleSheet(_ROW_LABEL_STYLE)
 
         desc = QLabel(
             "Assign each exam a time slot and rooms based on student count. "
             "Requires a rooms file to be loaded."
         )
-        desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        desc.setStyleSheet(_ROW_DESC_STYLE)
         desc.setWordWrap(True)
 
         text_vbox.addWidget(label)

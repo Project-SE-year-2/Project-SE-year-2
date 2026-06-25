@@ -5,19 +5,20 @@ from pathlib import Path
 from src.presenter.scores_database import ScoresDatabase, ScheduleMetrics
 from src.presenter.ranking_query_engine import RankingQueryEngine
 
-IDX_BATCH_NUMBER   = 0
-IDX_INDEX_IN_BATCH = 1
-IDX_MIN_DAYS       = 2
-IDX_AVG_DAYS       = 3
-IDX_CONFLICTS      = 4
-IDX_SPAN           = 5
-IDX_DAILY_CAP      = 6
+IDX_BATCH_NUMBER    = 0
+IDX_INDEX_IN_BATCH  = 1
+IDX_MIN_DAYS        = 2
+IDX_AVG_DAYS        = 3
+IDX_CONFLICTS       = 4
+IDX_SPAN            = 5
+IDX_DAILY_CAP       = 6
+IDX_ROOM_DIST       = 7
 
 
-def _m(min_days=3.0, avg_days=4.0, conflicts=0, span=14, daily_cap=2):
+def _m(min_days=3.0, avg_days=4.0, conflicts=0, span=14, daily_cap=2, avg_room_distance=0.0):
     return ScheduleMetrics(min_days_required=min_days, avg_days_all=avg_days,
                            elective_conflicts=conflicts, span_required=span,
-                           max_exams_per_day=daily_cap)
+                           max_exams_per_day=daily_cap, avg_room_distance=avg_room_distance)
 
 
 @pytest.fixture
@@ -35,10 +36,10 @@ def test_fetch_window_returns_list_of_tuples(db, engine):
     rows = engine.fetch_window("fall_a", ["min_days_required"], limit=10, offset=0)
     assert isinstance(rows, list) and isinstance(rows[0], tuple)
 
-def test_fetch_window_tuple_has_seven_elements(db, engine):
+def test_fetch_window_tuple_has_eight_elements(db, engine):
     db.insert("fall_a", 0, 0, _m())
     rows = engine.fetch_window("fall_a", ["min_days_required"], limit=10, offset=0)
-    assert len(rows[0]) == 7
+    assert len(rows[0]) == 8
 
 def test_fetch_window_desc_for_higher_is_better_column(db, engine):
     db.insert("fall_a", 0, 0, _m(min_days=1.0))
@@ -146,6 +147,22 @@ def test_same_data_different_sort_cols_returns_different_order(db, engine):
     by_conf = engine.fetch_window("fall_a", ["elective_conflicts"], limit=10, offset=0)
     assert by_days[0][IDX_MIN_DAYS] == 9.0
     assert by_conf[0][IDX_CONFLICTS] == 0
+
+def test_fetch_window_asc_for_avg_room_distance(db, engine):
+    db.insert("fall_a", 0, 0, _m(avg_room_distance=3.0))
+    db.insert("fall_a", 0, 1, _m(avg_room_distance=1.0))
+    db.insert("fall_a", 0, 2, _m(avg_room_distance=2.0))
+    rows = engine.fetch_window("fall_a", ["avg_room_distance"], limit=10, offset=0)
+    vals = [r[IDX_ROOM_DIST] for r in rows]
+    assert vals == sorted(vals)
+
+def test_best_score_returns_min_for_avg_room_distance(db, engine):
+    db.insert_batch("fall_a", [
+        (0, 0, _m(avg_room_distance=3.0)),
+        (0, 1, _m(avg_room_distance=1.0)),
+        (0, 2, _m(avg_room_distance=2.0)),
+    ])
+    assert engine.best_score("fall_a", "avg_room_distance") == 1.0
 
 def test_context_manager_closes_connection(db_path, db):
     db.insert("fall_a", 0, 0, _m())

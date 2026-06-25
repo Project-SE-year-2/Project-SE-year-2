@@ -123,3 +123,83 @@ def test_room_allocator_does_not_reuse_same_room_in_same_slot():
         placement.time_slot,
         partial,
     ) is None
+
+
+def test_room_allocator_prefers_smallest_single_room_that_fits():
+    rooms = [
+        Room("101", "1", 100),
+        Room("102", "1", 30),
+        Room("103", "1", 60),
+    ]
+    allocator = RoomAllocator(rooms)
+    period = _period()
+
+    allocated = allocator.allocate(
+        _course(students=50),
+        period.possible_dates[0],
+        TimeSlot.MORNING,
+        ExamSchedule(period),
+    )
+
+    assert allocated == (rooms[2],)
+
+
+def test_room_allocator_uses_greedy_multi_room_fallback():
+    rooms = [
+        Room("101", "1", 40),
+        Room("102", "1", 35),
+        Room("103", "1", 20),
+    ]
+    allocator = RoomAllocator(rooms)
+    period = _period()
+
+    allocated = allocator.allocate(
+        _course(students=70),
+        period.possible_dates[0],
+        TimeSlot.MORNING,
+        ExamSchedule(period),
+    )
+
+    assert allocated == (rooms[0], rooms[1])
+
+
+def test_room_allocator_rejects_missing_student_count():
+    allocator = RoomAllocator([Room("101", "1", 30)])
+    period = _period()
+
+    allocated = allocator.allocate(
+        _course(students=0),
+        period.possible_dates[0],
+        TimeSlot.MORNING,
+        ExamSchedule(period),
+    )
+
+    assert allocated is None
+
+
+def test_room_feasibility_rejects_missing_student_count():
+    components = SchedulingModeFactory.create(
+        ConstraintSettings(room_scheduling_enabled=True),
+        [Room("101", "1", 30)],
+    )
+
+    is_valid, message = components.feasibility_checker.validate_courses([
+        _course(students=0)
+    ])
+
+    assert is_valid is False
+    assert "positive student count" in message
+
+
+def test_room_feasibility_rejects_course_over_total_capacity():
+    components = SchedulingModeFactory.create(
+        ConstraintSettings(room_scheduling_enabled=True),
+        [Room("101", "1", 30), Room("102", "1", 20)],
+    )
+
+    is_valid, message = components.feasibility_checker.validate_courses([
+        _course(students=60)
+    ])
+
+    assert is_valid is False
+    assert "total room capacity" in message

@@ -118,6 +118,9 @@ class BacktrackingSolver:
         """
         ordered = self._heuristic.orderByMostConstrained(courses, period)
         partial = ExamSchedule(period)
+        is_mode_feasible, mode_message = self._feasibility_checker.validate_courses(ordered)
+        if not is_mode_feasible:
+            return False, mode_message
 
         for course in ordered:
             candidates = self._valid_candidates_for(course, partial, period, constraint_validator)

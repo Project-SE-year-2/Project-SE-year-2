@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date as DateType
-from itertools import combinations
 from typing import Protocol
 
 from src.algorithm.constraint_validator import ConstraintValidator
@@ -39,6 +38,9 @@ class PlacementFactory(Protocol):
 
 class FeasibilityChecker(Protocol):
     """Checks whether every remaining course still has at least one candidate."""
+
+    def validate_courses(self, courses: list[Course]) -> tuple[bool, str]:
+        ...
 
     def has_viable_assignment(
         self,
@@ -132,14 +134,54 @@ class RoomAllocator:
             room for room in self._rooms
             if not self._is_room_occupied(room, exam_date, time_slot, partial)
         ]
-        required_capacity = max(getattr(course, "num_students", 0), 1)
+        required_capacity = getattr(course, "num_students", 0)
+        if required_capacity <= 0:
+            return None
 
-        for size in range(1, len(available) + 1):
-            for candidate_rooms in combinations(available, size):
-                capacity = sum(room.capacity for room in candidate_rooms)
-                if capacity >= required_capacity:
-                    return candidate_rooms
+        return self._greedy_allocate(available, required_capacity)
+
+    @staticmethod
+    def _greedy_allocate(
+        available: list[Room],
+        required_capacity: int,
+    ) -> tuple[Room, ...] | None:
+        """
+        Allocate rooms without enumerating every possible combination.
+
+        Prefer the smallest single room that fits. If no single room is large
+        enough, accumulate larger rooms first until the capacity requirement is met.
+        """
+        if not available:
+            return None
+
+        by_capacity = sorted(
+            available,
+            key=lambda room: (room.capacity, room.building, room.room_id),
+        )
+        for room in by_capacity:
+            if room.capacity >= required_capacity:
+                return (room,)
+
+        selected: list[Room] = []
+        total_capacity = 0
+        for room in reversed(by_capacity):
+            selected.append(room)
+            total_capacity += room.capacity
+            if total_capacity >= required_capacity:
+                return tuple(
+                    sorted(selected, key=lambda item: (item.building, item.room_id))
+                )
         return None
+
+    @property
+    def has_room_data(self) -> bool:
+        """Return True when at least one room is available for allocation."""
+        return bool(self._rooms)
+
+    @property
+    def total_capacity(self) -> int:
+        """Return total capacity across all rooms known to the allocator."""
+        return sum(room.capacity for room in self._rooms)
 
     @staticmethod
     def _is_room_occupied(
@@ -212,6 +254,10 @@ class DomainFeasibilityChecker:
                 return False
         return True
 
+    def validate_courses(self, courses: list[Course]) -> tuple[bool, str]:
+        """Validate mode-specific course requirements before solver search starts."""
+        return True, ""
+
 
 class DateOnlyFeasibilityChecker(DomainFeasibilityChecker):
     """Feasibility checker for date-only scheduling mode."""
@@ -219,6 +265,49 @@ class DateOnlyFeasibilityChecker(DomainFeasibilityChecker):
 
 class RoomSchedulingFeasibilityChecker(DomainFeasibilityChecker):
     """Feasibility checker for room-aware scheduling mode."""
+
+    def __init__(self, domain_provider: DomainProvider, room_allocator: RoomAllocator) -> None:
+        super().__init__(domain_provider)
+        self._room_allocator = room_allocator
+
+    def validate_courses(self, courses: list[Course]) -> tuple[bool, str]:
+        """Validate room-mode data and capacity before any backtracking search."""
+        if not self._room_allocator.has_room_data:
+            return False, "Room scheduling requires room data."
+
+        total_capacity = self._room_allocator.total_capacity
+        for course in courses:
+            num_students = getattr(course, "num_students", 0)
+            if num_students <= 0:
+                return False, (
+                    f"Course '{course.course_id}' must have a positive student count "
+                    "for room scheduling."
+                )
+            if num_students > total_capacity:
+                return False, (
+                    f"Course '{course.course_id}' has {num_students} students, "
+                    f"but total room capacity is only {total_capacity}."
+                )
+        return True, ""
+
+    def has_viable_assignment(
+        self,
+        remaining: list[Course],
+        partial: ExamSchedule,
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+        partial_constraint_checker: PartialConstraintChecker | None = None,
+    ) -> bool:
+        is_valid, _ = self.validate_courses(remaining)
+        if not is_valid:
+            return False
+        return super().has_viable_assignment(
+            remaining,
+            partial,
+            period,
+            constraint_validator,
+            partial_constraint_checker,
+        )
 
 
 class SchedulingModeFactory:
@@ -247,6 +336,6 @@ class SchedulingModeFactory:
         return SchedulingComponents(
             domain_provider=domain_provider,
             placement_factory=RoomPlacementFactory(),
-            feasibility_checker=RoomSchedulingFeasibilityChecker(domain_provider),
+            feasibility_checker=RoomSchedulingFeasibilityChecker(domain_provider, room_allocator),
             room_allocator=room_allocator,
         )

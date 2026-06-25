@@ -16,10 +16,11 @@ from src.algorithm.constraint_index import ConstraintIndex
 from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_mode_factory import (
     DateOnlyDomainProvider,
-    DomainProvider,
+    DateOnlyPlacementFactory,
     RoomAllocator,
     RoomPlacementFactory,
     RoomSchedulingDomainProvider,
+    SchedulingDomainProvider,
     SchedulingModeFactory,
 )
 from src.models.constraint_settings import ConstraintSettings
@@ -60,13 +61,13 @@ def _partial(period: ExamPeriod) -> ExamSchedule:
 # Protocol compliance
 # ---------------------------------------------------------------------------
 
-def test_date_only_provider_satisfies_domain_provider_protocol():
+def test_date_only_provider_satisfies_scheduling_domain_provider_protocol():
     # The Protocol is structural — an instance must have candidates_for().
     provider = DateOnlyDomainProvider()
     assert hasattr(provider, "candidates_for")
 
 
-def test_room_scheduling_provider_satisfies_domain_provider_protocol():
+def test_room_scheduling_provider_satisfies_scheduling_domain_provider_protocol():
     # RoomSchedulingDomainProvider no longer needs a RoomAllocator — rooms are
     # allocated later by RoomPlacementFactory.
     provider = RoomSchedulingDomainProvider()
@@ -236,6 +237,34 @@ def test_room_provider_requires_no_room_allocator():
     # This must not raise — no allocator argument needed.
     provider = RoomSchedulingDomainProvider()
     assert provider is not None
+
+
+# ---------------------------------------------------------------------------
+# DateOnlyPlacementFactory — must return ExamPlacement, not a raw date
+# ---------------------------------------------------------------------------
+
+def test_date_only_placement_factory_returns_exam_placement():
+    """
+    DateOnlyPlacementFactory.create() must return ExamPlacement, not a raw date.
+    The PlacementFactory Protocol return type is ExamPlacement | None.
+    """
+    factory = DateOnlyPlacementFactory()
+    period = _period(date(2026, 1, 5), date(2026, 1, 5))
+    result = factory.create(date(2026, 1, 5), _course(), _partial(period))
+
+    assert isinstance(result, ExamPlacement)
+    assert result.date == date(2026, 1, 5)
+    assert result.time_slot is None
+    assert result.rooms == ()
+
+
+def test_date_only_placement_factory_is_not_room_based():
+    """date-only placements must report is_room_based=False."""
+    factory = DateOnlyPlacementFactory()
+    period = _period(date(2026, 1, 5), date(2026, 1, 5))
+    result = factory.create(date(2026, 1, 5), _course(), _partial(period))
+
+    assert result.is_room_based is False
 
 
 # ---------------------------------------------------------------------------

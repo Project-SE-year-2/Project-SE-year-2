@@ -9,10 +9,9 @@ from src.algorithm.course_ordering_heuristic import CourseOrderingHeuristic
 from src.algorithm.forward_checker import ForwardChecker
 from src.algorithm.constraints.partial_constraint_checker import PartialConstraintChecker
 from src.algorithm.scheduling_mode_factory import (
-    DateOnlyDomainProvider,
-    DateOnlyFeasibilityChecker,
-    DateOnlyPlacementFactory,
+    RoomSchedulingFeasibilityChecker,
     SchedulingComponents,
+    SchedulingModeFactory,
 )
 
 
@@ -43,9 +42,9 @@ class BacktrackingSolver:
         partial_constraint_checker: PartialConstraintChecker | None = None,
         scheduling_components: SchedulingComponents | None = None,
     ):
-        self._validator = validator
+        # validator and forward_checker kept as params for backward-compat callers;
+        # all collision/feasibility logic runs through _feasibility_checker.
         self._heuristic = heuristic
-        self._forward_checker = forward_checker
         self._partial_constraint_checker = partial_constraint_checker
         self._scheduling_components = scheduling_components or self._default_components()
         self._domain_provider = self._scheduling_components.domain_provider
@@ -54,13 +53,9 @@ class BacktrackingSolver:
 
     @staticmethod
     def _default_components() -> SchedulingComponents:
-        """Keep direct BacktrackingSolver construction date-only by default."""
-        domain_provider = DateOnlyDomainProvider()
-        return SchedulingComponents(
-            domain_provider=domain_provider,
-            placement_factory=DateOnlyPlacementFactory(),
-            feasibility_checker=DateOnlyFeasibilityChecker(domain_provider),
-        )
+        """Fall back to date-only mode when no components are injected."""
+        from src.models.constraint_settings import ConstraintSettings
+        return SchedulingModeFactory.create(ConstraintSettings(room_scheduling_enabled=False))
 
     def solve(
         self,
@@ -82,7 +77,10 @@ class BacktrackingSolver:
         constraint_validator: ConstraintValidator,
     ):
         """
-        Generator that yields valid exam schedules one at a time.
+        Returns a generator that yields valid exam schedules one at a time.
+
+        Validation runs immediately at call time (not lazily on first next()),
+        matching the behaviour of solve().
 
         Phase 1 — randomized backtracking restarts: find the first solution fast
                   by exploring random subtrees.  Yields immediately on success.
@@ -90,6 +88,14 @@ class BacktrackingSolver:
                   skipping the one already yielded in Phase 1.
         """
         self._validate_mode_requirements(courses)
+        return self._solve_stream_gen(courses, period, constraint_validator)
+
+    def _solve_stream_gen(
+        self,
+        courses: list[Course],
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+    ):
         ordered = self._heuristic.orderByMostConstrained(courses, period)
 
         first = self._find_first_with_restarts(ordered, period, constraint_validator)
@@ -124,13 +130,19 @@ class BacktrackingSolver:
         if not is_mode_feasible:
             return False, mode_message
 
+        is_room_mode = isinstance(self._feasibility_checker, RoomSchedulingFeasibilityChecker)
         for course in ordered:
             candidates = self._valid_candidates_for(course, partial, period, constraint_validator)
             if not candidates:
+                detail = (
+                    " Check room capacities and availability for this course."
+                    if is_room_mode else
+                    " Try relaxing the constraints or expanding the date range."
+                )
                 return False, (
-                f"Course '{course.course_id}' has no valid date in period "
-                f"'{period.period_id}' given the selected constraints."
-            )
+                    f"Course '{course.course_id}' has no valid placement in period "
+                    f"'{period.period_id}' given the selected constraints.{detail}"
+                )
 
         for _ in range(30):
             node_count = [0]
@@ -237,8 +249,9 @@ class BacktrackingSolver:
         """
         Return only candidates that pass both collision and partial constraints.
 
-        In date-only mode candidates are date objects. In room mode they are
-        ExamPlacement objects that already include time slot and room data.
+        In date-only mode candidates are date objects.
+        In room mode candidates are ExamBlock(date, time_slot) objects — room
+        allocation happens later in PlacementFactory.create().
         """
         return self._domain_provider.candidates_for(
             course,

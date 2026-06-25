@@ -16,7 +16,7 @@ from src.models.enums import TimeSlot
 from src.models.room import Room
 
 
-class DomainProvider(Protocol):
+class SchedulingDomainProvider(Protocol):
     """Provides valid assignment candidates for a course in the current partial schedule."""
 
     def candidates_for(
@@ -32,7 +32,7 @@ class DomainProvider(Protocol):
 
 class PlacementFactory(Protocol):
     """
-    Converts a domain candidate into the value stored on ExamSchedule.
+    Converts a domain candidate into an ExamPlacement stored on ExamSchedule.
 
     Receives the candidate (date or ExamBlock), the course being placed, and
     the current partial schedule so room-aware factories can check room
@@ -46,7 +46,7 @@ class PlacementFactory(Protocol):
         candidate,
         course: Course,
         partial: ExamSchedule,
-    ) -> ExamPlacement | DateType | None:
+    ) -> ExamPlacement | None:
         ...
 
 
@@ -71,22 +71,22 @@ class FeasibilityChecker(Protocol):
 class SchedulingComponents:
     """The selected solver components for one scheduling mode."""
 
-    domain_provider: DomainProvider
+    domain_provider: SchedulingDomainProvider
     placement_factory: PlacementFactory
     feasibility_checker: FeasibilityChecker
     room_allocator: RoomAllocator | None = None
 
 
 class DateOnlyPlacementFactory:
-    """Returns the date candidate unchanged — ExamSchedule wraps it into ExamPlacement."""
+    """Wraps a raw date into an ExamPlacement with no time_slot or rooms."""
 
     def create(
         self,
         candidate: DateType,
         course: Course,
         partial: ExamSchedule,
-    ) -> DateType:
-        return candidate
+    ) -> ExamPlacement:
+        return ExamPlacement.date_only(candidate)
 
 
 class RoomPlacementFactory:
@@ -113,6 +113,22 @@ class RoomPlacementFactory:
         return ExamPlacement(candidate.date, candidate.time_slot, rooms)
 
 
+def _passes_partial_constraints(
+    course: Course,
+    candidate,
+    partial: ExamSchedule,
+    partial_constraint_checker: PartialConstraintChecker | None,
+) -> bool:
+    """Module-level helper shared by both domain providers."""
+    if partial_constraint_checker is None:
+        return True
+
+    partial.assign(course, candidate)
+    is_valid = partial_constraint_checker.is_valid_partial(partial)
+    partial.unassign(course)
+    return is_valid
+
+
 class DateOnlyDomainProvider:
     """
     Builds the date-only candidate list for the existing date-based solver.
@@ -131,27 +147,12 @@ class DateOnlyDomainProvider:
         for exam_date in period.getAvailableDates():
             if not constraint_validator.canAssign(course, exam_date, partial):
                 continue
-            if not self._passes_partial_constraints(
+            if not _passes_partial_constraints(
                 course, exam_date, partial, partial_constraint_checker
             ):
                 continue
             valid.append(exam_date)
         return valid
-
-    @staticmethod
-    def _passes_partial_constraints(
-        course: Course,
-        candidate,
-        partial: ExamSchedule,
-        partial_constraint_checker: PartialConstraintChecker | None,
-    ) -> bool:
-        if partial_constraint_checker is None:
-            return True
-
-        partial.assign(course, candidate)
-        is_valid = partial_constraint_checker.is_valid_partial(partial)
-        partial.unassign(course)
-        return is_valid
 
 
 class RoomAllocator:
@@ -263,7 +264,7 @@ class RoomSchedulingDomainProvider:
                 continue
             # Partial constraints (AllGap, DailyCap) are date-based, so check
             # once per date before generating individual time-slot blocks.
-            if not DateOnlyDomainProvider._passes_partial_constraints(
+            if not _passes_partial_constraints(
                 course, exam_date, partial, partial_constraint_checker
             ):
                 continue
@@ -275,7 +276,7 @@ class RoomSchedulingDomainProvider:
 class DomainFeasibilityChecker:
     """Shared feasibility checker driven by the selected domain provider."""
 
-    def __init__(self, domain_provider: DomainProvider) -> None:
+    def __init__(self, domain_provider: SchedulingDomainProvider) -> None:
         self._domain_provider = domain_provider
 
     def has_viable_assignment(
@@ -310,15 +311,14 @@ class DateOnlyFeasibilityChecker(DomainFeasibilityChecker):
 class RoomSchedulingFeasibilityChecker(DomainFeasibilityChecker):
     """Feasibility checker for room-aware scheduling mode."""
 
-    def __init__(self, domain_provider: DomainProvider, room_allocator: RoomAllocator) -> None:
+    def __init__(self, domain_provider: SchedulingDomainProvider, room_allocator: RoomAllocator) -> None:
         super().__init__(domain_provider)
         self._room_allocator = room_allocator
 
     def validate_courses(self, courses: list[Course]) -> tuple[bool, str]:
         """Validate room-mode data and capacity before any backtracking search."""
-        if not self._room_allocator.has_room_data:
-            return False, "Room scheduling requires room data."
-
+        # Room.capacity > 0 is already enforced by Room.__post_init__, so no
+        # explicit room-capacity check is needed here.
         total_capacity = self._room_allocator.total_capacity
         for course in courses:
             num_students = getattr(course, "num_students", 0)
@@ -333,25 +333,6 @@ class RoomSchedulingFeasibilityChecker(DomainFeasibilityChecker):
                     f"but total room capacity is only {total_capacity}."
                 )
         return True, ""
-
-    def has_viable_assignment(
-        self,
-        remaining: list[Course],
-        partial: ExamSchedule,
-        period: ExamPeriod,
-        constraint_validator: ConstraintValidator,
-        partial_constraint_checker: PartialConstraintChecker | None = None,
-    ) -> bool:
-        is_valid, _ = self.validate_courses(remaining)
-        if not is_valid:
-            return False
-        return super().has_viable_assignment(
-            remaining,
-            partial,
-            period,
-            constraint_validator,
-            partial_constraint_checker,
-        )
 
 
 class SchedulingModeFactory:

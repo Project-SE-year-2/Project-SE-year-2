@@ -78,11 +78,10 @@ def test_room_mode_solve_stream_enforces_course_validation_before_search():
     solver, validator = _setup_room_solver([course], ["83101"], [Room("101", "1", 30)])
     period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "01-01-2026")
     period.possible_dates = [date(2026, 1, 1)]
-    stream = solver.solve_stream([course], period, validator)
 
-    # Generator validation runs when iteration starts.
+    # Validation runs eagerly at call time, matching solve() behaviour.
     with pytest.raises(ValueError, match="total room capacity"):
-        next(stream)
+        solver.solve_stream([course], period, validator)
 
 
 def test_room_mode_check_feasibility_returns_validation_message():
@@ -393,6 +392,36 @@ def test_solve_stream_zero_solutions():
 
     results = list(solver.solve_stream([c1, c2], period, validator))
     assert len(results) == 0
+
+
+def test_room_mode_solve_produces_valid_placements_with_rooms():
+    """
+    Acceptance criteria for EP-134: room-based schedules generate successfully.
+    Solver must return ExamPlacement objects that contain actual room assignments.
+    """
+    from src.models.exam_placement import ExamPlacement
+
+    c1 = Course("C1", "1", "A", Evaluation.Exam, 20)
+    c2 = Course("C2", "2", "B", Evaluation.Exam, 15)
+    rooms = [Room("101", "1", 30), Room("102", "1", 25)]
+
+    solver, validator = _setup_room_solver([c1, c2], ["P1", "P2"], rooms)
+
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "02-01-2026")
+    period.possible_dates = [date(2026, 1, 1), date(2026, 1, 2)]
+
+    schedules = solver.solve([c1, c2], period, validator)
+
+    assert len(schedules) > 0, "Room-mode solver must find at least one schedule"
+
+    for sched in schedules:
+        placements = sched.placements
+        for course in [c1, c2]:
+            placement = placements[course]
+            assert isinstance(placement, ExamPlacement), "Must be ExamPlacement, not a raw date"
+            assert placement.is_room_based, "Placement must have a time_slot and at least one room"
+            assert len(placement.rooms) > 0
+            assert placement.total_capacity >= course.num_students
 
 
 def test_solve_stream_early_stop():

@@ -206,6 +206,12 @@ def test_room_feasibility_rejects_missing_student_count():
     assert "positive student count" in message
 
 
+def test_room_model_rejects_zero_capacity():
+    """Room.__post_init__ enforces capacity > 0, so FeasibilityChecker never sees a zero-capacity room."""
+    with pytest.raises(ValueError, match="positive integer"):
+        Room("101", "1", 0)
+
+
 def test_room_feasibility_rejects_course_over_total_capacity():
     components = SchedulingModeFactory.create(
         ConstraintSettings(room_scheduling_enabled=True),

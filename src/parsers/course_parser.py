@@ -5,6 +5,45 @@ from src.models.enums import Evaluation, Semester, ReqType
 
 # Parser class for loading courses
 class CourseFileParser(IFileParser):
+    @staticmethod
+    def _extract_num_students_and_evaluation(lines: list[str]) -> tuple[int, str, int]:
+        """
+        Extract optional num_students and evaluation from a course record.
+
+        Old format:
+            name
+            course_id
+            instructor
+            requirements...
+            evaluation
+
+        New format:
+            name
+            course_id
+            instructor
+            num_students=120
+            requirements...
+            evaluation
+        """
+        num_students = 0
+        first_requirement_index = 3
+
+        optional_students_line = lines[3].strip()
+        if optional_students_line.startswith("num_students="):
+            raw_value = optional_students_line.split("=", 1)[1].strip()
+
+            try:
+                num_students = int(raw_value)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid num_students value: '{raw_value}'. "
+                    "Expected a non-negative integer."
+                )
+
+            first_requirement_index = 4
+
+        return num_students, lines[-1], first_requirement_index
+
     def parse(self, filepath: str) -> list[Course]:
         courses = []
         
@@ -28,7 +67,9 @@ class CourseFileParser(IFileParser):
             name = lines[0]
             course_id = lines[1]
             instructor = lines[2]
-            evaluation = lines[-1]
+            num_students, evaluation, first_req_index = (
+                self._extract_num_students_and_evaluation(lines)
+            )
 
             if "," in name:
                 raise ValueError("Missing course name")
@@ -42,16 +83,16 @@ class CourseFileParser(IFileParser):
             if evaluation not in ["Exam", "Project", "Attendance"]:
                 raise ValueError("Missing or invalid evaluation type")
             
-            # extract course metadata
-            name = lines[0]
-            course_id = lines[1]
-            instructor = lines[2]
-            evaluation = lines[-1]
-
-            course = Course(name, course_id, instructor, Evaluation(evaluation))
+            course = Course(
+                name=name,
+                course_id=course_id,
+                instructor=instructor,
+                evaluation=Evaluation(evaluation),
+                num_students=num_students,
+            )
             
             # extract program requirements
-            for i in range(3, len(lines) - 1):
+            for i in range(first_req_index, len(lines) - 1):
                 prog_data = lines[i].split(',')
                 
                 # raises an error if a program requirement line is missing fields

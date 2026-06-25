@@ -41,10 +41,13 @@ class ExamSchedule:
     def placements(self) -> dict[Course, ExamPlacement]:
         """Returns only the primary-period placements with full scheduling data."""
         if self.period is None:
-            # Cross-period schedule: return flat course->placement (last period wins,
-            # safe because the same course key is unique within a period)
-            return {c: placement for (_, c), placement in self._store.items()}
+            return self._flat_cross_period_placements()
         return {c: placement for (p, c), placement in self._store.items() if p is self.period}
+
+    def iter_placements(self):
+        """Yield (period, course, placement) for every stored placement."""
+        for period, course, placement in self._all_store_items():
+            yield period, course, placement
 
     def assign(self, course: Course, exam_date: DateType | ExamPlacement) -> None:
         """Assign a course to either a legacy date or a full ExamPlacement."""
@@ -97,7 +100,7 @@ class ExamSchedule:
                 for course, placement in sorted(items, key=lambda x: self._placement_sort_key(x[1]))
             ]
 
-        items = [(p, c, placement) for (p, c), placement in self._store.items()]
+        items = list(self.iter_placements())
         sorted_items = sorted(
             items,
             key=lambda x: (
@@ -164,7 +167,7 @@ class ExamSchedule:
             ]
             return sorted(items, key=lambda x: self._placement_sort_key(x[1]))
 
-        items = [(period, course, placement) for (period, course), placement in self._store.items()]
+        items = self._all_store_items()
         return sorted(
             items,
             key=lambda x: (
@@ -173,3 +176,19 @@ class ExamSchedule:
                 *self._placement_sort_key(x[2]),
             ),
         )
+
+    def _all_store_items(self) -> list:
+        """Return raw store items as (period, course, placement) tuples."""
+        return [(period, course, placement) for (period, course), placement in self._store.items()]
+
+    def _flat_cross_period_placements(self) -> dict[Course, ExamPlacement]:
+        """Return legacy Course -> placement view, refusing lossy duplicates."""
+        result: dict[Course, ExamPlacement] = {}
+        for period, course, placement in self._all_store_items():
+            if course in result:
+                raise ValueError(
+                    "Cross-period schedule contains the same course in multiple periods. "
+                    "Use iter_placements() to access period-specific placements."
+                )
+            result[course] = placement
+        return result

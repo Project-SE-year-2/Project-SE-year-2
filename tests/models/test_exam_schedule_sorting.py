@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from src.models.course import Course
 from src.models.exam_placement import ExamPlacement
 from src.models.exam_period import ExamPeriod
@@ -248,3 +250,30 @@ def test_merge_preserves_cross_period_placements():
     assert merged.assignments[course2] == date(2026, 7, 1)
     assert merged.placements[course1] == fall_placement
     assert merged.placements[course2] == spri_placement
+
+
+def test_iter_placements_preserves_same_course_across_periods():
+    fall = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
+    spri = ExamPeriod(Semester.SPRI, Moed.Bet, date(2026, 7, 1), date(2026, 7, 1))
+    shared_course = Course("Algorithms", "89123", "Dr. Cohen", Evaluation.Exam)
+
+    fall_schedule = ExamSchedule(fall)
+    fall_placement = ExamPlacement(date(2026, 2, 1), TimeSlot.MORNING)
+    fall_schedule.assign(shared_course, fall_placement)
+
+    spri_schedule = ExamSchedule(spri)
+    spri_placement = ExamPlacement(date(2026, 7, 1), TimeSlot.AFTERNOON)
+    spri_schedule.assign(shared_course, spri_placement)
+
+    merged = fall_schedule.merge(spri_schedule)
+    placements = list(merged.iter_placements())
+
+    assert len(placements) == 2
+    assert (fall, shared_course, fall_placement) in placements
+    assert (spri, shared_course, spri_placement) in placements
+
+    with pytest.raises(ValueError, match="Use iter_placements"):
+        _ = merged.placements
+
+    with pytest.raises(ValueError, match="Use iter_placements"):
+        _ = merged.assignments

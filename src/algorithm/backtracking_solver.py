@@ -68,6 +68,7 @@ class BacktrackingSolver:
         period: ExamPeriod,
         constraint_validator: ConstraintValidator,
     ) -> list[ExamSchedule]:
+        self._validate_mode_requirements(courses)
         results: list[ExamSchedule] = []
         partial = ExamSchedule(period)
         ordered = self._heuristic.orderByMostConstrained(courses, period)
@@ -88,6 +89,7 @@ class BacktrackingSolver:
         Phase 2 — systematic backtracking: enumerates all remaining solutions,
                   skipping the one already yielded in Phase 1.
         """
+        self._validate_mode_requirements(courses)
         ordered = self._heuristic.orderByMostConstrained(courses, period)
 
         first = self._find_first_with_restarts(ordered, period, constraint_validator)
@@ -118,7 +120,7 @@ class BacktrackingSolver:
         """
         ordered = self._heuristic.orderByMostConstrained(courses, period)
         partial = ExamSchedule(period)
-        is_mode_feasible, mode_message = self._feasibility_checker.validate_courses(ordered)
+        is_mode_feasible, mode_message = self._validate_mode_requirements_result(ordered)
         if not is_mode_feasible:
             return False, mode_message
 
@@ -146,6 +148,16 @@ class BacktrackingSolver:
         )
 
     # ── Randomized backtracking — find first solution fast ────────────────────
+
+    def _validate_mode_requirements(self, courses: list[Course]) -> None:
+        """Raise when the selected scheduling mode cannot schedule these courses."""
+        is_valid, message = self._validate_mode_requirements_result(courses)
+        if not is_valid:
+            raise ValueError(message)
+
+    def _validate_mode_requirements_result(self, courses: list[Course]) -> tuple[bool, str]:
+        """Return validation for requirements owned by the selected scheduling mode."""
+        return self._feasibility_checker.validate_courses(courses)
 
     _RBT_RESTARTS   = 200    # how many random restarts to attempt
     _RBT_NODE_LIMIT = 5_000  # max nodes explored per restart before giving up

@@ -11,9 +11,11 @@ from src.algorithm.course_ordering_heuristic import CourseOrderingHeuristic
 from src.algorithm.forward_checker import ForwardChecker
 from src.algorithm.backtracking_solver import BacktrackingSolver
 from src.algorithm.schedule_combiner import ScheduleCombiner
+from src.algorithm.scheduling_mode_factory import SchedulingModeFactory
 from src.algorithm.generation_result import PeriodGenerationResult
 from src.algorithm.period_results_writer import BATCH_SIZE
 from src.models.constraint_settings import ConstraintSettings
+from src.models.room import Room
 from src.algorithm.constraints.partial_constraint_registry import PartialConstraintRegistry
 
 
@@ -34,18 +36,26 @@ class SchedulingEngine:
         catalog: ExamPeriodCatalog,
         index: ConstraintIndex,
         constraint_settings: ConstraintSettings | None = None,
+        rooms: list[Room] | None = None,
     ):
         self._validator = validator
         self._catalog = catalog
         self._index = index
-        self._constraint_settings = constraint_settings
+        self._constraint_settings = constraint_settings or ConstraintSettings()
 
         collision_validator = BasicVersionValidator(index)
         heuristic = CourseOrderingHeuristic(index)
         forward_checker = ForwardChecker(validator)
-        partial_constraint_checker = PartialConstraintRegistry.build(constraint_settings)
+        partial_constraint_checker = PartialConstraintRegistry.build(self._constraint_settings)
+        scheduling_components = SchedulingModeFactory.create(self._constraint_settings, rooms)
 
-        self._solver = BacktrackingSolver(collision_validator, heuristic, forward_checker, partial_constraint_checker)
+        self._solver = BacktrackingSolver(
+            collision_validator,
+            heuristic,
+            forward_checker,
+            partial_constraint_checker,
+            scheduling_components,
+        )
         self._combiner = ScheduleCombiner()
 
     def _solve_period(

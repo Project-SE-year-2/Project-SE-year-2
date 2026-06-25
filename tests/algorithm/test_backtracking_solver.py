@@ -9,7 +9,10 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.course_ordering_heuristic import CourseOrderingHeuristic
 from src.algorithm.forward_checker import ForwardChecker
 from src.algorithm.backtracking_solver import BacktrackingSolver
+from src.algorithm.scheduling_mode_factory import SchedulingModeFactory
+from src.models.constraint_settings import ConstraintSettings
 from src.models.enums import Evaluation, Semester, Moed, ReqType
+from src.models.room import Room
 
 def _setup_solver(courses, programs):
     index = ConstraintIndex()
@@ -20,6 +23,27 @@ def _setup_solver(courses, programs):
     checker = ForwardChecker(validator)
     
     solver = BacktrackingSolver(collision_validator, heuristic, checker)
+    return solver, validator
+
+
+def _setup_room_solver(courses, programs, rooms):
+    index = ConstraintIndex()
+    index.build(courses, programs)
+    collision_validator = BasicVersionValidator(index)
+    validator = ConstraintValidator(index, collision_validator)
+    heuristic = CourseOrderingHeuristic(index)
+    checker = ForwardChecker(validator)
+    components = SchedulingModeFactory.create(
+        ConstraintSettings(room_scheduling_enabled=True),
+        rooms,
+    )
+
+    solver = BacktrackingSolver(
+        collision_validator,
+        heuristic,
+        checker,
+        scheduling_components=components,
+    )
     return solver, validator
 
 def test_solver_finds_all_solutions_no_conflicts():
@@ -37,6 +61,39 @@ def test_solver_finds_all_solutions_no_conflicts():
     # 2 independent courses assigned over 2 available days = 2 * 2 = 4 total possibilities
     schedules = solver.solve([c1, c2], period, validator)
     assert len(schedules) == 4
+
+
+def test_room_mode_solve_enforces_course_validation_before_search():
+    course = Course("C1", "1", "A", Evaluation.Exam, 0)
+    solver, validator = _setup_room_solver([course], ["83101"], [Room("101", "1", 30)])
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "01-01-2026")
+    period.possible_dates = [date(2026, 1, 1)]
+
+    with pytest.raises(ValueError, match="positive student count"):
+        solver.solve([course], period, validator)
+
+
+def test_room_mode_solve_stream_enforces_course_validation_before_search():
+    course = Course("C1", "1", "A", Evaluation.Exam, 40)
+    solver, validator = _setup_room_solver([course], ["83101"], [Room("101", "1", 30)])
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "01-01-2026")
+    period.possible_dates = [date(2026, 1, 1)]
+
+    # Validation runs eagerly at call time, matching solve() behaviour.
+    with pytest.raises(ValueError, match="total room capacity"):
+        solver.solve_stream([course], period, validator)
+
+
+def test_room_mode_check_feasibility_returns_validation_message():
+    course = Course("C1", "1", "A", Evaluation.Exam, 0)
+    solver, validator = _setup_room_solver([course], ["83101"], [Room("101", "1", 30)])
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "01-01-2026")
+    period.possible_dates = [date(2026, 1, 1)]
+
+    is_valid, message = solver.check_feasibility([course], period, validator)
+
+    assert is_valid is False
+    assert "positive student count" in message
 
 def test_solver_returns_empty_when_impossible():
     c1 = Course("C1", "1", "A", Evaluation.Exam)
@@ -335,6 +392,36 @@ def test_solve_stream_zero_solutions():
 
     results = list(solver.solve_stream([c1, c2], period, validator))
     assert len(results) == 0
+
+
+def test_room_mode_solve_produces_valid_placements_with_rooms():
+    """
+    Acceptance criteria for EP-134: room-based schedules generate successfully.
+    Solver must return ExamPlacement objects that contain actual room assignments.
+    """
+    from src.models.exam_placement import ExamPlacement
+
+    c1 = Course("C1", "1", "A", Evaluation.Exam, 20)
+    c2 = Course("C2", "2", "B", Evaluation.Exam, 15)
+    rooms = [Room("101", "1", 30), Room("102", "1", 25)]
+
+    solver, validator = _setup_room_solver([c1, c2], ["P1", "P2"], rooms)
+
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, "01-01-2026", "02-01-2026")
+    period.possible_dates = [date(2026, 1, 1), date(2026, 1, 2)]
+
+    schedules = solver.solve([c1, c2], period, validator)
+
+    assert len(schedules) > 0, "Room-mode solver must find at least one schedule"
+
+    for sched in schedules:
+        placements = sched.placements
+        for course in [c1, c2]:
+            placement = placements[course]
+            assert isinstance(placement, ExamPlacement), "Must be ExamPlacement, not a raw date"
+            assert placement.is_room_based, "Placement must have a time_slot and at least one room"
+            assert len(placement.rooms) > 0
+            assert placement.total_capacity >= course.num_students
 
 
 def test_solve_stream_early_stop():

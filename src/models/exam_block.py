@@ -12,7 +12,7 @@ class ExamBlock:
     Represents one scheduling option in room-scheduling mode.
 
     Example:
-        date=01/07/2026
+        date=date(2026, 7, 1)
         time_slot=TimeSlot.MORNING
     """
 

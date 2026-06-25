@@ -1,9 +1,11 @@
 from datetime import date
+import pytest
 
 from src.models.enums import TimeSlot
 from src.models.exam_block import ExamBlock
 from src.models.exam_placement import ExamPlacement
 from src.models.room import Room
+from dataclasses import FrozenInstanceError
 
 
 # Test that ExamBlock stores a date and time slot.
@@ -63,3 +65,27 @@ def test_total_capacity_without_rooms():
     placement = ExamPlacement.date_only(date(2026, 7, 1))
 
     assert placement.total_capacity == 0
+
+
+def test_with_rooms_rejects_empty_rooms():
+    with pytest.raises(ValueError, match="with_rooms requires at least one room"):
+        ExamPlacement.with_rooms(
+            exam_date=date(2026, 7, 1),
+            time_slot=TimeSlot.MORNING,
+            rooms=(),
+        )
+
+def test_exam_placement_is_immutable():
+    placement = ExamPlacement.date_only(date(2026, 7, 1))
+
+    with pytest.raises(FrozenInstanceError):
+        placement.date = date(2026, 8, 1)
+
+def test_exam_block_is_immutable():
+    block = ExamBlock(
+        date=date(2026, 7, 1),
+        time_slot=TimeSlot.MORNING,
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        block.date = date(2026, 8, 1)

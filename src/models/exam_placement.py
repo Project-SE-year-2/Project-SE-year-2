@@ -44,6 +44,8 @@ class ExamPlacement:
         rooms: tuple[Room, ...],
     ) -> "ExamPlacement":
         """Create a room-based placement."""
+        if not rooms:
+            raise ValueError("with_rooms requires at least one room.")
         return cls(
             date=exam_date,
             time_slot=time_slot,

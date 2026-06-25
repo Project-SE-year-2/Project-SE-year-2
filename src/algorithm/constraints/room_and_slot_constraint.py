@@ -44,8 +44,14 @@ class RoomAndSlotConstraint(IConstraint):
                 occupied.add(key)
 
             # Rule 2 — capacity
+            # A room-based placement with no valid student count is always
+            # invalid: the normal solver path blocks this via
+            # RoomSchedulingFeasibilityChecker, but manually constructed
+            # schedules may bypass that check.
             num_students = getattr(course, "num_students", 0)
-            if num_students > 0 and placement.total_capacity < num_students:
+            if num_students <= 0:
+                return False
+            if placement.total_capacity < num_students:
                 return False
 
         return True

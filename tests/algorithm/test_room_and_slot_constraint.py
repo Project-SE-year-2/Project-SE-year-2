@@ -229,14 +229,55 @@ def test_multi_room_combined_capacity_below_student_count_fails():
     assert constraint.is_satisfied(sched) is False
 
 
-def test_course_with_zero_students_skips_capacity_check():
+def test_room_based_placement_with_zero_students_fails():
     """
-    A course with num_students=0 means the count is unknown; the capacity
-    rule should be skipped rather than incorrectly failing.
+    A room-based placement with num_students=0 must be rejected.
+    The solver normally blocks this earlier (RoomSchedulingFeasibilityChecker),
+    but manually constructed schedules must not bypass final validation.
     """
     constraint = RoomAndSlotConstraint()
     course = _course(students=0)
     sched = _schedule(
+        (course, _placement(date(2026, 1, 5), TimeSlot.MORNING, (ROOM_C,))),
+    )
+    assert constraint.is_satisfied(sched) is False
+
+
+def test_room_based_placement_with_missing_student_count_fails():
+    """
+    A Course object with no num_students attribute at all (getattr returns 0)
+    must be rejected when part of a room-based placement.
+    """
+    constraint = RoomAndSlotConstraint()
+    # Build a course without num_students by removing the attribute after creation.
+    course = _course(students=10)
+    del course.num_students
+    sched = _schedule(
+        (course, _placement(date(2026, 1, 5), TimeSlot.MORNING, (ROOM_A,))),
+    )
+    assert constraint.is_satisfied(sched) is False
+
+
+def test_date_only_placement_with_zero_students_still_passes():
+    """
+    The stricter student-count check applies only to room-based placements.
+    A date-only placement (no rooms) must pass regardless of num_students.
+    """
+    constraint = RoomAndSlotConstraint()
+    sched = ExamSchedule(PERIOD)
+    sched.assign(_course(students=0), date(2026, 1, 5))
+    assert constraint.is_satisfied(sched) is True
+
+
+def test_room_based_placement_with_valid_count_and_enough_capacity_passes():
+    """
+    A room-based placement with a positive num_students and sufficient room
+    capacity is valid and must pass the constraint.
+    """
+    constraint = RoomAndSlotConstraint()
+    course = _course(students=30)
+    sched = _schedule(
+        # ROOM_C has capacity 30 — exactly meets the requirement.
         (course, _placement(date(2026, 1, 5), TimeSlot.MORNING, (ROOM_C,))),
     )
     assert constraint.is_satisfied(sched) is True

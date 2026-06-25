@@ -153,7 +153,7 @@ class RoomAllocator:
         """
         if not available:
             return None
-
+        # Sort available rooms by capacity, then building, then room_id for deterministic selection.
         by_capacity = sorted(
             available,
             key=lambda room: (room.capacity, room.building, room.room_id),

@@ -8,6 +8,12 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.course_ordering_heuristic import CourseOrderingHeuristic
 from src.algorithm.forward_checker import ForwardChecker
 from src.algorithm.constraints.partial_constraint_checker import PartialConstraintChecker
+from src.algorithm.scheduling_mode_factory import (
+    DateOnlyDomainProvider,
+    DateOnlyFeasibilityChecker,
+    DateOnlyPlacementFactory,
+    SchedulingComponents,
+)
 
 
 class BacktrackingSolver:
@@ -35,11 +41,26 @@ class BacktrackingSolver:
         heuristic: CourseOrderingHeuristic,
         forward_checker: ForwardChecker,
         partial_constraint_checker: PartialConstraintChecker | None = None,
+        scheduling_components: SchedulingComponents | None = None,
     ):
         self._validator = validator
         self._heuristic = heuristic
         self._forward_checker = forward_checker
         self._partial_constraint_checker = partial_constraint_checker
+        self._scheduling_components = scheduling_components or self._default_components()
+        self._domain_provider = self._scheduling_components.domain_provider
+        self._placement_factory = self._scheduling_components.placement_factory
+        self._feasibility_checker = self._scheduling_components.feasibility_checker
+
+    @staticmethod
+    def _default_components() -> SchedulingComponents:
+        """Keep direct BacktrackingSolver construction date-only by default."""
+        domain_provider = DateOnlyDomainProvider()
+        return SchedulingComponents(
+            domain_provider=domain_provider,
+            placement_factory=DateOnlyPlacementFactory(),
+            feasibility_checker=DateOnlyFeasibilityChecker(domain_provider),
+        )
 
     def solve(
         self,
@@ -99,8 +120,8 @@ class BacktrackingSolver:
         partial = ExamSchedule(period)
 
         for course in ordered:
-            dates = self._valid_dates_for(course, partial, period, constraint_validator)
-            if not dates:
+            candidates = self._valid_candidates_for(course, partial, period, constraint_validator)
+            if not candidates:
                 return False, (
                 f"Course '{course.course_id}' has no valid date in period "
                 f"'{period.period_id}' given the selected constraints."
@@ -167,13 +188,16 @@ class BacktrackingSolver:
             return partial.copy()
 
         course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
-        dates = self._valid_dates_for(course, partial, period, constraint_validator)
-        random.shuffle(dates)
+        candidates = self._valid_candidates_for(course, partial, period, constraint_validator)
+        random.shuffle(candidates)
 
-        for date in dates:
+        for candidate in candidates:
             node_count[0] += 1
-            partial.assign(course, date)
-            if self._forward_checker.hasViableAssignment(rest, partial, period, self._partial_constraint_checker):
+            placement = self._placement_factory.create(candidate)
+            partial.assign(course, placement)
+            if self._feasibility_checker.has_viable_assignment(
+                rest, partial, period, constraint_validator, self._partial_constraint_checker
+            ):
                 result = self._random_backtrack_first(rest, partial, period, constraint_validator, node_count, limit)
                 if result is not None:
                     partial.unassign(course)
@@ -184,7 +208,7 @@ class BacktrackingSolver:
 
     # ── Domain filtering ──────────────────────────────────────────────────────
 
-    def _valid_dates_for(
+    def _valid_candidates_for(
         self,
         course: Course,
         partial: ExamSchedule,
@@ -192,27 +216,34 @@ class BacktrackingSolver:
         constraint_validator: ConstraintValidator,
     ) -> list:
         """
-        Return only the dates that pass both collision and partial constraints
-        for *course* given the current partial assignment.
+        Return only candidates that pass both collision and partial constraints.
+
+        In date-only mode candidates are date objects. In room mode they are
+        ExamPlacement objects that already include time slot and room data.
         """
-        valid = []
-        for d in period.getAvailableDates():
-            if not constraint_validator.canAssign(course, d, partial):
-                continue
-            if self._partial_constraint_checker is not None:
-                partial.assign(course, d)
-                ok = self._partial_constraint_checker.is_valid_partial(partial)
-                partial.unassign(course)
-                if not ok:
-                    continue
-            valid.append(d)
-        return valid
+        return self._domain_provider.candidates_for(
+            course,
+            partial,
+            period,
+            constraint_validator,
+            self._partial_constraint_checker,
+        )
+
+    def _valid_dates_for(
+        self,
+        course: Course,
+        partial: ExamSchedule,
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+    ) -> list:
+        """Backward-compatible alias for tests that inspect date-only domains."""
+        return self._valid_candidates_for(course, partial, period, constraint_validator)
 
     # ── LCV — Least Constraining Value ───────────────────────────────────────
 
     def _lcv_sort_dates(
         self,
-        dates: list,
+        candidates: list,
         course: Course,
         rest: list[Course],
         partial: ExamSchedule,
@@ -223,11 +254,12 @@ class BacktrackingSolver:
         Sort dates so the least-constraining date comes first.
         Skipped when rest is empty or there is only one date candidate.
         """
-        if not rest or len(dates) <= 1:
-            return dates
+        if not rest or len(candidates) <= 1:
+            return candidates
 
-        def lcv_score(d) -> int:
-            partial.assign(course, d)
+        def lcv_score(candidate) -> int:
+            placement = self._placement_factory.create(candidate)
+            partial.assign(course, placement)
             total = sum(
                 self._count_remaining_values(c, partial, period, constraint_validator)
                 for c in rest
@@ -235,7 +267,7 @@ class BacktrackingSolver:
             partial.unassign(course)
             return total
 
-        return sorted(dates, key=lcv_score, reverse=True)
+        return sorted(candidates, key=lcv_score, reverse=True)
 
     # ── MRV helpers ───────────────────────────────────────────────────────────
 
@@ -250,15 +282,7 @@ class BacktrackingSolver:
     ) -> int:
         """Count valid dates still available for *course*, capped at _MRV_CAP."""
         count = 0
-        for d in period.getAvailableDates():
-            if not constraint_validator.canAssign(course, d, partial):
-                continue
-            if self._partial_constraint_checker is not None:
-                partial.assign(course, d)
-                ok = self._partial_constraint_checker.is_valid_partial(partial)
-                partial.unassign(course)
-                if not ok:
-                    continue
+        for _ in self._valid_candidates_for(course, partial, period, constraint_validator):
             count += 1
             if count >= self._MRV_CAP:
                 break
@@ -297,12 +321,15 @@ class BacktrackingSolver:
             return
 
         course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
-        valid_dates = self._valid_dates_for(course, partial, period, constraint_validator)
-        ordered_dates = self._lcv_sort_dates(valid_dates, course, rest, partial, period, constraint_validator)
+        valid_candidates = self._valid_candidates_for(course, partial, period, constraint_validator)
+        ordered_candidates = self._lcv_sort_dates(valid_candidates, course, rest, partial, period, constraint_validator)
 
-        for exam_date in ordered_dates:
-            partial.assign(course, exam_date)
-            if self._forward_checker.hasViableAssignment(rest, partial, period, self._partial_constraint_checker):
+        for candidate in ordered_candidates:
+            placement = self._placement_factory.create(candidate)
+            partial.assign(course, placement)
+            if self._feasibility_checker.has_viable_assignment(
+                rest, partial, period, constraint_validator, self._partial_constraint_checker
+            ):
                 self._backtrack(rest, partial, period, constraint_validator, results)
             partial.unassign(course)
 
@@ -324,18 +351,34 @@ class BacktrackingSolver:
         """
         if not remaining:
             result = partial.copy()
-            if skip is None or result.assignments != skip.assignments:
+            if skip is None or not self._same_schedule(result, skip):
                 yield result
             return
 
         course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
-        valid_dates = self._valid_dates_for(course, partial, period, constraint_validator)
-        ordered_dates = self._lcv_sort_dates(valid_dates, course, rest, partial, period, constraint_validator)
+        valid_candidates = self._valid_candidates_for(course, partial, period, constraint_validator)
+        ordered_candidates = self._lcv_sort_dates(valid_candidates, course, rest, partial, period, constraint_validator)
 
-        for exam_date in ordered_dates:
-            partial.assign(course, exam_date)
-            if self._forward_checker.hasViableAssignment(rest, partial, period, self._partial_constraint_checker):
+        for candidate in ordered_candidates:
+            placement = self._placement_factory.create(candidate)
+            partial.assign(course, placement)
+            if self._feasibility_checker.has_viable_assignment(
+                rest, partial, period, constraint_validator, self._partial_constraint_checker
+            ):
                 yield from self._backtrack_stream(
                     rest, partial, period, constraint_validator, skip,
                 )
             partial.unassign(course)
+
+    @staticmethod
+    def _same_schedule(left: ExamSchedule, right: ExamSchedule) -> bool:
+        """Compare full placements so room-mode schedules are not collapsed by date."""
+        left_items = {
+            (period, course): placement
+            for period, course, placement in left.iter_placements()
+        }
+        right_items = {
+            (period, course): placement
+            for period, course, placement in right.iter_placements()
+        }
+        return left_items == right_items

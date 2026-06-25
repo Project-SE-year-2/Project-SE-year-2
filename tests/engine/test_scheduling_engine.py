@@ -11,6 +11,8 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
 from src.models.enums import Evaluation, Semester, Moed, ReqType
 from src.models.constraint_settings import ConstraintSettings
+from src.models.exam_placement import ExamPlacement
+from src.models.room import Room
 
 
 def _build_engine(courses, programs, periods):
@@ -121,6 +123,60 @@ def test_engine_receives_and_stores_constraint_settings():
     constraint_validator = ConstraintValidator(index, collision_validator)
 
     settings = ConstraintSettings(room_scheduling_enabled=True)
-    engine = SchedulingEngine(constraint_validator, catalog, index, constraint_settings=settings)
+    engine = SchedulingEngine(
+        constraint_validator,
+        catalog,
+        index,
+        constraint_settings=settings,
+        rooms=[Room("101", "1", 30)],
+    )
 
     assert engine._constraint_settings.room_scheduling_enabled is True
+
+
+def test_engine_room_mode_requires_room_data():
+    index = ConstraintIndex()
+    index.build([], [])
+    catalog = ExamPeriodCatalog([])
+    collision_validator = BasicVersionValidator(index)
+    constraint_validator = ConstraintValidator(index, collision_validator)
+
+    settings = ConstraintSettings(room_scheduling_enabled=True)
+
+    try:
+        SchedulingEngine(constraint_validator, catalog, index, constraint_settings=settings)
+    except ValueError as exc:
+        assert "no room data" in str(exc)
+    else:
+        raise AssertionError("Room scheduling should fail when no room data is provided.")
+
+
+def test_engine_room_mode_generates_room_placements():
+    course = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam, num_students=20)
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
+    period.possible_dates = [date(2026, 2, 1)]
+
+    index = ConstraintIndex()
+    index.build([course], ["83101"])
+    catalog = ExamPeriodCatalog([period])
+    collision_validator = BasicVersionValidator(index)
+    constraint_validator = ConstraintValidator(index, collision_validator)
+
+    engine = SchedulingEngine(
+        constraint_validator,
+        catalog,
+        index,
+        constraint_settings=ConstraintSettings(room_scheduling_enabled=True),
+        rooms=[Room("101", "1", 30)],
+    )
+
+    schedules, metadata = engine.generateAll({period: {course: ["83101"]}})
+
+    assert metadata[period]["valid_count"] == len(schedules)
+    assert len(schedules) == 3
+    for schedule in schedules:
+        placement = schedule.placements[course]
+        assert isinstance(placement, ExamPlacement)
+        assert placement.date == date(2026, 2, 1)
+        assert placement.time_slot is not None
+        assert placement.rooms == (Room("101", "1", 30),)

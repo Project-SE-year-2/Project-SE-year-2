@@ -5,7 +5,12 @@ from src.algorithm.constraints.i_partial_constraint import IPartialConstraint
 
 
 class PartialAllGapConstraint(IPartialConstraint):
-    """Prunes partial schedules with too-small gaps between any exams in the same cohort."""
+    """Prunes partial schedules with too-small gaps between any exams in the same cohort.
+
+    Conflict detection is date-level only: time_slot is intentionally ignored
+    so that two exams on the same calendar date are always a conflict,
+    regardless of whether they are assigned to different time slots.
+    """
 
     def __init__(self, k: int) -> None:
         """Store the minimum required gap between exams in the same cohort."""

@@ -15,6 +15,10 @@ class AllGapConstraint(IConstraint):
     The constraint fails if any two adjacent exam dates within a cohort are
     separated by strictly fewer than K days (i.e. delta < K is a violation;
     delta == K is allowed).
+
+    Conflict detection is date-level only: time_slot is intentionally ignored
+    so that two exams on the same calendar date are always a conflict,
+    regardless of whether they are assigned to different time slots.
     """
 
     def __init__(self, k: int) -> None:

@@ -17,6 +17,10 @@ class CollisionConstraint(IConstraint):
     Unlike AllGapConstraint, the grouping key is program_id alone (not
     (program_id, year)), so year-1 and year-2 students in the same program
     share the same daily elective budget.
+
+    Conflict detection is date-level only: time_slot is intentionally ignored
+    so that two exams on the same calendar date are always a conflict,
+    regardless of whether they are assigned to different time slots.
     """
 
     def __init__(self, k: int) -> None:

@@ -8,6 +8,10 @@ class MandatoryGapConstraint(IConstraint):
     """
     Verifies that any two exams categorized as Obligatory belonging to the exact
     same academic program and structural year are separated by strictly more than K calendar days.
+
+    Conflict detection is date-level only: time_slot is intentionally ignored
+    so that two exams on the same calendar date are always a conflict,
+    regardless of whether they are assigned to different time slots.
     """
 
     def __init__(self, k: int) -> None:

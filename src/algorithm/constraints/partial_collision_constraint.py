@@ -4,7 +4,12 @@ from src.algorithm.constraints.i_partial_constraint import IPartialConstraint
 
 
 class PartialCollisionConstraint(IPartialConstraint):
-    """Prunes partial schedules whose elective collision count already exceeds K."""
+    """Prunes partial schedules whose elective collision count already exceeds K.
+
+    Conflict detection is date-level only: time_slot is intentionally ignored
+    so that two exams on the same calendar date are always a conflict,
+    regardless of whether they are assigned to different time slots.
+    """
 
     def __init__(self, k: int) -> None:
         """Store the maximum allowed elective exams per (program_id, date) cell."""

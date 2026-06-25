@@ -80,7 +80,13 @@ def test_date_only_domain_returns_dates():
     assert candidates == [date(2026, 1, 1)]
 
 
-def test_room_domain_returns_room_placements():
+def test_room_domain_returns_exam_blocks():
+    """
+    RoomSchedulingDomainProvider must return ExamBlock objects (date + time_slot).
+    Room allocation is deferred to RoomPlacementFactory — not the domain provider.
+    """
+    from src.models.exam_block import ExamBlock
+
     rooms = [Room("101", "1", 30)]
     components = SchedulingModeFactory.create(
         ConstraintSettings(room_scheduling_enabled=True),
@@ -96,31 +102,40 @@ def test_room_domain_returns_room_placements():
     )
 
     assert len(candidates) == len(TimeSlot)
+    assert all(isinstance(c, ExamBlock) for c in candidates)
     assert candidates[0].date == date(2026, 1, 1)
     assert candidates[0].time_slot in set(TimeSlot)
-    assert candidates[0].rooms == (rooms[0],)
 
 
 def test_room_allocator_does_not_reuse_same_room_in_same_slot():
+    """
+    After a room is assigned to one course in a given date+slot, RoomAllocator
+    must not allocate the same room to a second course in the same slot.
+    """
+    from src.models.exam_block import ExamBlock
+    from src.models.enums import TimeSlot
+
     room = Room("101", "1", 30)
     allocator = RoomAllocator([room])
     course = _course(students=10)
     period = _period()
     partial = ExamSchedule(period)
+
+    # Use RoomPlacementFactory (which owns the allocator) to create the first placement.
     components = SchedulingModeFactory.create(
         ConstraintSettings(room_scheduling_enabled=True),
         [room],
     )
-    placement = components.domain_provider.candidates_for(
-        course, partial, period, _validator()
-    )[0]
+    block = ExamBlock(period.possible_dates[0], TimeSlot.MORNING)
+    placement = components.placement_factory.create(block, course, partial)
     partial.assign(course, placement)
 
     assert placement.rooms == (room,)
+    # The same room must be unavailable for a second course in the same slot.
     assert allocator.allocate(
         _course("C2", 10),
         period.possible_dates[0],
-        placement.time_slot,
+        TimeSlot.MORNING,
         partial,
     ) is None
 

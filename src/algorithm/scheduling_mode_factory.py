@@ -8,6 +8,7 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.constraints.partial_constraint_checker import PartialConstraintChecker
 from src.models.constraint_settings import ConstraintSettings
 from src.models.course import Course
+from src.models.exam_block import ExamBlock
 from src.models.exam_period import ExamPeriod
 from src.models.exam_placement import ExamPlacement
 from src.models.exam_schedule import ExamSchedule
@@ -30,9 +31,22 @@ class DomainProvider(Protocol):
 
 
 class PlacementFactory(Protocol):
-    """Converts a domain candidate into the value stored on ExamSchedule."""
+    """
+    Converts a domain candidate into the value stored on ExamSchedule.
 
-    def create(self, candidate):
+    Receives the candidate (date or ExamBlock), the course being placed, and
+    the current partial schedule so room-aware factories can check room
+    availability.  Returns None when the candidate cannot produce a valid
+    placement (e.g. no rooms are available for the requested slot), signalling
+    the solver to skip it.
+    """
+
+    def create(
+        self,
+        candidate,
+        course: Course,
+        partial: ExamSchedule,
+    ) -> ExamPlacement | DateType | None:
         ...
 
 
@@ -60,25 +74,50 @@ class SchedulingComponents:
     domain_provider: DomainProvider
     placement_factory: PlacementFactory
     feasibility_checker: FeasibilityChecker
-    room_allocator: "RoomAllocator | None" = None
+    room_allocator: RoomAllocator | None = None
 
 
 class DateOnlyPlacementFactory:
-    """Stores legacy date candidates directly on ExamSchedule."""
+    """Returns the date candidate unchanged — ExamSchedule wraps it into ExamPlacement."""
 
-    def create(self, candidate: DateType) -> DateType:
+    def create(
+        self,
+        candidate: DateType,
+        course: Course,
+        partial: ExamSchedule,
+    ) -> DateType:
         return candidate
 
 
 class RoomPlacementFactory:
-    """Stores room-aware ExamPlacement candidates on ExamSchedule."""
+    """
+    Converts an ExamBlock (date + time_slot) into an ExamPlacement by allocating
+    rooms via RoomAllocator.  Returns None when no rooms can be allocated, so
+    the solver can skip this candidate without entering a dead branch.
+    """
 
-    def create(self, candidate: ExamPlacement) -> ExamPlacement:
-        return candidate
+    def __init__(self, room_allocator: RoomAllocator) -> None:
+        self._room_allocator = room_allocator
+
+    def create(
+        self,
+        candidate: ExamBlock,
+        course: Course,
+        partial: ExamSchedule,
+    ) -> ExamPlacement | None:
+        rooms = self._room_allocator.allocate(
+            course, candidate.date, candidate.time_slot, partial
+        )
+        if rooms is None:
+            return None
+        return ExamPlacement(candidate.date, candidate.time_slot, rooms)
 
 
 class DateOnlyDomainProvider:
-    """Builds the date-only candidate domain used by the existing solver."""
+    """
+    Builds the date-only candidate list for the existing date-based solver.
+    Candidates are plain date objects filtered by collision and partial constraints.
+    """
 
     def candidates_for(
         self,
@@ -198,10 +237,16 @@ class RoomAllocator:
 
 
 class RoomSchedulingDomainProvider:
-    """Builds room-aware placement candidates when room scheduling is enabled."""
+    """
+    Builds the room-scheduling candidate domain used when room_scheduling_enabled=True.
 
-    def __init__(self, room_allocator: RoomAllocator) -> None:
-        self._room_allocator = room_allocator
+    Candidates are ExamBlock(date, time_slot) objects — pure domain values with no
+    room data attached.  Room allocation is intentionally deferred to RoomPlacementFactory
+    so that each component has a single, well-defined responsibility:
+
+      RoomSchedulingDomainProvider  →  which (date, slot) options exist
+      RoomPlacementFactory          →  which rooms to assign for a given option
+    """
 
     def candidates_for(
         self,
@@ -210,21 +255,20 @@ class RoomSchedulingDomainProvider:
         period: ExamPeriod,
         constraint_validator: ConstraintValidator,
         partial_constraint_checker: PartialConstraintChecker | None = None,
-    ) -> list[ExamPlacement]:
-        valid: list[ExamPlacement] = []
+    ) -> list[ExamBlock]:
+        valid: list[ExamBlock] = []
         for exam_date in period.getAvailableDates():
+            # Skip this date entirely if the collision validator rejects it.
             if not constraint_validator.canAssign(course, exam_date, partial):
                 continue
+            # Partial constraints (AllGap, DailyCap) are date-based, so check
+            # once per date before generating individual time-slot blocks.
+            if not DateOnlyDomainProvider._passes_partial_constraints(
+                course, exam_date, partial, partial_constraint_checker
+            ):
+                continue
             for time_slot in TimeSlot:
-                rooms = self._room_allocator.allocate(course, exam_date, time_slot, partial)
-                if rooms is None:
-                    continue
-                placement = ExamPlacement(exam_date, time_slot, rooms)
-                if not DateOnlyDomainProvider._passes_partial_constraints(
-                    course, placement, partial, partial_constraint_checker
-                ):
-                    continue
-                valid.append(placement)
+                valid.append(ExamBlock(exam_date, time_slot))
         return valid
 
 
@@ -311,7 +355,12 @@ class RoomSchedulingFeasibilityChecker(DomainFeasibilityChecker):
 
 
 class SchedulingModeFactory:
-    """Composes solver components according to room_scheduling_enabled."""
+    """
+    Composes solver components based on room_scheduling_enabled.
+
+    This is the ONLY place in the codebase that reads room_scheduling_enabled.
+    All other classes receive pre-wired components and remain mode-agnostic.
+    """
 
     @staticmethod
     def create(
@@ -332,10 +381,12 @@ class SchedulingModeFactory:
             raise ValueError("Room scheduling is enabled, but no room data was provided.")
 
         room_allocator = RoomAllocator(rooms)
-        domain_provider = RoomSchedulingDomainProvider(room_allocator)
+        domain_provider = RoomSchedulingDomainProvider()
         return SchedulingComponents(
             domain_provider=domain_provider,
-            placement_factory=RoomPlacementFactory(),
+            # RoomPlacementFactory owns the room_allocator — it is the one that
+            # converts ExamBlock candidates into ExamPlacement objects with rooms.
+            placement_factory=RoomPlacementFactory(room_allocator),
             feasibility_checker=RoomSchedulingFeasibilityChecker(domain_provider, room_allocator),
             room_allocator=room_allocator,
         )

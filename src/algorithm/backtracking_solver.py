@@ -208,7 +208,11 @@ class BacktrackingSolver:
 
         for candidate in candidates:
             node_count[0] += 1
-            placement = self._placement_factory.create(candidate)
+            # PlacementFactory receives course and partial so room-aware factories
+            # can check availability and return None when no rooms can be allocated.
+            placement = self._placement_factory.create(candidate, course, partial)
+            if placement is None:
+                continue
             partial.assign(course, placement)
             if self._feasibility_checker.has_viable_assignment(
                 rest, partial, period, constraint_validator, self._partial_constraint_checker
@@ -273,7 +277,9 @@ class BacktrackingSolver:
             return candidates
 
         def lcv_score(candidate) -> int:
-            placement = self._placement_factory.create(candidate)
+            placement = self._placement_factory.create(candidate, course, partial)
+            if placement is None:
+                return 0
             partial.assign(course, placement)
             total = sum(
                 self._count_remaining_values(c, partial, period, constraint_validator)
@@ -340,7 +346,9 @@ class BacktrackingSolver:
         ordered_candidates = self._lcv_sort_dates(valid_candidates, course, rest, partial, period, constraint_validator)
 
         for candidate in ordered_candidates:
-            placement = self._placement_factory.create(candidate)
+            placement = self._placement_factory.create(candidate, course, partial)
+            if placement is None:
+                continue
             partial.assign(course, placement)
             if self._feasibility_checker.has_viable_assignment(
                 rest, partial, period, constraint_validator, self._partial_constraint_checker
@@ -375,7 +383,9 @@ class BacktrackingSolver:
         ordered_candidates = self._lcv_sort_dates(valid_candidates, course, rest, partial, period, constraint_validator)
 
         for candidate in ordered_candidates:
-            placement = self._placement_factory.create(candidate)
+            placement = self._placement_factory.create(candidate, course, partial)
+            if placement is None:
+                continue
             partial.assign(course, placement)
             if self._feasibility_checker.has_viable_assignment(
                 rest, partial, period, constraint_validator, self._partial_constraint_checker

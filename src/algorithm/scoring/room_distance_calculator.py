@@ -3,10 +3,16 @@ from src.models.exam_schedule import ExamSchedule
 
 
 class RoomDistanceCalculator(IMetricCalculator):
-    """Computes the average number of distinct buildings per exam across all room-based placements.
+    """Computes the average building spread per exam across all room-based placements.
 
-    Returns 0.0 in date-only mode (no room-based placements).
-    Lower is better - 1.0 means every exam fits within a single building.
+    'Building spread' is the number of distinct buildings used by a single exam's assigned rooms.
+    This serves as a proxy for physical distance: rooms in the same building score 1.0 (best),
+    rooms spread across more buildings score higher.
+
+    Note: Room has no coordinate data, so true geographical distance cannot be computed.
+    This metric uses the building field - the most reliable proximity indicator available.
+
+    Returns 0.0 in date-only mode (no room-based placements). Lower is better.
     """
 
     def field_name(self) -> str:

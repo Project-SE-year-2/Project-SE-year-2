@@ -7,6 +7,8 @@ from src.algorithm.constraints.collision_constraint import CollisionConstraint
 from src.algorithm.constraints.spread_constraint import SpreadConstraint
 from src.algorithm.constraints.daily_cap_constraint import DailyCapConstraint
 from src.algorithm.constraints.mandatory_gap_constraint import MandatoryGapConstraint
+from src.algorithm.constraints.room_and_slot_constraint import RoomAndSlotConstraint
+
 
 class ConstraintChecker:
     """
@@ -54,6 +56,13 @@ class ConstraintChecker:
                 self._constraints.append(
                     constraint_cls(getattr(settings, k_attr))
                 )
+
+        # RoomAndSlotConstraint has no k parameter — wired directly when room
+        # scheduling is enabled.  It is a no-op on date-only placements, so
+        # adding it unconditionally with room_scheduling_enabled is safe and
+        # keeps BacktrackingSolver free of any mode-awareness.
+        if settings.room_scheduling_enabled:
+            self._constraints.append(RoomAndSlotConstraint())
 
     # Validate a schedule against all enabled constraints.
     def is_valid(self, schedule: ExamSchedule) -> bool:

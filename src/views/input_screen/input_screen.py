@@ -75,19 +75,19 @@ class InputScreen(QWidget):
         programs_body_layout.setContentsMargins(0, 0, 0, 0)
         programs_body_layout.setSpacing(th.SPACING_LARGE)
 
-        self._left_stack = QWidget()
-        self._left_stack.setStyleSheet("background: transparent;")
-        left_layout = QVBoxLayout(self._left_stack)
+        left_stack = QWidget()
+        left_stack.setStyleSheet("background: transparent;")
+        left_layout = QVBoxLayout(left_stack)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(th.SPACING_SMALL)
         left_layout.addWidget(self.program_list, stretch=1)
         left_layout.addWidget(self.selected_panel)
 
-        programs_body_layout.addWidget(self._left_stack,        stretch=2)
+        programs_body_layout.addWidget(left_stack,        stretch=2)
         programs_body_layout.addWidget(self.course_table, stretch=3)
 
         self.selected_panel.setVisible(False)
-        self._left_stack.setVisible(False)
+        self.program_list.setVisible(False)
 
         # ── Tab page 1: Exam Periods ───────────────────────────────────────
         # period_list on the LEFT, period_editor on the RIGHT (horizontal split)
@@ -343,7 +343,7 @@ class InputScreen(QWidget):
 
         # Refresh programs from the newly loaded files
         self.program_list.refresh()
-        self._left_stack.setVisible(True)
+        self.program_list.setVisible(True)
 
         # In the tabbed layout the Exam Periods tab is always accessible, so
         # refresh and show the period list immediately after file load — the

@@ -18,6 +18,7 @@ from src.algorithm.scoring.collision_calculator import CollisionCalculator
 from src.algorithm.scoring.spread_calculator import SpreadCalculator
 from src.algorithm.scoring.daily_cap_calculator import DailyCapCalculator
 from src.algorithm.scoring.min_days_calculator import MinDaysCalculator
+from src.algorithm.scoring.room_distance_calculator import RoomDistanceCalculator
 from src.models.exam_schedule import ExamSchedule
 
 
@@ -32,6 +33,7 @@ class ScheduleScorer:
             CollisionCalculator(),
             SpreadCalculator(),
             DailyCapCalculator(),
+            RoomDistanceCalculator(),
         ]
 
     @classmethod

@@ -167,6 +167,37 @@ class OutputScreen(QWidget):
         sem_code = _SEMESTER_TO_ID.get(self._current_semester, self._current_semester)
         return f"{sem_code}_{self._current_moed}"
 
+    def _select_first_available_period(self) -> None:
+        """Switch to the first period that already has generated schedules."""
+        try:
+            if self.service.get_schedule_count(period_id=self._active_period_id()) > 0:
+                return
+        except Exception:
+            pass
+
+        prefix_to_tab = {
+            "FALL": "FALL",
+            "SPRI": "SPRING",
+            "SUMM": "SUMMER",
+        }
+        for period_id in self._window_states:
+            try:
+                if self.service.get_schedule_count(period_id=period_id) <= 0:
+                    continue
+            except Exception:
+                continue
+
+            prefix, _, moed = period_id.partition("_")
+            semester = prefix_to_tab.get(prefix.upper())
+            if not semester or not moed:
+                continue
+
+            self._current_semester = semester
+            self._current_moed = moed
+            self.semester_tabs.set_selected(semester)
+            self.four_month.set_active_moed(moed)
+            return
+
     # ── Active WindowState ─────────────────────────────────────────────────────
     def _active_window_state(self) -> WindowState:
         """Return the WindowState object for the currently active period."""
@@ -449,6 +480,7 @@ class OutputScreen(QWidget):
         self._current_moed     = "Aleph"
         self.semester_tabs.set_selected("FALL")
         self.four_month.set_active_moed("Aleph")
+        self._select_first_available_period()
         self._hide_conflict_banner()
         self._hide_sorting_update_banner()
 

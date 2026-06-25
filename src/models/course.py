@@ -2,7 +2,14 @@ from src.models.program_requirement import ProgramRequirement
 from src.models.enums import Evaluation
 
 class Course:
-    def __init__(self, name: str, course_id: str, instructor: str, evaluation: Evaluation, num_students: int = 0):
+    def __init__(
+        self,
+        name: str,
+        course_id: str,
+        instructor: str,
+        evaluation: Evaluation,
+        num_students: int = 0,
+    ):
         self._validate_num_students(num_students)
         # course name
         self.name = name
@@ -26,13 +33,14 @@ class Course:
         if num_students < 0:
             raise ValueError("num_students must be non-negative.")
 
-
     def __setstate__(self, state: dict) -> None:
-        """Restore old pickled Course objects safely."""
+        """Restore old pickled Course objects that do not contain num_students."""
         self.__dict__.update(state)
 
         if "num_students" not in self.__dict__:
             self.num_students = 0
+        else:
+            self._validate_num_students(self.num_students)
 
     def add_requirement(self, req: ProgramRequirement):
         # add a program requirement to a course

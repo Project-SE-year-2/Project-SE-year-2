@@ -6,9 +6,7 @@ from src.models.enums import Evaluation, Semester, ReqType
 # Parser class for loading courses
 class CourseFileParser(IFileParser):
     @staticmethod
-    def _extract_num_students_and_evaluation(
-        lines: list[str],
-    ) -> tuple[int, str, int]:
+    def _extract_num_students_and_evaluation(lines: list[str]) -> tuple[int, str, int]:
         """
         Extract optional num_students and evaluation from a course record.
 
@@ -44,9 +42,7 @@ class CourseFileParser(IFileParser):
 
             first_requirement_index = 4
 
-        evaluation = lines[-1]
-        return num_students, evaluation, first_requirement_index
-
+        return num_students, lines[-1], first_requirement_index
 
     def parse(self, filepath: str) -> list[Course]:
         courses = []
@@ -71,7 +67,6 @@ class CourseFileParser(IFileParser):
             name = lines[0]
             course_id = lines[1]
             instructor = lines[2]
-            
             num_students, evaluation, first_req_index = (
                 self._extract_num_students_and_evaluation(lines)
             )
@@ -88,7 +83,13 @@ class CourseFileParser(IFileParser):
             if evaluation not in ["Exam", "Project", "Attendance"]:
                 raise ValueError("Missing or invalid evaluation type")
             
-            course = Course(name=name, course_id=course_id, instructor=instructor, evaluation=Evaluation(evaluation), num_students=num_students)
+            course = Course(
+                name=name,
+                course_id=course_id,
+                instructor=instructor,
+                evaluation=Evaluation(evaluation),
+                num_students=num_students,
+            )
             
             # extract program requirements
             for i in range(first_req_index, len(lines) - 1):

@@ -2,6 +2,7 @@ from src.output.i_output_writer import IOutputWriter
 from src.models.exam_schedule import ExamSchedule
 from src.models.exam_period import ExamPeriod
 from src.models.course import Course
+from src.output.export_formatters.schedule_export_formatter import ExportFormatterFactory
 
 
 class ScheduleReportWriter(IOutputWriter):
@@ -58,41 +59,8 @@ class ScheduleReportWriter(IOutputWriter):
             lines.append("")
             div = "-" * 60
             for idx, sched in enumerate(schedules, start=1):
-                # Normalize to 3-tuples (period, course, date) regardless of schedule type
-                raw_items = sched.sortByDate()
-                if sched.is_cross_period:
-                    sorted_items = raw_items
-                else:
-                    sorted_items = [(sched.period, c, d) for c, d in raw_items]
-
-                lines.append(f"  Schedule #{idx}")
-                lines.append(f"  {div}")
-
-                # Print assignments grouped by semester → moed (hierarchical, no repetition)
-                current_sem = None
-                current_moed = None
-                for period, course, exam_date in sorted_items:
-                    sem = period.semester.value if hasattr(period.semester, "value") else str(period.semester)
-                    moed = period.moed.value if hasattr(period.moed, "value") else str(period.moed)
-
-                    if sem != current_sem:
-                        current_sem = sem
-                        current_moed = None
-                        lines.append(f"  {sem}")
-
-                    if moed != current_moed:
-                        current_moed = moed
-                        lines.append(f"    {moed}")
-
-                    course_field = f"{course.name} ({course.course_id})"
-                    lines.append(
-                        f"      {course_field:<35} "
-                        f"{course.instructor:<25} "
-                        f"{exam_date.strftime('%d-%m-%Y')}"
-                    )
-
-                lines.append(f"  {div}")
-                lines.append("")
+                formatter = ExportFormatterFactory.create(sched)
+                lines.extend(formatter.format_schedule(sched, idx, div))
 
         lines.append(sep)
         lines.append("END OF REPORT")

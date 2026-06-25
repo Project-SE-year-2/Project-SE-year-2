@@ -30,6 +30,7 @@ from src.models.constraint_settings import ConstraintSettings
 from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
 from src.presenter.ranking_query_engine import RankingQueryEngine
 from src.algorithm.period_results_writer import BATCH_SIZE
+from src.output.pdf_schedule_report_writer import PdfScheduleReportWriter
 
 
 _PROJECT_ROOT = Path(__file__).parents[2]
@@ -79,6 +80,7 @@ class AppService(IAppService):
         # Frozen snapshot: per-period list of (batch_number, index_in_batch) in sorted order.
         # Populated lazily on first ranked access; cleared when sort changes or refresh requested.
         self._sorted_cache: dict[str, list[tuple[int, int]]] = {}
+        self._sorted_cache_counts: dict[str, int] = {}
         self._constraint_settings = ConstraintSettings()
         
         self._finished_periods: set[str] = set()
@@ -154,11 +156,13 @@ class AppService(IAppService):
         """
         self._sort_cols = list(sort_cols)
         self._sorted_cache.clear()
+        self._sorted_cache_counts.clear()
 
     def refresh_ranked_view(self) -> None:
         """Clear the frozen snapshot so the next navigation re-queries scores.db.
         Called by the 'Refresh View' banner (Task 121) to accept newly written scores."""
         self._sorted_cache.clear()
+        self._sorted_cache_counts.clear()
 
     def get_sort_order(self) -> list[str]:
         """Return the active sort column list."""
@@ -377,6 +381,7 @@ class AppService(IAppService):
         self._last_metadata.clear()
         self._current_indices.clear()
         self._sorted_cache.clear()
+        self._sorted_cache_counts.clear()
         self._finished_periods.clear()
         self._infeasible_periods.clear()
         self._generation_active = True
@@ -583,9 +588,12 @@ class AppService(IAppService):
                 return None
         else:
             engine = self._get_ranking_engine()
-            if engine is not None:
+            cached_count = self._sorted_cache_counts.get(period_id)
+
+            if engine is not None and cached_count is not None:
                 try:
-                    if engine.count(period_id) > len(self._sorted_cache[period_id]):
+                    current_count = engine.count(period_id)
+                    if current_count > cached_count:
                         self._build_sorted_cache(period_id)
                 except Exception:
                     pass
@@ -612,6 +620,7 @@ class AppService(IAppService):
             return False
         try:
             total = engine.count(period_id)
+            self._sorted_cache_counts[period_id] = total
             if total == 0:
                 self._sorted_cache[period_id] = []
                 return True
@@ -759,7 +768,7 @@ class AppService(IAppService):
         if index < 0 or index >= len(self._results):
             raise IndexError(f"Schedule index {index} is out of range.")
         schedule = self._results[index]
-        writer = ScheduleReportWriter()
+        writer = self._create_export_writer(path)
         writer.write(
             schedules=[schedule],
             metadata=self._last_metadata,
@@ -923,7 +932,7 @@ class AppService(IAppService):
             raise ValueError("No schedule data available to export.")
 
         combined = ScheduleCombiner().combineSubResults(schedules_to_merge)
-        ScheduleReportWriter().write(
+        self._create_export_writer(path).write(
             schedules=combined,
             metadata=self._last_metadata,
             programs=self._selected_programs,
@@ -958,7 +967,7 @@ class AppService(IAppService):
         combined_schedules = ScheduleCombiner().combineSubResults(period_schedules)
 
         # 3. Write the merged schedule(s) to disk.
-        ScheduleReportWriter().write(
+        self._create_export_writer(path).write(
             schedules=combined_schedules,
             metadata=self._last_metadata,
             programs=self._selected_programs,
@@ -968,6 +977,14 @@ class AppService(IAppService):
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
     # ------------------------------------------------------------------ #
+
+    def _create_export_writer(self, path: str):
+        """Return the correct report writer according to the requested output file extension."""
+        if path.lower().endswith(".pdf"):
+            return PdfScheduleReportWriter()
+
+        return ScheduleReportWriter()
+
 
     def _validate_paths(self, *paths: str) -> None:
         """Check that each path exists and is not empty. Raises FileNotFoundError or ValueError."""

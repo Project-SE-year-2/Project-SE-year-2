@@ -84,6 +84,11 @@ class AppService(IAppService):
         self._finished_periods: set[str] = set()
         self._infeasible_periods: set[str] = set()
 
+        # Bug-fix EP-149: regenerate only when the inputs actually changed.
+        # Starts dirty so the very first Generate always runs. Set back to clean
+        # after a successful generation; flipped to dirty by any input change.
+        self._dirty: bool = True
+
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
     # ------------------------------------------------------------------ #
@@ -119,13 +124,25 @@ class AppService(IAppService):
 
         else:
             raise ValueError(f"Unknown mode '{mode}'. Expected 'replace' or 'append'.")
-        
+
         self._datastore.save()
+
+        # New input files invalidate any previous run.
+        self._mark_dirty()
+        self.clear_results()
 
 
     def set_constraint_settings(self, settings: ConstraintSettings) -> None:
-        """Store active constraint settings for future generation runs."""
+        """Store active constraint settings for future generation runs.
+
+        Changing the constraints invalidates the previous run, so old results
+        are cleared and a fresh generation is required.
+        """
+        changed = settings != self._constraint_settings
         self._constraint_settings = settings
+        if changed:
+            self._mark_dirty()
+            self.clear_results()
 
     def set_sort_order(self, sort_cols: list[str]) -> None:
         """Store active ranking columns and clear any frozen ranked snapshots.
@@ -151,6 +168,63 @@ class AppService(IAppService):
         """Return the active constraint settings used by generation."""
         return self._constraint_settings
 
+    # ------------------------------------------------------------------ #
+    # EP-149 — stale-result clearing & "needs regeneration" tracking      #
+    # ------------------------------------------------------------------ #
+
+    def needs_generation(self) -> bool:
+        """True when Generate must actually run the engine again.
+
+        Returns True if an input changed since the last run (dirty) or if there
+        are no results on hand yet. When this is False the UI can jump straight
+        to the existing results instead of recomputing them.
+        """
+        return self._dirty or self.get_schedule_count() == 0
+
+    def _mark_dirty(self) -> None:
+        """Flag that the inputs changed, so the next Generate re-runs the engine."""
+        self._dirty = True
+
+    def clear_results(self) -> None:
+        """Drop every trace of the previous run — disk files and in-memory caches.
+
+        Called whenever the inputs change (new files, edited constraints, etc.)
+        so the output screen can never show schedules that no longer match the
+        current input. Safe to call repeatedly.
+        """
+        # Stop the background engine if one is running.
+        if self._engine_process is not None:
+            try:
+                self._engine_process.stop()
+            except Exception:
+                pass
+
+        # Wipe the results directory (batch files + scores.db live under it).
+        import shutil
+        root = self._results_reader._root
+        try:
+            if root.exists():
+                shutil.rmtree(root, ignore_errors=True)
+        except Exception:
+            pass
+
+        # Drop the open ranking connection so it doesn't point at a deleted file.
+        if self._ranking_engine is not None:
+            try:
+                self._ranking_engine.close()
+            except Exception:
+                pass
+            self._ranking_engine = None
+
+        # Reset all in-memory navigation/result state.
+        self._results = []
+        self._results_by_period = {}
+        self._last_metadata = {}
+        self._current_indices = {}
+        self._sorted_cache = {}
+        self._finished_periods = set()
+        self._infeasible_periods = set()
+
 
     def load_constraint_settings_from_file(self, path: str) -> None:
         """Load constraint settings from a text file and store them in the service."""
@@ -173,7 +247,11 @@ class AppService(IAppService):
                 raise ValueError(
                     f"Invalid program ID '{pid}'. Must be a 5-digit numeric string."
                 )
-        self._selected_programs = list(ids)
+        if list(ids) != self._selected_programs:
+            self._selected_programs = list(ids)
+            self._mark_dirty()
+        else:
+            self._selected_programs = list(ids)
 
     def get_courses(self, program_id: str) -> list[dict]:
         courses = self._datastore.get_courses_for_program(program_id)
@@ -213,11 +291,17 @@ class AppService(IAppService):
         period = self._get_period_or_raise(period_id)
         period.toggle_day(day)
         self._datastore.save()
+        # Editing a period's available days changes what can be scheduled.
+        self._mark_dirty()
+        self.clear_results()
 
     def shift_period(self, period_id: str, start: date, end: date) -> None:
         period = self._get_period_or_raise(period_id)
         period.shift_dates(start, end)   # raises ValueError if start >= end
         self._datastore.save()
+        # Moving a period's date range invalidates any previous run.
+        self._mark_dirty()
+        self.clear_results()
 
     # ------------------------------------------------------------------ #
     # EP-68 / TASK7 — Generation & export                                 #
@@ -267,6 +351,7 @@ class AppService(IAppService):
         schedules, metadata = engine.generateAll(scheduling_tasks)
         self._results = schedules
         self._last_metadata = metadata
+        self._dirty = False   # results now match the current inputs
         return len(schedules)
 
     # ------------------------------------------------------------------ #
@@ -341,6 +426,7 @@ class AppService(IAppService):
                             self._finished_periods.add(pid)
                         self._current_indices.setdefault(pid, 0)
                         yield pid, []
+                self._dirty = False   # run finished cleanly → results are current
             finally:
                 self._generation_active = False
             return
@@ -354,6 +440,7 @@ class AppService(IAppService):
                     engine.solve_to_disk(period, courses_dict, self._results_writer)
                     self._current_indices.setdefault(pid, 0)
                     yield pid, []
+                self._dirty = False   # run finished cleanly → results are current
             finally:
                 self._generation_active = False
             return
@@ -373,6 +460,7 @@ class AppService(IAppService):
             combined = ScheduleCombiner().combineSubResults(all_sub_results)
             combined.sort(key=lambda s: s.sort_key)
             self._results = combined
+            self._dirty = False   # run finished cleanly → results are current
         finally:
             self._generation_active = False
 

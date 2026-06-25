@@ -410,7 +410,7 @@ class FileLoaderWidget(QWidget):
         # Calling load_rooms() replaces previously stored rooms in the data store.
         self._rooms_zone = DropZoneCard(
             icon=ICON_FILE,
-            title="Rooms File (Optional)",
+            title="Rooms File",
             hint="Drag & drop rooms file here\n(or click to browse)\nCSV, Text (.csv, .txt)",
             dialog_caption="Select Rooms File",
             single_file=True,
@@ -419,10 +419,10 @@ class FileLoaderWidget(QWidget):
         zones_row.addWidget(self._courses_zone, stretch=1)
         zones_row.addWidget(self._dates_zone, stretch=1)
         zones_row.addWidget(self._rooms_zone, stretch=1)
-        # Clear the content-derived minimum widths so stretch=1 enforces equal sizes.
-        # Without this, "Rooms File (Optional)" - whose title is longer - would be wider.
+        # QSizePolicy.Ignored tells Qt to disregard each zone's preferred/ minimum
+        # width so stretch=1 produces exactly equal thirds regardless of title length.
         for zone in (self._courses_zone, self._dates_zone, self._rooms_zone):
-            zone.setMinimumWidth(0)
+            zone.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         layout.addLayout(zones_row)
 
         # ── Replace / Add toggle ───────────────────────────────────────────
@@ -517,7 +517,6 @@ class FileLoaderWidget(QWidget):
         try:
             self._service.load_rooms(path)
             self._loaded_rooms_path = path
-            self._show_success(f"Rooms loaded: {Path(path).name}")
         except Exception as error:
             self._show_error(str(error))
 

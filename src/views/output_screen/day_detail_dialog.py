@@ -139,14 +139,14 @@ class _ExamRow(QFrame):
             outer.addWidget(bullet)
 
         # ── Room scheduling info (only present in room-scheduling mode) ──
-        # Keys "time_slot", "rooms", "num_students", and "total_capacity" are
+        # Keys "time_slot", "rooms_display", "num_students", and "total_capacity" are
         # added by _format_schedule_rows() only when placement.is_room_based.
         # Date-only placements omit these keys, so no room section is rendered,
         # keeping the card layout identical to what it was before this feature.
-        time_slot = exam.get("time_slot")
-        rooms     = exam.get("rooms")      # list of {"building", "room_id", "capacity"}
+        time_slot     = exam.get("time_slot")
+        rooms_display = exam.get("rooms_display", [])  # pre-formatted strings
 
-        if time_slot or rooms:
+        if time_slot or rooms_display:
             # Separator between programs and room info
             sep = QFrame()
             sep.setFrameShape(QFrame.HLine)
@@ -158,24 +158,20 @@ class _ExamRow(QFrame):
             slot_lbl.setStyleSheet(TIME_SLOT_STYLE)
             outer.addWidget(slot_lbl)
 
-        if rooms:
+        if rooms_display:
             rooms_header = QLabel("Assigned rooms")
             rooms_header.setStyleSheet(ROOM_SECTION_LABEL_STYLE)
             outer.addWidget(rooms_header)
 
-            for room in rooms:
-                # Format: "• Building A - Room 101 (50 seats)"
-                room_line = QLabel(
-                    f"• Building {room['building']} - Room {room['room_id']}"
-                    f" ({room['capacity']} seats)"
-                )
+            for room_str in rooms_display:
+                room_line = QLabel(room_str)
                 room_line.setStyleSheet(ROOM_BULLET_STYLE)
                 outer.addWidget(room_line)
 
             num_students   = exam.get("num_students", 0)
             total_capacity = exam.get("total_capacity", 0)
             capacity_lbl   = QLabel(
-                f"Total capacity: {num_students} / {total_capacity}"
+                f"Capacity: {total_capacity} seats for {num_students} students"
             )
             capacity_lbl.setStyleSheet(ROOM_CAPACITY_STYLE)
             outer.addWidget(capacity_lbl)

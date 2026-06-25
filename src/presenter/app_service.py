@@ -112,6 +112,8 @@ class AppService(IAppService):
         rooms = RoomFileParser().parse(path)
         self._datastore.set_rooms(rooms)
         self._datastore.save()
+        self._mark_dirty()
+        self.clear_results()
 
     def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
 
@@ -710,39 +712,13 @@ class AppService(IAppService):
             raise IndexError(f"Schedule index {index} is out of range (0–{len(self._results) - 1}).")
 
         schedule: ExamSchedule = self._results[index]
+        rows = self._format_schedule_rows(schedule)
+
         result: dict = {}
-
-        for (semester, moed), course_date_map in schedule.groupBySemesterAndMoed().items():
-            sem_key  = semester.value if hasattr(semester, "value") else str(semester)
-            moed_key = moed.value    if hasattr(moed,     "value") else str(moed)
-
-            if sem_key not in result:
-                result[sem_key] = {}
-            if moed_key not in result[sem_key]:
-                result[sem_key][moed_key] = []
-
-            for course, exam_date in course_date_map.items():
-                # Collect every selected program this course belongs to
-                programs = [
-                    req.program_id
-                    for req in course.requirements
-                    if req.program_id in self._selected_programs
-                ]
-                # Use the req_type from the first matching requirement
-                req_type = "Obligatory"
-                for req in course.requirements:
-                    if req.program_id in self._selected_programs:
-                        req_type = req.req_type.value
-                        break
-
-                result[sem_key][moed_key].append({
-                    "course_number": course.course_id,
-                    "course_name":   course.name,
-                    "type":          req_type,
-                    "programs":      programs,
-                    "exam_date":     exam_date,
-                })
-
+        for row in rows:
+            sem_key  = row["semester"]
+            moed_key = row["moed"]
+            result.setdefault(sem_key, {}).setdefault(moed_key, []).append(row)
         return result
 
     def _format_schedule_rows(self, schedule: ExamSchedule) -> list[dict]:
@@ -753,9 +729,9 @@ class AppService(IAppService):
 
         When the placement carries room-scheduling data (is_room_based=True), the dict
         also contains:
-            time_slot     (str)        — "MORNING" / "AFTERNOON" / "EVENING"
-            rooms         (list[dict]) — [{"building": str, "room_id": str, "capacity": int}, ...]
-            num_students  (int)        — student count for the course
+            time_slot      (str)       — "MORNING" / "AFTERNOON" / "EVENING"
+            rooms_display  (list[str]) — pre-formatted bullet strings, one per room
+            num_students   (int)       — student count for the course
             total_capacity (int)       — combined capacity of all assigned rooms
 
         Date-only placements omit these keys so existing callers are unaffected.
@@ -792,13 +768,9 @@ class AppService(IAppService):
                 # Room-scheduling mode: attach slot + room + capacity data.
                 # The guide (Technical Design & UI) requires these fields in the output.
                 if placement.is_room_based:
-                    row["time_slot"]      = placement.time_slot.value
-                    row["rooms"]          = [
-                        {
-                            "building": r.building,
-                            "room_id":  r.room_id,
-                            "capacity": r.capacity,
-                        }
+                    row["time_slot"]     = placement.time_slot.value
+                    row["rooms_display"] = [
+                        f"• Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
                         for r in placement.rooms
                     ]
                     row["num_students"]   = getattr(course, "num_students", 0)

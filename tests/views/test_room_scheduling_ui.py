@@ -49,9 +49,9 @@ def _make_room_exam(**overrides) -> dict:
     base = _make_date_only_exam()
     base.update({
         "time_slot":      "MORNING",
-        "rooms":          [
-            {"building": "A", "room_id": "101", "capacity": 80},
-            {"building": "A", "room_id": "102", "capacity": 60},
+        "rooms_display":  [
+            "• Building A - Room 101 (80 seats)",
+            "• Building A - Room 102 (60 seats)",
         ],
         "num_students":   120,
         "total_capacity": 140,
@@ -207,10 +207,10 @@ class TestExamRowRoomScheduling(unittest.TestCase):
         self.assertIn("60 seats", texts)
 
     def test_total_capacity_shown(self):
-        """Capacity summary must show students / total_capacity in that order."""
+        """Capacity summary must read 'X seats for Y students'."""
         row = self._make_row(_make_room_exam(total_capacity=140, num_students=120))
         texts = " ".join(_get_label_texts(row))
-        self.assertIn("120 / 140", texts)
+        self.assertIn("140 seats for 120 students", texts)
 
     def test_assigned_rooms_header_shown(self):
         row = self._make_row(_make_room_exam())
@@ -226,7 +226,7 @@ class TestExamRowRoomScheduling(unittest.TestCase):
     def test_single_room_renders(self):
         """A placement with only one room must still render all fields."""
         exam = _make_room_exam(
-            rooms=[{"building": "B", "room_id": "201", "capacity": 200}],
+            rooms_display=["• Building B - Room 201 (200 seats)"],
             total_capacity=200,
             num_students=150,
         )
@@ -234,14 +234,15 @@ class TestExamRowRoomScheduling(unittest.TestCase):
         texts = " ".join(_get_label_texts(row))
         self.assertIn("Building B", texts)
         self.assertIn("200 seats", texts)
+        self.assertIn("200 seats for 150 students", texts)
 
     def test_three_rooms_all_rendered(self):
         """Every room in a three-room placement must produce its own bullet label."""
         exam = _make_room_exam(
-            rooms=[
-                {"building": "A", "room_id": "R01", "capacity": 40},
-                {"building": "B", "room_id": "R02", "capacity": 80},
-                {"building": "C", "room_id": "R03", "capacity": 120},
+            rooms_display=[
+                "• Building A - Room R01 (40 seats)",
+                "• Building B - Room R02 (80 seats)",
+                "• Building C - Room R03 (120 seats)",
             ],
             num_students=220,
             total_capacity=240,
@@ -258,8 +259,7 @@ class TestExamRowRoomScheduling(unittest.TestCase):
         self.assertIn("40 seats", texts)
         self.assertIn("80 seats", texts)
         self.assertIn("120 seats", texts)
-        # Capacity summary must show students / total_capacity in that order.
-        self.assertIn("220 / 240", texts)
+        self.assertIn("240 seats for 220 students", texts)
 
 
 if __name__ == "__main__":

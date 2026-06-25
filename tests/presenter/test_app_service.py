@@ -783,3 +783,61 @@ def test_get_period_schedule_falls_back_when_no_sort_active(monkeypatch):
 
     # went through disk path, not ranked path
     assert "FALL_Aleph" in disk_called  
+
+
+# ------------------------------------------------------------------ #
+# _format_schedule_rows - room scheduling integration                  #
+# ------------------------------------------------------------------ #
+
+def test_format_schedule_rows_room_based(monkeypatch):
+    """_format_schedule_rows must produce rooms_display strings and capacity keys
+    when the placement carries time-slot and room data."""
+    from src.models.exam_placement import ExamPlacement
+    from src.models.room import Room
+    from src.models.enums import TimeSlot
+
+    service = _make_service(monkeypatch)
+    service._selected_programs = {"83101"}
+
+    course = _make_course("10001")
+    course.num_students = 45
+
+    period = _make_period()
+    room = Room("202", "B", 60)  # Room(room_id, building, capacity)
+    placement = ExamPlacement(date(2026, 2, 1), TimeSlot.MORNING, (room,))
+
+    schedule = ExamSchedule(period)
+    schedule.assign(course, placement)
+
+    rows = service._format_schedule_rows(schedule)
+
+    assert len(rows) == 1
+    row = rows[0]
+
+    assert row["time_slot"] == "MORNING"
+    assert row["num_students"] == 45
+    assert row["total_capacity"] == 60
+    assert "rooms_display" in row
+    assert len(row["rooms_display"]) == 1
+    assert "Building B" in row["rooms_display"][0]
+    assert "202" in row["rooms_display"][0]
+    assert "60 seats" in row["rooms_display"][0]
+
+
+def test_format_schedule_rows_date_only(monkeypatch):
+    """Date-only placements must not produce room keys — existing callers unaffected."""
+    service = _make_service(monkeypatch)
+    service._selected_programs = {"83101"}
+
+    course  = _make_course("10002")
+    period  = _make_period()
+    schedule = _make_schedule(period, course, date(2026, 2, 1))
+
+    rows = service._format_schedule_rows(schedule)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert "time_slot"     not in row
+    assert "rooms_display" not in row
+    assert "num_students"  not in row
+    assert "total_capacity" not in row

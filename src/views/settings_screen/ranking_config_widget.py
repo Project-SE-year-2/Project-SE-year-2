@@ -30,6 +30,7 @@ _METRIC_TITLES: dict[str, str] = {
     "elective_conflicts": "Elective exam conflicts",
     "span_required":     "Span of mandatory exams",
     "max_exams_per_day": "Peak exams per day",
+    "avg_room_distance": "Average room distance",
 }
 
 _METRIC_DESCRIPTIONS: dict[str, str] = {
@@ -49,6 +50,9 @@ _METRIC_DESCRIPTIONS: dict[str, str] = {
     "max_exams_per_day": (
         "Schedules with fewer exams on the busiest day are ranked first."
     ),
+    "avg_room_distance": (
+        "Room scheduling mode - schedules with lower room/building spread are ranked first."
+    ),
 }
 
 # The visual top-to-bottom order of rows when the widget first appears.
@@ -58,6 +62,7 @@ _DEFAULT_ORDER: list[str] = [
     "elective_conflicts",
     "span_required",
     "max_exams_per_day",
+    "avg_room_distance",
 ]
 
 # Empty set — all rows start unchecked so the user explicitly picks criteria.

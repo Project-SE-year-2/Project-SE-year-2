@@ -165,12 +165,50 @@ class DateOnlyDomainProvider:
         return valid
 
 
+def _room_identity(room: Room) -> tuple[str, str]:
+    """Return the stable physical identity of a room as (building, room_id).
+
+    Two Room objects with the same identity refer to the same physical room
+    regardless of any other attribute (e.g. capacity loaded from a different
+    source).  This mirrors the occupancy key used by RoomAndSlotConstraint.
+    """
+    return (room.building, room.room_id)
+
+
 class RoomAllocator:
-    """Allocates a non-overlapping set of rooms for one exam placement."""
+    """
+    Allocates a non-overlapping set of rooms for one exam placement.
+
+    Allocation strategy (in priority order):
+      1. Sliding-window  — scan contiguous runs of rooms within the SAME
+         BUILDING (sorted by room_id) and pick the best window that satisfies
+         capacity.  Selection priority: fewest rooms, then fewest distinct
+         buildings (always 1 here), then lowest unused capacity.
+      2. Greedy fallback — used when no single building has enough capacity.
+         Accumulates the largest rooms across all buildings until the
+         requirement is met.  This is the only path that combines rooms from
+         different buildings.
+
+    Occupancy checks compare rooms by (building, room_id), not by object
+    identity, so two different Room objects that represent the same physical
+    room are correctly treated as conflicting.
+    """
 
     def __init__(self, rooms: list[Room]) -> None:
         if not rooms:
             raise ValueError("Room scheduling requires at least one room.")
+        # Reject duplicate physical rooms early so allocation logic stays clean.
+        seen: set[tuple[str, str]] = set()
+        for room in rooms:
+            key = _room_identity(room)
+            if key in seen:
+                raise ValueError(
+                    f"Duplicate physical room: building='{room.building}', "
+                    f"room_id='{room.room_id}'.  Each (building, room_id) "
+                    "must appear at most once in the room list."
+                )
+            seen.add(key)
+        # Sort once at construction time so sliding-window scans are stable.
         self._rooms = tuple(sorted(rooms, key=lambda room: (room.building, room.room_id)))
 
     def allocate(
@@ -188,7 +226,61 @@ class RoomAllocator:
         if required_capacity <= 0:
             return None
 
+        # Prefer nearby rooms via sliding window; fall back to greedy if needed.
+        result = self._sliding_window_allocate(available, required_capacity)
+        if result is not None:
+            return result
         return self._greedy_allocate(available, required_capacity)
+
+    @staticmethod
+    def _sliding_window_allocate(
+        available: list[Room],
+        required_capacity: int,
+    ) -> tuple[Room, ...] | None:
+        """
+        Scan every contiguous sub-sequence of available rooms where ALL rooms
+        share the same building, and return the best window that satisfies
+        required_capacity.
+
+        Restricting to a single building keeps this strategy meaningful:
+        nearby rooms are those physically close within one building.  When no
+        single building has enough capacity the caller falls back to
+        _greedy_allocate, which can combine rooms across buildings.
+
+        available is already sorted by (building, room_id), so same-building
+        rooms are always contiguous in the list.
+
+        Selection priority (lower is better):
+          1. Fewest rooms in the window.
+          2. Fewest distinct buildings (always 1 here, kept for clarity).
+          3. Lowest unused capacity (tightest fit).
+
+        Once a valid window of size k is found, no window of size > k is tried.
+        """
+        n = len(available)
+        best: tuple[Room, ...] | None = None
+        # Comparison key: (room_count, distinct_buildings, unused_capacity)
+        best_key: tuple = (float("inf"), float("inf"), float("inf"))
+
+        for size in range(1, n + 1):
+            for start in range(n - size + 1):
+                window = available[start : start + size]
+                # Only consider windows that stay within a single building.
+                buildings = {r.building for r in window}
+                if len(buildings) > 1:
+                    continue
+                total = sum(r.capacity for r in window)
+                if total >= required_capacity:
+                    unused = total - required_capacity
+                    key = (size, len(buildings), unused)
+                    if key < best_key:
+                        best = tuple(window)
+                        best_key = key
+            # Found at least one valid window of this size — stop growing.
+            if best is not None:
+                break
+
+        return best
 
     @staticmethod
     def _greedy_allocate(
@@ -196,31 +288,32 @@ class RoomAllocator:
         required_capacity: int,
     ) -> tuple[Room, ...] | None:
         """
-        Allocate rooms without enumerating every possible combination.
+        Fallback when no contiguous sliding-window solution exists.
 
-        Prefer the smallest single room that fits. If no single room is large
-        enough, accumulate larger rooms first until the capacity requirement is met.
+        Prefers the smallest single room that fits alone. If no single room
+        is large enough, accumulates the largest available rooms until the
+        capacity requirement is satisfied.
         """
         if not available:
             return None
-        # Sort available rooms by capacity, then building, then room_id for deterministic selection.
+
         by_capacity = sorted(
             available,
             key=lambda room: (room.capacity, room.building, room.room_id),
         )
+        # Single-room fast path.
         for room in by_capacity:
             if room.capacity >= required_capacity:
                 return (room,)
 
+        # Multi-room accumulation — largest first.
         selected: list[Room] = []
-        total_capacity = 0
+        total = 0
         for room in reversed(by_capacity):
             selected.append(room)
-            total_capacity += room.capacity
-            if total_capacity >= required_capacity:
-                return tuple(
-                    sorted(selected, key=lambda item: (item.building, item.room_id))
-                )
+            total += room.capacity
+            if total >= required_capacity:
+                return tuple(sorted(selected, key=lambda r: (r.building, r.room_id)))
         return None
 
     @property
@@ -240,9 +333,13 @@ class RoomAllocator:
         time_slot: TimeSlot,
         partial: ExamSchedule,
     ) -> bool:
+        # Use _room_identity so that two Room objects with the same
+        # (building, room_id) are treated as the same physical room,
+        # matching the occupancy key used by RoomAndSlotConstraint.
+        target = _room_identity(room)
         for _, _, placement in partial.iter_placements():
             if placement.date == exam_date and placement.time_slot == time_slot:
-                if room in placement.rooms:
+                if any(_room_identity(r) == target for r in placement.rooms):
                     return True
         return False
 

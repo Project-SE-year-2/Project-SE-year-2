@@ -230,6 +230,15 @@ class AppService(IAppService):
 
         courses = self._datastore.get_all_courses()
         periods = self._datastore.get_periods()
+        settings = self.get_constraint_settings()
+
+        # Guard: room scheduling requires at least one room to be loaded.
+        rooms = self._datastore.get_rooms()
+        if settings.room_scheduling_enabled and not rooms:
+            raise ValueError(
+                "Room scheduling is enabled but no rooms have been loaded. "
+                "Please load a rooms file before generating."
+            )
 
         valid_courses = filter_courses_for_scheduling(courses, self._selected_programs)
         scheduling_tasks = match_courses_to_periods(valid_courses, periods)
@@ -240,7 +249,15 @@ class AppService(IAppService):
         catalog = ExamPeriodCatalog(periods)
         collision_validator = BasicVersionValidator(index)
         constraint_validator = ConstraintValidator(index, collision_validator)
-        engine = SchedulingEngine(constraint_validator, catalog, index, self.get_constraint_settings())
+
+        # Pass rooms to the engine so SchedulingModeFactory can wire room-aware components.
+        engine = SchedulingEngine(
+            constraint_validator,
+            catalog,
+            index,
+            settings,
+            rooms or None,
+        )
 
         return engine, scheduling_tasks
 

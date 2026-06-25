@@ -27,7 +27,7 @@ class AppController:
             if os.path.getsize(path) == 0:
                 raise ValueError(f"Error: The file at {path} is empty!")
 
-    def run(self, courses_path: str, periods_path: str, programs_path: str, constraint_settings=None):
+    def run(self, courses_path: str, periods_path: str, programs_path: str, constraint_settings=None, rooms=None):
         self._validate_paths([courses_path, periods_path, programs_path])
 
         courses = self.course_parser.parse(courses_path)
@@ -58,7 +58,7 @@ class AppController:
         collision_validator = BasicVersionValidator(index)
         constraint_validator = ConstraintValidator(index, collision_validator)
 
-        self.engine = SchedulingEngine(constraint_validator, catalog, index)
+        self.engine = SchedulingEngine(constraint_validator, catalog, index, constraint_settings, rooms)
 
         schedules, metadata = self.engine.generateAll(scheduling_tasks)
 

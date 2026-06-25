@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from dataclasses import dataclass
-from datetime import date as DateType
 
 from src.models.enums import TimeSlot
 from src.models.room import Room
@@ -63,3 +61,7 @@ class ExamPlacement:
     def is_room_based(self) -> bool:
         """Return True when this placement contains room scheduling data."""
         return self.time_slot is not None and len(self.rooms) > 0
+
+    def __post_init__(self) -> None:
+        if self.time_slot is not None and not self.rooms:
+            raise ValueError("Room-based placement requires at least one room.")

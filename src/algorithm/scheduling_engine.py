@@ -188,9 +188,6 @@ class SchedulingEngine:
                 scores_db.insert_batch(pid, score_rows)
             if on_batch_written:
                 on_batch_written()
-        
-        if total == 0:
-            writer.clear_period(pid)
         return total
 
     def solve_all_to_disk_round_robin(self, tasks: dict, writer, on_first_batch_written=None) -> None:

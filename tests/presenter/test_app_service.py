@@ -22,6 +22,8 @@ from src.models.exam_period import ExamPeriod
 from src.models.exam_schedule import ExamSchedule
 from src.models.program_requirement import ProgramRequirement
 from src.models.enums import Evaluation, Semester, Moed, ReqType
+from src.output.schedule_report_writer import ScheduleReportWriter
+from src.output.pdf_schedule_report_writer import PdfScheduleReportWriter
 
 
 # ------------------------------------------------------------------ #
@@ -786,7 +788,7 @@ def test_get_period_schedule_falls_back_when_no_sort_active(monkeypatch):
 
 
 # ------------------------------------------------------------------ #
-# _format_schedule_rows - room scheduling integration                  #
+# _format_schedule_rows — room scheduling integration                  #
 # ------------------------------------------------------------------ #
 
 def test_format_schedule_rows_room_based(monkeypatch):
@@ -841,3 +843,34 @@ def test_format_schedule_rows_date_only(monkeypatch):
     assert "rooms_display" not in row
     assert "num_students"  not in row
     assert "total_capacity" not in row
+
+
+# ------------------------------------------------------------------ #
+# PDF / TXT export writer selection                                    #
+# ------------------------------------------------------------------ #
+
+def test_create_export_writer_returns_pdf_writer_for_pdf(monkeypatch):
+    """Verify that AppService selects PdfScheduleReportWriter for .pdf paths."""
+    service = _make_service(monkeypatch)
+
+    writer = service._create_export_writer("report.pdf")
+
+    assert isinstance(writer, PdfScheduleReportWriter)
+
+
+def test_create_export_writer_returns_text_writer_for_txt(monkeypatch):
+    """Verify that AppService selects ScheduleReportWriter for .txt paths."""
+    service = _make_service(monkeypatch)
+
+    writer = service._create_export_writer("report.txt")
+
+    assert isinstance(writer, ScheduleReportWriter)
+
+
+def test_create_export_writer_is_case_insensitive_for_pdf(monkeypatch):
+    """Verify that uppercase .PDF paths are still exported as PDF."""
+    service = _make_service(monkeypatch)
+
+    writer = service._create_export_writer("REPORT.PDF")
+
+    assert isinstance(writer, PdfScheduleReportWriter)

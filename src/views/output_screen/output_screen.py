@@ -1013,7 +1013,7 @@ class OutputScreen(QWidget):
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save Schedule", "",
-            "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)",
+            "Text Files (*.txt);;PDF Files (*.pdf);;CSV Files (*.csv);;All Files (*)",
             options=options,
         )
         if not file_path:

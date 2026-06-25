@@ -118,6 +118,26 @@ class ExamSchedule:
             groups.setdefault(key, {})[c] = placement.date
         return groups
 
+    def groupBySemesterAndMoedWithPlacements(self) -> dict[tuple, dict]:
+        """Return all placements grouped by (semester, moed), preserving full ExamPlacement data.
+
+        Like groupBySemesterAndMoed() but returns ExamPlacement objects instead of
+        plain dates, so callers can access time_slot, rooms, and total_capacity for
+        room-scheduling results.
+
+        Returns:
+            {(Semester, Moed): {Course: ExamPlacement}}
+
+        Note:
+            Date-only placements are included with time_slot=None and rooms=().
+            Callers should use placement.is_room_based to distinguish the two modes.
+        """
+        groups: dict[tuple, dict] = {}
+        for (p, c), placement in self._store.items():
+            key = (p.semester, p.moed)
+            groups.setdefault(key, {})[c] = placement
+        return groups
+
     @property
     def is_cross_period(self) -> bool:
         return self.period is None

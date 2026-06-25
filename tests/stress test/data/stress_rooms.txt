@@ -1,0 +1,21 @@
+# Stress test rooms — format: room_id,building,capacity
+# 12 rooms across 3 buildings covering 30–250 seats.
+# Largest course has 175 students → C02 (180 seats) covers it.
+
+# ── Building A (small) ───────────────────────────────────
+A01,A,30
+A02,A,40
+A03,A,50
+A04,A,60
+
+# ── Building B (medium) ──────────────────────────────────
+B01,B,70
+B02,B,80
+B03,B,100
+B04,B,120
+
+# ── Building C (large) ───────────────────────────────────
+C01,C,150
+C02,C,180
+C03,C,200
+C04,C,250

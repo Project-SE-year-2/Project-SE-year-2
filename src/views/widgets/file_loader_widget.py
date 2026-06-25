@@ -403,9 +403,20 @@ class FileLoaderWidget(QWidget):
             dialog_caption="Select Dates File",
             single_file=True,   # dates zone always holds exactly one file
         )
+        # Optional rooms file zone - only needed when "Enable Room Scheduling" is on.
+        # Format: room_id,building,capacity (one room per line).
+        # Calling load_rooms() replaces previously stored rooms in the data store.
+        self._rooms_zone = DropZoneCard(
+            icon=ICON_FILE,
+            title="Rooms File (Optional)",
+            hint="Drag & drop rooms file here\n(or click to browse)\nCSV, Text (.csv, .txt)",
+            dialog_caption="Select Rooms File",
+            single_file=True,
+        )
 
         zones_row.addWidget(self._courses_zone)
         zones_row.addWidget(self._dates_zone)
+        zones_row.addWidget(self._rooms_zone)
         layout.addLayout(zones_row)
 
         # ── Replace / Add toggle ───────────────────────────────────────────
@@ -469,8 +480,12 @@ class FileLoaderWidget(QWidget):
         self._add_toggle.clicked.connect(lambda: self._set_mode(replace=False))
         self._courses_zone.file_added.connect(self._on_file_selected)
         self._dates_zone.file_added.connect(self._on_file_selected)
+        # Rooms zone: parse and store rooms immediately on drop/ browse so the
+        # service is ready before the user clicks Generate.
+        self._rooms_zone.file_added.connect(self._on_rooms_file_selected)
         self._load_button.clicked.connect(self._load_files)
     # Switches between Replace and Add mode and notifies the drop zones.
+    # The rooms zone is always single-file so replace mode has no effect on it.
     def _set_mode(self, replace: bool) -> None:
         self._replace_toggle.setChecked(replace)
         self._add_toggle.setChecked(not replace)
@@ -485,6 +500,19 @@ class FileLoaderWidget(QWidget):
         self._message_label.setText("")
         self._loaded_files_panel.clear()
         self._sync_validation()
+
+    def _on_rooms_file_selected(self, path: str) -> None:
+        """Parse and store rooms immediately when a rooms file is dropped or browsed.
+
+        Rooms are loaded eagerly (not waiting for the Load Files button) so that
+        the service is ready before the user clicks Generate.  Errors are shown
+        inline in the status label without blocking the rest of the form.
+        """
+        try:
+            self._service.load_rooms(path)
+            self._show_success(f"Rooms loaded: {Path(path).name}")
+        except Exception as error:
+            self._show_error(str(error))
 
     # Loads all queued courses files against the single dates file.
     # The first courses file uses the selected mode; additional ones always use append.

@@ -115,3 +115,24 @@ FOOTER_STYLE = (
 # kept for backward compat with old tests
 PROGRAMS_STYLE = PROGRAMS_COUNT_STYLE
 COURSE_NAME_STYLE = COURSE_NAME_INLINE_STYLE
+
+# ── Room scheduling info (only shown when placement.is_room_based) ────
+# Time slot label:  "MORNING", "AFTERNOON", or "EVENING"
+TIME_SLOT_STYLE = (
+    "color: #0F172A; font-size: 14px; font-weight: 700; background: transparent;"
+)
+
+# Section header above the room bullet list
+ROOM_SECTION_LABEL_STYLE = (
+    "color: #94A3B8; font-size: 13px; font-weight: 500; background: transparent;"
+)
+
+# One bullet per assigned room:  "• Building A - Room 101 (50 seats)"
+ROOM_BULLET_STYLE = (
+    "color: #475569; font-size: 14px; font-weight: 400; background: transparent;"
+)
+
+# Total-capacity summary line:  "Total capacity: 150 / 120 students"
+ROOM_CAPACITY_STYLE = (
+    "color: #64748B; font-size: 13px; font-weight: 400; background: transparent;"
+)

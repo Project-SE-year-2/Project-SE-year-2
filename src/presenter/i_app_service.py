@@ -16,6 +16,24 @@ class IAppService(ABC):
     # ------------------------------------------------------------------ #
 
     @abstractmethod
+    def load_rooms(self, path: str) -> None:
+        """Parse a rooms CSV file and persist the rooms to the data store.
+
+        The file must follow the format expected by RoomFileParser:
+            room_id,building,capacity   (one room per line)
+
+        Calling this method replaces any previously stored rooms.
+
+        Args:
+            path: Absolute path to the rooms CSV/TXT file.
+
+        Raises:
+            FileNotFoundError: if the file does not exist.
+            ValueError:        if the file is empty, malformed, has duplicate rooms,
+                               or a capacity value is not a positive integer.
+        """
+
+    @abstractmethod
     def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
         """Parse and store course and period files.
 

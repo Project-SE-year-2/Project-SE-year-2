@@ -122,13 +122,18 @@ class TestConstraintConfigWidgetAPI(unittest.TestCase):
         self.assertEqual(self.widget._spins["mandatory_gap"].value(), 7)
 
     def test_set_values_then_get_values_roundtrip(self):
-        """set_values followed by get_values must return the same data."""
+        """set_values followed by get_values must return the same data.
+
+        room_scheduling_enabled is included because get_values() always emits it
+        now that the room scheduling toggle exists in the widget.
+        """
         original = {
             "mandatory_gap_enabled": True,  "mandatory_gap_k": 4,
             "all_gap_enabled": False,        "all_gap_k": 3,
             "elective_conflicts_enabled": True, "elective_conflicts_k": 2,
             "spread_enabled": True,          "spread_k": 10,
             "daily_cap_enabled": False,      "daily_cap_k": 3,
+            "room_scheduling_enabled": False,
         }
         self.widget.set_values(original)
         result = self.widget.get_values()

@@ -44,6 +44,10 @@ from src.styles.day_detail_dialog_style import (
     MINI_BADGE_REQUIRED_STYLE,
     PROGRAM_BULLET_STYLE,
     PROGRAMS_COUNT_STYLE,
+    ROOM_BULLET_STYLE,
+    ROOM_CAPACITY_STYLE,
+    ROOM_SECTION_LABEL_STYLE,
+    TIME_SLOT_STYLE,
     TITLE_STYLE,
     exam_row_style,
 )
@@ -132,6 +136,48 @@ class _ExamRow(QFrame):
             bullet = QLabel(f"• {display_full}")
             bullet.setStyleSheet(PROGRAM_BULLET_STYLE)
             outer.addWidget(bullet)
+
+        # ── Room scheduling info (only present in room-scheduling mode) ──
+        # Keys "time_slot", "rooms", "num_students", and "total_capacity" are
+        # added by _format_schedule_rows() only when placement.is_room_based.
+        # Date-only placements omit these keys, so no room section is rendered,
+        # keeping the card layout identical to what it was before this feature.
+        time_slot = exam.get("time_slot")
+        rooms     = exam.get("rooms")      # list of {"building", "room_id", "capacity"}
+
+        if time_slot or rooms:
+            # Separator between programs and room info
+            sep = QFrame()
+            sep.setFrameShape(QFrame.HLine)
+            sep.setStyleSheet("color: #E2E8F0; background: #E2E8F0; border: none; max-height: 1px;")
+            outer.addWidget(sep)
+
+        if time_slot:
+            slot_lbl = QLabel(f"Time slot: {time_slot}")
+            slot_lbl.setStyleSheet(TIME_SLOT_STYLE)
+            outer.addWidget(slot_lbl)
+
+        if rooms:
+            rooms_header = QLabel("Assigned rooms")
+            rooms_header.setStyleSheet(ROOM_SECTION_LABEL_STYLE)
+            outer.addWidget(rooms_header)
+
+            for room in rooms:
+                # Format: "• Building A - Room 101 (50 seats)"
+                room_line = QLabel(
+                    f"• Building {room['building']} - Room {room['room_id']}"
+                    f" ({room['capacity']} seats)"
+                )
+                room_line.setStyleSheet(ROOM_BULLET_STYLE)
+                outer.addWidget(room_line)
+
+            num_students   = exam.get("num_students", 0)
+            total_capacity = exam.get("total_capacity", 0)
+            capacity_lbl   = QLabel(
+                f"Total capacity: {num_students} / {total_capacity}"
+            )
+            capacity_lbl.setStyleSheet(ROOM_CAPACITY_STYLE)
+            outer.addWidget(capacity_lbl)
 
 
 # ---------------------------------------------------------------------------

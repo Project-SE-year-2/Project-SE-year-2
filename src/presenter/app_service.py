@@ -476,14 +476,7 @@ class AppService(IAppService):
         if period_id not in self._sorted_cache:
             if not self._build_sorted_cache(period_id):
                 return None
-        else:
-            engine = self._get_ranking_engine()
-            if engine is not None:
-                try:
-                    if engine.count(period_id) > len(self._sorted_cache[period_id]):
-                        self._build_sorted_cache(period_id)
-                except Exception:
-                    pass
+        
         indices = self._sorted_cache[period_id]
         if rank >= len(indices):
             return None

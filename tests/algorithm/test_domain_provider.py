@@ -239,6 +239,36 @@ def test_room_provider_requires_no_room_allocator():
     assert provider is not None
 
 
+def test_room_provider_partial_constraint_assigns_date_not_exam_block():
+    """
+    Partial constraints are date-based. When the room provider checks them, it
+    must temporarily assign the ExamBlock date, not the ExamBlock object itself.
+    """
+    provider = RoomSchedulingDomainProvider()
+    period = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 1, 5), date(2026, 1, 5))
+    period.possible_dates = [date(2026, 1, 5)]
+    course = _course(students=10)
+    seen_dates = []
+
+    class RecordingPartialChecker:
+        def is_valid_partial(self, schedule):
+            placement = schedule.placements[course]
+            seen_dates.append(placement.date)
+            assert not isinstance(placement.date, ExamBlock)
+            return True
+
+    candidates = provider.candidates_for(
+        course,
+        _partial(period),
+        period,
+        _validator(),
+        RecordingPartialChecker(),
+    )
+
+    assert seen_dates == [date(2026, 1, 5)]
+    assert all(isinstance(candidate, ExamBlock) for candidate in candidates)
+
+
 # ---------------------------------------------------------------------------
 # DateOnlyPlacementFactory — must return ExamPlacement, not a raw date
 # ---------------------------------------------------------------------------

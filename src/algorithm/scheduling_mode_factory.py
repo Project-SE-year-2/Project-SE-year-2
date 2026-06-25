@@ -123,10 +123,20 @@ def _passes_partial_constraints(
     if partial_constraint_checker is None:
         return True
 
-    partial.assign(course, candidate)
+    # Partial constraints are date-based today. Room mode candidates are
+    # ExamBlock objects, which are domain options rather than schedule values,
+    # so only their date should be temporarily assigned to the schedule.
+    partial.assign(course, _candidate_date(candidate))
     is_valid = partial_constraint_checker.is_valid_partial(partial)
     partial.unassign(course)
     return is_valid
+
+
+def _candidate_date(candidate) -> DateType:
+    """Return the date represented by either a raw date or an ExamBlock candidate."""
+    if isinstance(candidate, ExamBlock):
+        return candidate.date
+    return candidate
 
 
 class DateOnlyDomainProvider:

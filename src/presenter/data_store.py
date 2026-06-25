@@ -15,6 +15,7 @@ from datetime import date
 
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
+from src.models.room import Room
 
 
 # Resolve the project root once at import time.
@@ -29,6 +30,7 @@ class DataStore:
         self._path = Path(path) if path else _DEFAULT_PATH
         self._courses: list[Course] = []
         self._periods: list[ExamPeriod] = []
+        self._rooms: list[Room] = []
         #Dictionary to map program_id -> full display name
         self._program_names: dict[str, str] = {}
 
@@ -43,9 +45,10 @@ class DataStore:
             #Include the program names mapping in the persisted data
             #dump the entire state as a single dictionary for easier loading later
             pickle.dump({
-                "courses": self._courses, 
+                "courses": self._courses,
                 "periods": self._periods,
-                "program_names": self._program_names # EP-74: Persist the mapping
+                "program_names": self._program_names,
+                "rooms": self._rooms,
             }, program_file)
 
     def load(self) -> bool:
@@ -64,13 +67,16 @@ class DataStore:
                 data = pickle.load(program_file)
             self._courses = data.get("courses", [])
             self._periods = data.get("periods", [])
-            self._program_names = data.get("program_names", {}) # Load the program names mapping
+            self._program_names = data.get("program_names", {})
+            # Backward-compatible: old saves without rooms default to empty list.
+            self._rooms = data.get("rooms", [])
             return True
         except Exception:
             # Corrupted file — start fresh rather than crashing.
             self._courses = []
             self._periods = []
             self._program_names = {}
+            self._rooms = []
             return False
 
     def clear(self) -> None:
@@ -78,6 +84,7 @@ class DataStore:
         self._courses = []
         self._periods = []
         self._program_names = {}
+        self._rooms = []
         if self._path.exists():
             self._path.unlink()
 
@@ -99,6 +106,19 @@ class DataStore:
         This is typically populated by parsing the programs definition file.
         """
         self._program_names = dict(names)
+
+    def set_rooms(self, rooms: list[Room]) -> None:
+        """Replace all stored rooms with the provided list."""
+        self._rooms = list(rooms)
+
+    def merge_rooms(self, new_rooms: list[Room]) -> None:
+        """Append rooms whose (building, room_id) key is not already stored."""
+        existing_keys = {(r.building, r.room_id) for r in self._rooms}
+        for room in new_rooms:
+            key = (room.building, room.room_id)
+            if key not in existing_keys:
+                self._rooms.append(room)
+                existing_keys.add(key)
 
     def merge_courses(self, new_courses: list[Course]) -> None:
         """Append courses whose course_id is not already stored."""
@@ -145,6 +165,9 @@ class DataStore:
             programs.append({"id": pid, "name": display_name})
             
         return programs
+
+    def get_rooms(self) -> list[Room]:
+        return list(self._rooms)
 
     def get_periods(self) -> list[ExamPeriod]:
         return list(self._periods)

@@ -13,6 +13,7 @@ from src.models.course import Course
 from src.models.exam_period import ExamPeriod
 from src.models.program_requirement import ProgramRequirement
 from src.models.enums import Evaluation, Semester, Moed, ReqType
+from src.models.room import Room
 
 
 # ------------------------------------------------------------------ #
@@ -295,3 +296,107 @@ def test_period_id_format():
 def test_period_id_uses_enum_values():
     period = _make_period(Semester.SPRI, Moed.Bet)
     assert _period_id(period) == "SPRI_Bet"
+
+
+# ------------------------------------------------------------------ #
+# Room persistence (Task 2: Persist Rooms in DataStore)              #
+# ------------------------------------------------------------------ #
+
+def _make_room(room_id: str = "101", building: str = "1", capacity: int = 50) -> Room:
+    return Room(room_id, building, capacity)
+
+
+def test_get_rooms_returns_empty_on_fresh_store(tmp_path):
+    store = DataStore(tmp_path / "ds.pkl")
+    assert store.get_rooms() == []
+
+
+def test_set_rooms_replaces_all(tmp_path):
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_rooms([_make_room("101"), _make_room("102")])
+    assert len(store.get_rooms()) == 2
+
+
+def test_set_rooms_overwrites_previous(tmp_path):
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_rooms([_make_room("101")])
+    store.set_rooms([_make_room("201"), _make_room("202")])
+
+    ids = {r.room_id for r in store.get_rooms()}
+    assert ids == {"201", "202"}
+
+
+def test_get_rooms_returns_copy(tmp_path):
+    """Mutating the returned list must not affect internal state."""
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_rooms([_make_room("101")])
+
+    result = store.get_rooms()
+    result.clear()
+
+    assert len(store.get_rooms()) == 1
+
+
+def test_rooms_saved_and_loaded(tmp_path):
+    path = tmp_path / "ds.pkl"
+    store = DataStore(path)
+    store.set_rooms([_make_room("101", "1", 50), _make_room("201", "2", 80)])
+    store.save()
+
+    store2 = DataStore(path)
+    store2.load()
+    rooms = store2.get_rooms()
+
+    assert len(rooms) == 2
+    assert {r.room_id for r in rooms} == {"101", "201"}
+
+
+def test_load_backward_compat_no_rooms_key(tmp_path):
+    """A saved file without a 'rooms' key must load successfully with an empty list."""
+    import pickle
+    path = tmp_path / "ds.pkl"
+    # Write old-style data without 'rooms' key.
+    with open(path, "wb") as f:
+        pickle.dump({"courses": [], "periods": [], "program_names": {}}, f)
+
+    store = DataStore(path)
+    result = store.load()
+
+    assert result is True
+    assert store.get_rooms() == []
+
+
+def test_clear_wipes_rooms(tmp_path):
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_rooms([_make_room("101")])
+    store.clear()
+
+    assert store.get_rooms() == []
+
+
+def test_merge_rooms_adds_new_rooms(tmp_path):
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_rooms([_make_room("101", "1")])
+    store.merge_rooms([_make_room("102", "1")])
+
+    ids = {r.room_id for r in store.get_rooms()}
+    assert ids == {"101", "102"}
+
+
+def test_merge_rooms_skips_duplicate_building_room_id(tmp_path):
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_rooms([_make_room("101", "1", 50)])
+    store.merge_rooms([_make_room("101", "1", 99)])  # same key, different capacity
+
+    assert len(store.get_rooms()) == 1
+    # Original must be preserved, not replaced.
+    assert store.get_rooms()[0].capacity == 50
+
+
+def test_merge_rooms_allows_same_id_in_different_buildings(tmp_path):
+    """room_id '101' in building '1' and '2' are distinct physical rooms."""
+    store = DataStore(tmp_path / "ds.pkl")
+    store.set_rooms([_make_room("101", "1")])
+    store.merge_rooms([_make_room("101", "2")])
+
+    assert len(store.get_rooms()) == 2

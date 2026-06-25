@@ -252,27 +252,29 @@ class RoomAllocator:
 
         Selection priority (lower is better):
           1. Fewest rooms in the window.
-          2. Fewest distinct buildings (always 1 here, kept for clarity).
-          3. Lowest unused capacity (tightest fit).
+          2. Lowest unused capacity (tightest fit).
+
+        Same-building exclusivity is enforced by the filter above, not by the
+        sort key, so distinct_buildings is always 1 for every candidate that
+        reaches the comparison.
 
         Once a valid window of size k is found, no window of size > k is tried.
         """
         n = len(available)
         best: tuple[Room, ...] | None = None
-        # Comparison key: (room_count, distinct_buildings, unused_capacity)
-        best_key: tuple = (float("inf"), float("inf"), float("inf"))
+        # Comparison key: (room_count, unused_capacity)
+        best_key: tuple = (float("inf"), float("inf"))
 
         for size in range(1, n + 1):
             for start in range(n - size + 1):
                 window = available[start : start + size]
                 # Only consider windows that stay within a single building.
-                buildings = {r.building for r in window}
-                if len(buildings) > 1:
+                if len({r.building for r in window}) > 1:
                     continue
                 total = sum(r.capacity for r in window)
                 if total >= required_capacity:
                     unused = total - required_capacity
-                    key = (size, len(buildings), unused)
+                    key = (size, unused)
                     if key < best_key:
                         best = tuple(window)
                         best_key = key

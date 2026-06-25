@@ -284,37 +284,6 @@ def test_sliding_window_only_considers_same_building_windows():
     assert all(r.building == "1" for r in allocated)
 
 
-def test_sliding_window_prefers_same_building_over_cross_building():
-    """
-    When two windows of equal size and equal unused capacity exist — one
-    spanning a single building and one spanning two — the single-building
-    window must win (fewer distinct buildings tiebreaker).
-    """
-    # Sorted by (building, room_id): R1(b1,30) R2(b1,30) R3(b2,30)
-    # Required: 55.  Two valid size-2 windows, each unused=5:
-    #   [R1,R2] → 1 distinct building
-    #   [R2,R3] → 2 distinct buildings
-    rooms = [
-        Room("101", "1", 30),
-        Room("102", "1", 30),
-        Room("101", "2", 30),
-    ]
-    allocator = RoomAllocator(rooms)
-    period = _period()
-
-    allocated = allocator.allocate(
-        _course(students=55),
-        period.possible_dates[0],
-        TimeSlot.MORNING,
-        ExamSchedule(period),
-    )
-
-    assert allocated is not None
-    # Both chosen rooms must be in the same building.
-    assert len({r.building for r in allocated}) == 1
-    assert all(r.building == "1" for r in allocated)
-
-
 def test_sliding_window_picks_tightest_window_among_candidates():
     """
     When multiple contiguous windows of the same size satisfy capacity,
@@ -342,7 +311,8 @@ def test_sliding_window_picks_tightest_window_among_candidates():
 def test_sliding_window_uses_fewest_rooms_first():
     """
     A single room that covers capacity must be chosen over a two-room window,
-    even if the two-room window is contiguous.
+    even when the two-room window is contiguous and has less unused capacity.
+    Fewest-rooms priority outranks tightest-fit.
     """
     rooms = [
         Room("101", "1", 30),
@@ -359,8 +329,9 @@ def test_sliding_window_uses_fewest_rooms_first():
         ExamSchedule(period),
     )
 
-    # Room("103","1",70) is a single-room solution (unused=10); the two-room
-    # window [101+102]=60 exactly covers but same unused — single room wins first.
+    # Room("103","1",70) is the only single-room solution (unused=10).
+    # The two-room window [101+102]=60 has unused=0 but requires two rooms,
+    # so size=1 beats size=2 regardless of unused capacity.
     assert len(allocated) == 1
     assert allocated[0].room_id == "103"
 

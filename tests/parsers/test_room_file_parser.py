@@ -136,6 +136,13 @@ def test_negative_capacity_raises(tmp_path):
         RoomFileParser().parse(path)
 
 
+def test_double_minus_capacity_raises(tmp_path):
+    """'--10' is not a valid integer — must raise the custom message, not a raw Python error."""
+    path = _write_file(tmp_path, "101,1,--10\n")
+    with pytest.raises(ValueError, match="capacity must be an integer"):
+        RoomFileParser().parse(path)
+
+
 # ---------------------------------------------------------------------------
 # Missing fields
 # ---------------------------------------------------------------------------
@@ -182,3 +189,4 @@ def test_duplicate_detected_regardless_of_capacity(tmp_path):
     path = _write_file(tmp_path, content)
     with pytest.raises(ValueError, match="duplicate room"):
         RoomFileParser().parse(path)
+

@@ -132,7 +132,7 @@ def _passes_partial_constraints(
     return is_valid
 
 
-def _candidate_date(candidate) -> DateType:
+def _candidate_date(candidate: DateType | ExamBlock) -> DateType:
     """Return the date represented by either a raw date or an ExamBlock candidate."""
     if isinstance(candidate, ExamBlock):
         return candidate.date

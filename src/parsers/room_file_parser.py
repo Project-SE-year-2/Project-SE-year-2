@@ -52,12 +52,12 @@ class RoomFileParser(IFileParser):
             if not building:
                 raise ValueError(f"Line {line_number}: building must not be empty.")
 
-            # Validate that capacity is a plain integer string before conversion.
-            if not capacity_str.lstrip("-").isdigit():
+            try:
+                capacity = int(capacity_str)
+            except ValueError:
                 raise ValueError(
                     f"Line {line_number}: capacity must be an integer, got '{capacity_str}'."
                 )
-            capacity = int(capacity_str)
 
             # Room.__post_init__ enforces capacity > 0; let it raise naturally.
             room = Room(room_id, building, capacity)

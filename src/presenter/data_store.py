@@ -167,6 +167,7 @@ class DataStore:
         return programs
 
     def get_rooms(self) -> list[Room]:
+        """Return a defensive copy of all stored rooms."""
         return list(self._rooms)
 
     def get_periods(self) -> list[ExamPeriod]:

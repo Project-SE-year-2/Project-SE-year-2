@@ -57,13 +57,13 @@ class LoadedFilesPanel(QFrame):
 
             name_lbl = QLabel(Path(path).name)
             name_lbl.setStyleSheet(
-                f"color: {th.TEXT_PRIMARY}; font-size: 14px;"
+                f"color: {th.TEXT_PRIMARY}; font-size: 17px;"
                 f" font-weight: 600; background: transparent; border: none;"
             )
 
             ok_lbl = QLabel("Uploaded successfully")
             ok_lbl.setStyleSheet(
-                f"color: {th.SUCCESS_COLOR}; font-size: 13px;"
+                f"color: {th.SUCCESS_COLOR}; font-size: 14px;"
                 " background: transparent; border: none;"
             )
 
@@ -419,6 +419,10 @@ class FileLoaderWidget(QWidget):
         zones_row.addWidget(self._courses_zone, stretch=1)
         zones_row.addWidget(self._dates_zone, stretch=1)
         zones_row.addWidget(self._rooms_zone, stretch=1)
+        # Clear the content-derived minimum widths so stretch=1 enforces equal sizes.
+        # Without this, "Rooms File (Optional)" - whose title is longer - would be wider.
+        for zone in (self._courses_zone, self._dates_zone, self._rooms_zone):
+            zone.setMinimumWidth(0)
         layout.addLayout(zones_row)
 
         # ── Replace / Add toggle ───────────────────────────────────────────
@@ -513,7 +517,6 @@ class FileLoaderWidget(QWidget):
         try:
             self._service.load_rooms(path)
             self._loaded_rooms_path = path
-            self._refresh_file_panel()
             self._show_success(f"Rooms loaded: {Path(path).name}")
         except Exception as error:
             self._show_error(str(error))

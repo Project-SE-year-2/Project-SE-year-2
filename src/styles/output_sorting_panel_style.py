@@ -5,12 +5,12 @@ The widget logic lives in the ranking configuration component; this module
 keeps the output-screen visual treatment separate from the settings screen.
 """
 
-PANEL_WIDTH = 340
+PANEL_WIDTH = 420
 PANEL_MARGIN = 20
 PANEL_SPACING = 12
 
 ROW_MARGIN_H = 12
-ROW_MARGIN_V = 12
+ROW_MARGIN_V = 14
 ROW_SPACING = 10
 HANDLE_WIDTH = 18
 BADGE_SIZE = 26

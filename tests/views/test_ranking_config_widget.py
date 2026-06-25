@@ -31,8 +31,8 @@ class TestRankingConfigWidgetStructure(unittest.TestCase):
     def test_list_widget_exists(self):
         self.assertIsInstance(self.widget._list, QListWidget)
 
-    def test_list_has_five_rows(self):
-        self.assertEqual(self.widget._list.count(), 5)
+    def test_list_row_count_matches_all_keys(self):
+        self.assertEqual(self.widget._list.count(), len(ALL_KEYS))
 
     def test_drag_drop_mode_is_internal_move(self):
         from PyQt5.QtWidgets import QAbstractItemView
@@ -126,7 +126,7 @@ class TestRankingConfigWidgetCheckboxBehaviour(unittest.TestCase):
         self._row_widget(1).checkbox.setChecked(False)
         self._row_widget(3).checkbox.setChecked(False)
         order = self.widget.get_sort_order()
-        self.assertEqual(len(order), 3)
+        self.assertEqual(len(order), len(ALL_KEYS) - 2)
         self.assertNotIn(_DEFAULT_ORDER[1], order)
         self.assertNotIn(_DEFAULT_ORDER[3], order)
 
@@ -159,7 +159,7 @@ class TestRankingConfigWidgetSetSortOrder(unittest.TestCase):
 
     def test_set_sort_order_changes_order(self):
         new_order = [
-            "elective_conflicts", "max_exams_per_day", "min_days_required",
+            "elective_conflicts", "max_exams_per_day", "avg_room_distance", "min_days_required",
             "avg_days_all", "span_required",
         ]
         self.widget.set_sort_order(new_order)
@@ -183,7 +183,7 @@ class TestRankingConfigWidgetSetSortOrder(unittest.TestCase):
 
     def test_set_sort_order_roundtrip(self):
         order = ["span_required", "avg_days_all", "elective_conflicts",
-                 "min_days_required", "max_exams_per_day"]
+                 "min_days_required", "max_exams_per_day", "avg_room_distance"]
         self.widget.set_sort_order(order)
         self.assertEqual(self.widget.get_sort_order(), order)
 
@@ -194,7 +194,7 @@ class TestRankingConfigWidgetSetSortOrder(unittest.TestCase):
             self.widget._list.item(i).data(0x0100)
             for i in range(self.widget._list.count())
         ]
-        self.assertEqual(len(keys), 5)
+        self.assertEqual(len(keys), len(ALL_KEYS))
         self.assertEqual(keys[:2], ["min_days_required", "avg_days_all"])
         self.assertEqual(set(keys), set(ALL_KEYS))
 

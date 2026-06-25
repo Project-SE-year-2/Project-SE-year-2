@@ -220,3 +220,43 @@ def test_pagination_is_stable_across_pages_with_tied_metrics(db, engine):
     p1_idx = {r[IDX_INDEX_IN_BATCH] for r in page1}
     p2_idx = {r[IDX_INDEX_IN_BATCH] for r in page2}
     assert p1_idx.isdisjoint(p2_idx), "Pages must not overlap even with tied metrics"
+
+
+def _metrics(avg_room_distance: float = 0.0) -> ScheduleMetrics:
+    """Create score metrics for ranking tests."""
+    return ScheduleMetrics(
+        min_days_required=1,
+        avg_days_all=1,
+        elective_conflicts=0,
+        span_required=1,
+        max_exams_per_day=1,
+        avg_room_distance=avg_room_distance,
+    )
+
+
+def test_avg_room_distance_date_only_mode_uses_tie_breaker_order(tmp_path):
+    """Verify avg_room_distance sorting is stable when all date-only scores are 0.0."""
+    db_path = tmp_path / "scores.db"
+    db = ScoresDatabase(db_path)
+
+    db.insert("FALL_Aleph", batch_number=1, index_in_batch=2, metrics=_metrics())
+    db.insert("FALL_Aleph", batch_number=0, index_in_batch=3, metrics=_metrics())
+    db.insert("FALL_Aleph", batch_number=0, index_in_batch=1, metrics=_metrics())
+    db.close()
+
+    engine = RankingQueryEngine(db_path)
+
+    rows = engine.fetch_window(
+        period_id="FALL_Aleph",
+        sort_cols=["avg_room_distance"],
+        limit=10,
+        offset=0,
+    )
+
+    engine.close()
+
+    assert [(row[0], row[1]) for row in rows] == [
+        (0, 1),
+        (0, 3),
+        (1, 2),
+    ]

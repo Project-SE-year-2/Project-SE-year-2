@@ -62,9 +62,6 @@ class ScheduleReportWriter(IOutputWriter):
                 formatter = ExportFormatterFactory.create(sched)
                 lines.extend(formatter.format_schedule(sched, idx, div))
 
-                lines.append(f"  {div}")
-                lines.append("")
-
         lines.append(sep)
         lines.append("END OF REPORT")
         lines.append(sep)

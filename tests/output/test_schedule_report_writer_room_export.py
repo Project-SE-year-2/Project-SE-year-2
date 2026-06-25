@@ -103,3 +103,14 @@ def test_room_export_formats_multiple_rooms_as_comma_separated_string(tmp_path):
     assert "1-101, 1-102" in text
     assert "80" in text
     assert "90" in text
+
+def test_export_does_not_duplicate_schedule_trailing_divider(tmp_path):
+    """Verify that each schedule block has only one trailing divider."""
+    period = _period()
+    course = _course()
+    schedule = ExamSchedule(period)
+    schedule.assign(course, date(2026, 1, 10))
+
+    text = _write_report(tmp_path, schedule)
+
+    assert "\n  " + ("-" * 70) + "\n  " + ("-" * 70) not in text

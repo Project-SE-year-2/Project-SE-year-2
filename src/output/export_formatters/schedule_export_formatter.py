@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import date
 
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod

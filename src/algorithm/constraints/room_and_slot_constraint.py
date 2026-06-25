@@ -21,22 +21,24 @@ class RoomAndSlotConstraint(IConstraint):
     """
 
     def is_satisfied(self, schedule: ExamSchedule) -> bool:
-        placements = schedule.placements
+        all_placements = list(schedule.iter_placements())
 
         # Bypass: if no placement has room data the constraint does not apply.
-        if not any(p.is_room_based for p in placements.values()):
+        if not any(p.is_room_based for _, _, p in all_placements):
             return True
 
-        occupied: set[tuple] = set()  # (room_id, date, time_slot)
+        # (building, room_id, date, time_slot) — building is required because
+        # the same room number can exist in different buildings (e.g. "101" in
+        # building "1" and "101" in building "2" are distinct physical rooms).
+        occupied: set[tuple] = set()
 
-        for course, placement in placements.items():
+        for _, course, placement in all_placements:
             if not placement.is_room_based:
-                # Mixed schedules are not expected, but skip gracefully.
                 continue
 
-            # Rule 1 — room exclusivity
+            # Rule 1 — room exclusivity per physical room
             for room in placement.rooms:
-                key = (room.room_id, placement.date, placement.time_slot)
+                key = (room.building, room.room_id, placement.date, placement.time_slot)
                 if key in occupied:
                     return False
                 occupied.add(key)

@@ -123,6 +123,39 @@ def test_duplicate_room_in_same_date_and_slot_fails():
     assert constraint.is_satisfied(sched) is False
 
 
+def test_same_room_id_different_building_same_slot_passes():
+    """
+    Room "101" in building "1" and room "101" in building "2" are different
+    physical rooms.  The occupancy key must include building so this schedule
+    is accepted, not incorrectly rejected.
+    """
+    constraint = RoomAndSlotConstraint()
+    room_b1 = Room("101", "1", 30)   # building 1, room 101
+    room_b2 = Room("101", "2", 30)   # building 2, room 101 — distinct physical room
+    c1, c2 = _course("C1", 20), _course("C2", 20)
+    sched = _schedule(
+        (c1, _placement(date(2026, 1, 5), TimeSlot.MORNING, (room_b1,))),
+        (c2, _placement(date(2026, 1, 5), TimeSlot.MORNING, (room_b2,))),
+    )
+    assert constraint.is_satisfied(sched) is True
+
+
+def test_same_room_id_same_building_same_slot_fails():
+    """
+    Two exams in the same physical room (same building + room_id) at the same
+    date+slot must still be rejected.
+    """
+    constraint = RoomAndSlotConstraint()
+    room1 = Room("101", "1", 30)
+    room2 = Room("101", "1", 30)
+    c1, c2 = _course("C1", 20), _course("C2", 20)
+    sched = _schedule(
+        (c1, _placement(date(2026, 1, 5), TimeSlot.MORNING, (room1,))),
+        (c2, _placement(date(2026, 1, 5), TimeSlot.MORNING, (room2,))),
+    )
+    assert constraint.is_satisfied(sched) is False
+
+
 def test_multi_room_placement_shares_one_room_with_another_exam_fails():
     """
     When a multi-room placement shares even one room with another exam in the

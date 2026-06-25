@@ -1,26 +1,67 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date as DateType
+from dataclasses import dataclass, field
+from datetime import date
 
 from src.models.enums import TimeSlot
 from src.models.room import Room
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ExamPlacement:
     """
-    Represents the full placement of one course exam.
+    Represents the final placement of one exam.
 
-    Date-only schedules use only the date field. Room-based schedules can also
-    carry a time slot and the rooms assigned to that exam.
+    Date-only mode:
+        date=<exam date>
+        time_slot=None
+        rooms=()
+
+    Room-scheduling mode:
+        date=<exam date>
+        time_slot=<TimeSlot>
+        rooms=(Room(...), ...)
     """
 
-    date: DateType
+    date: date
     time_slot: TimeSlot | None = None
-    rooms: tuple[Room, ...] = ()
+    rooms: tuple[Room, ...] = field(default_factory=tuple)
+
+    @classmethod
+    def date_only(cls, exam_date: date) -> "ExamPlacement":
+        """Create a backward-compatible date-only placement."""
+        return cls(
+            date=exam_date,
+            time_slot=None,
+            rooms=(),
+        )
+
+    @classmethod
+    def with_rooms(
+        cls,
+        exam_date: date,
+        time_slot: TimeSlot,
+        rooms: tuple[Room, ...],
+    ) -> "ExamPlacement":
+        """Create a room-based placement."""
+        if not rooms:
+            raise ValueError("with_rooms requires at least one room.")
+        return cls(
+            date=exam_date,
+            time_slot=time_slot,
+            rooms=rooms,
+        )
 
     @property
     def total_capacity(self) -> int:
-        """Return the total capacity of all rooms assigned to this placement."""
+        """Return the total capacity of all assigned rooms."""
         return sum(room.capacity for room in self.rooms)
+
+    @property
+    def is_room_based(self) -> bool:
+        """Return True when this placement contains room scheduling data."""
+        return self.time_slot is not None and len(self.rooms) > 0
+
+    def __post_init__(self) -> None:
+        if self.time_slot is not None and not self.rooms:
+            raise ValueError("Room-based placement requires at least one room.")

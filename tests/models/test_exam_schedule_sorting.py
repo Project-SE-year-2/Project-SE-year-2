@@ -194,9 +194,13 @@ def test_sort_by_date_orders_room_placements_by_time_slot():
     course3 = Course("Algebra 1", "83120", "Prof. C", Evaluation.Exam)
 
     schedule = ExamSchedule(period)
-    schedule.assign(course1, ExamPlacement(date(2026, 2, 1), TimeSlot.EVENING))
-    schedule.assign(course2, ExamPlacement(date(2026, 2, 1), TimeSlot.MORNING))
-    schedule.assign(course3, ExamPlacement(date(2026, 2, 2), TimeSlot.AFTERNOON))
+    room1 = Room(room_id="101", building="4", capacity=80)
+    room2 = Room(room_id="102", building="4", capacity=80)
+    room3 = Room(room_id="103", building="4", capacity=80)
+
+    schedule.assign(course1, ExamPlacement(date(2026, 2, 1), TimeSlot.EVENING, (room1,)))
+    schedule.assign(course2, ExamPlacement(date(2026, 2, 1), TimeSlot.MORNING, (room2,)))
+    schedule.assign(course3, ExamPlacement(date(2026, 2, 2), TimeSlot.AFTERNOON, (room3,)))
 
     assert schedule.sortByDate() == [
         (course2, date(2026, 2, 1)),
@@ -220,7 +224,8 @@ def test_copy_preserves_room_based_placements():
     )
 
     copied = original.copy()
-    copied.assign(course2, ExamPlacement(date(2026, 2, 2), TimeSlot.AFTERNOON))
+    room2 = Room(room_id="102", building="4", capacity=80)
+    copied.assign(course2, ExamPlacement(date(2026, 2, 2), TimeSlot.AFTERNOON, (room2,)))
 
     assert copied.placements[course1] == original.placements[course1]
     assert course2 not in original.placements
@@ -241,7 +246,8 @@ def test_merge_preserves_cross_period_placements():
     fall_schedule.assign(course1, fall_placement)
 
     spri_schedule = ExamSchedule(spri)
-    spri_placement = ExamPlacement(date(2026, 7, 1), TimeSlot.AFTERNOON)
+    room3= Room(room_id="104", building="5", capacity=80)
+    spri_placement = ExamPlacement(date(2026, 7, 1), TimeSlot.AFTERNOON, (room3,))
     spri_schedule.assign(course2, spri_placement)
 
     merged = fall_schedule.merge(spri_schedule)
@@ -258,11 +264,13 @@ def test_iter_placements_preserves_same_course_across_periods():
     shared_course = Course("Algorithms", "89123", "Dr. Cohen", Evaluation.Exam)
 
     fall_schedule = ExamSchedule(fall)
-    fall_placement = ExamPlacement(date(2026, 2, 1), TimeSlot.MORNING)
+    fall_room = Room(room_id="101", building="4", capacity=80)
+    fall_placement = ExamPlacement(date(2026, 2, 1), TimeSlot.MORNING, (fall_room,))
     fall_schedule.assign(shared_course, fall_placement)
 
     spri_schedule = ExamSchedule(spri)
-    spri_placement = ExamPlacement(date(2026, 7, 1), TimeSlot.AFTERNOON)
+    room2 = Room(room_id="107", building="7", capacity=90)
+    spri_placement = ExamPlacement(date(2026, 7, 1), TimeSlot.AFTERNOON, (room2,))
     spri_schedule.assign(shared_course, spri_placement)
 
     merged = fall_schedule.merge(spri_schedule)

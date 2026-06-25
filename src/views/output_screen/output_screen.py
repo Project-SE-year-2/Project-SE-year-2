@@ -141,6 +141,12 @@ class OutputScreen(QWidget):
         # Used by the poll timer to know when a re-render is still needed.
         self._calendar_displaying_data: bool = False
 
+        # EP-149 bug 1: number of schedules the current view reflects. When the
+        # active period's count grows past this, the poll timer pops the refresh
+        # banner — so newly generated (better-ranked) schedules are offered as
+        # early as the next poll tick. Reset to 0 means "recapture on next render".
+        self._ranked_baseline: int = 0
+
         # Delayed empty-state: fires 2 s after we decide there's no data,
         # but is cancelled immediately if real data arrives first.
         self._empty_timer = QTimer(self)
@@ -166,6 +172,14 @@ class OutputScreen(QWidget):
         """Backend period_id for current semester + moed (e.g. "SPRI_Aleph")."""
         sem_code = _SEMESTER_TO_ID.get(self._current_semester, self._current_semester)
         return f"{sem_code}_{self._current_moed}"
+
+    def _active_period_count(self) -> int:
+        """Schedule count for the active period, or 0 when unavailable."""
+        try:
+            c = self.service.get_schedule_count(period_id=self._active_period_id())
+            return c if isinstance(c, int) and c > 0 else 0
+        except Exception:
+            return 0
 
     def _select_first_available_period(self) -> None:
         """Switch to the first period that already has generated schedules."""
@@ -483,6 +497,8 @@ class OutputScreen(QWidget):
         self._select_first_available_period()
         self._hide_conflict_banner()
         self._hide_sorting_update_banner()
+        # Recapture the baseline for whatever period we land on.
+        self._ranked_baseline = 0
 
         # Guard: on Windows a modal QMessageBox (e.g. the "download success"
         # popup) re-fires showEvent on the active QStackedWidget page when it
@@ -543,6 +559,7 @@ class OutputScreen(QWidget):
         self._hide_sorting_update_banner()
         self._check_conflicts_next = True
         self._calendar_displaying_data = False
+        self._ranked_baseline = 0   # recapture for the newly active period
         self._refresh_screen_display()
 
     def _on_moed_changed(self, moed: str) -> None:
@@ -559,6 +576,7 @@ class OutputScreen(QWidget):
 
         self._global_index = self._active_window_state().current()
         self._check_conflicts_next = True
+        self._ranked_baseline = 0   # recapture for the newly active moed
         self._refresh_screen_display()
 
     # ── Central display refresh ───────────────────────────────────────────────
@@ -653,6 +671,10 @@ class OutputScreen(QWidget):
             self._loading_timer.stop()
             self._global_total = max(self._global_total, 1)
             self._calendar_displaying_data = True
+            # Capture the baseline the first time this period shows data, so the
+            # poll timer can later detect newly generated schedules.
+            if self._ranked_baseline == 0:
+                self._ranked_baseline = self._active_period_count()
             self.four_month.update_schedule(
                 exams,
                 semester=sem,
@@ -770,6 +792,11 @@ class OutputScreen(QWidget):
         state.accept_pending()
 
         self._hide_sorting_update_banner()
+        # The view now reflects every schedule generated so far — move the
+        # baseline up so the banner only reappears when newer ones arrive.
+        self._ranked_baseline = self._active_period_count()
+        # Re-query scores.db so the refreshed view uses the latest ranked order.
+        self.service.refresh_ranked_view()
         self._refresh_screen_display()
 
     def _on_prefetch_needed(self, loaded_so_far: int) -> None:
@@ -836,6 +863,10 @@ class OutputScreen(QWidget):
                     self.semester_tabs.set_enabled_all(True)
                     self._refresh_screen_display()
                     return
+                # Already showing data — if more schedules have arrived since the
+                # view was built, offer a refresh as early as this poll tick.
+                if self._ranked_baseline > 0 and count > self._ranked_baseline:
+                    self._show_sorting_update_banner()
         except Exception:
             pass
 
@@ -953,6 +984,8 @@ class OutputScreen(QWidget):
         for state in self._window_states.values():
             state.clear()
         self._global_index = 0
+        self._hide_sorting_update_banner()
+        self._ranked_baseline = 0   # the new sort defines a fresh baseline
         self._refresh_screen_display()
 
     def _on_back_clicked(self) -> None:

@@ -106,7 +106,12 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Push constraint settings to the presenter.
+        # Push constraint settings to the presenter. When the constraints change
+        # this clears stale results inside the service (EP-149 bug 2).
         self.service.set_constraint_settings(settings)
 
         self._return_to_input_without_wipe()
+        # Refresh the input screen so the "View Calendar" button reflects whether
+        # results still exist after a possible constraint change.
+        if hasattr(self.input_screen, "check_existing_results"):
+            self.input_screen.check_existing_results()

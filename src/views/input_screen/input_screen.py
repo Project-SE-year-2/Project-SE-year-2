@@ -391,6 +391,19 @@ class InputScreen(QWidget):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
         """
+        # Bug 3 (EP-149): nothing changed since the last run → don't recompute.
+        # Behave like "View Calendar" and jump straight to the existing results.
+        try:
+            unchanged = (
+                not self.service.needs_generation()
+                and self.service.get_schedule_count() > 0
+            )
+        except Exception:
+            unchanged = False
+        if unchanged:
+            self.switch_to_output.emit()
+            return
+
         if getattr(self.service, '_engine_process', None) is not None:
             self.service._engine_process.stop()
             

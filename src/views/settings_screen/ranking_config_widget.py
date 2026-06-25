@@ -14,8 +14,11 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox,
     QPushButton,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QSize, QTimer
 from PyQt5.QtGui import QFont
+
+# Qt's "unbounded width" sentinel — used to release a temporary fixed width.
+_QWIDGETSIZE_MAX = 16777215
 
 from src.styles import output_sorting_panel_style as _style
 
@@ -143,6 +146,10 @@ class RankingConfigWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._list: QListWidget   # declared here so type checkers know the attribute
+        # Checked state tracked independently of the row widgets. A drag-reorder
+        # destroys the moved row's widget (Qt InternalMove limitation), so we
+        # must remember which keys are checked outside the widgets themselves.
+        self._checked: set[str] = set(_DEFAULT_CHECKED)
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -195,9 +202,10 @@ class RankingConfigWidget(QWidget):
         # Fill the list with the five metric rows in the default order.
         self._populate_list(_DEFAULT_ORDER, _DEFAULT_CHECKED)
 
-        # rowsMoved fires after every successful drag-drop reorder.
-        # We reconnect badge numbers so they reflect the new visual position.
-        self._list.model().rowsMoved.connect(self._refresh_badges)
+        # rowsMoved fires after every successful drag-drop reorder. Qt destroys
+        # the moved row's item widget during an InternalMove, so we rebuild all
+        # rows here instead of only refreshing badges.
+        self._list.model().rowsMoved.connect(self._on_rows_moved)
 
         # stretch=1 makes the list expand to fill all remaining vertical space.
         layout.addWidget(self._list, stretch=1)
@@ -210,6 +218,8 @@ class RankingConfigWidget(QWidget):
     def _populate_list(self, order: list[str], checked: set[str]) -> None:
         """Clear the list and rebuild one _RowWidget per key in order."""
         self._list.clear()
+        # This call is the source of truth for the checked set going forward.
+        self._checked = set(checked)
         for key in order:
             title = _METRIC_TITLES.get(key, key)
             desc = _METRIC_DESCRIPTIONS.get(key, "")
@@ -218,8 +228,10 @@ class RankingConfigWidget(QWidget):
             row_widget = _RowWidget(key, title, desc)
             row_widget.checkbox.setChecked(key in checked)
 
-            # Whenever this row's checkbox is toggled, recalculate all badges.
-            row_widget.checkbox.toggled.connect(self._refresh_badges)
+            # Keep the independent checked set in sync, then recalc badges.
+            row_widget.checkbox.toggled.connect(
+                lambda is_on, k=key: self._on_toggle(k, is_on)
+            )
 
             # QListWidgetItem is the internal list entry that Qt manages.
             # It is invisible — the _RowWidget is placed on top of it.
@@ -249,6 +261,51 @@ class RankingConfigWidget(QWidget):
         # Set correct badge numbers for the initial state.
         self._refresh_badges()
 
+        # Item size hints were taken before the rows knew their real width, so
+        # recompute them now that every row is in the list.
+        self._sync_row_heights()
+
+    def _sync_row_heights(self) -> None:
+        """Resize each item to fit its word-wrapped text at the list's real width.
+
+        QListWidget fixes an item's size hint when the row is added — before the
+        row knows how wide it will actually be on screen.  Word-wrapped
+        descriptions then report a too-small height, so the lower rows get
+        clipped, and a clipped row can repaint blank after a scroll (only the
+        checkbox survives — exactly the reported bug).
+
+        For each row we temporarily pin it to the real available width, measure
+        the height its wrapped text needs, then release the width so the view
+        can still stretch the row to fill the item.
+        """
+        avail = self._list.viewport().width() - 2 * self._list.spacing() - 2
+        if avail <= 0:
+            return
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            widget = self._list.itemWidget(item)
+            if widget is None:
+                continue
+            widget.setFixedWidth(avail)
+            widget.adjustSize()
+            height = widget.sizeHint().height()
+            # Release the temporary width pin (0 .. unbounded) so the view may
+            # resize the row to the full item width on layout.
+            widget.setMinimumWidth(0)
+            widget.setMaximumWidth(_QWIDGETSIZE_MAX)
+            item.setSizeHint(QSize(avail, height))
+
+    def resizeEvent(self, event) -> None:
+        # The panel width is fixed, but the viewport width is only known once
+        # the widget is laid out — recompute heights whenever it changes.
+        super().resizeEvent(event)
+        self._sync_row_heights()
+
+    def showEvent(self, event) -> None:
+        # First reliable point where the viewport has its real width.
+        super().showEvent(event)
+        self._sync_row_heights()
+
     def _refresh_badges(self) -> None:
         """Walk the list top-to-bottom and assign sequential numbers to checked rows.
 
@@ -266,6 +323,38 @@ class RankingConfigWidget(QWidget):
                 counter += 1
             else:
                 widget.set_badge_number(None)     # grey empty badge
+
+    def _on_toggle(self, key: str, is_on: bool) -> None:
+        """Mirror a checkbox change into the independent checked set, then renumber."""
+        if is_on:
+            self._checked.add(key)
+        else:
+            self._checked.discard(key)
+        self._refresh_badges()
+
+    def _current_order(self) -> list[str]:
+        """Read the metric keys top-to-bottom from the items' stored data.
+
+        The item data survives a drag-reorder even though the row widget does
+        not, so this is the reliable source for the post-drag order.
+        """
+        return [
+            self._list.item(i).data(Qt.UserRole)
+            for i in range(self._list.count())
+        ]
+
+    def _on_rows_moved(self, *_args) -> None:
+        """Rebuild every row after a drag so the moved (now-blank) row reappears.
+
+        Qt's InternalMove physically re-inserts the dragged item and discards
+        the custom widget attached with setItemWidget, leaving an empty card.
+        We capture the new order from the surviving item data and the checked
+        state from self._checked, then repopulate from scratch. Deferred with a
+        0 ms timer so the rebuild runs after the drag event has fully settled.
+        """
+        order = self._current_order()
+        checked = set(self._checked)
+        QTimer.singleShot(0, lambda: self._populate_list(order, checked))
 
     def _emit_sort_order(self) -> None:
         """Emit the selected sort order only when the user applies it."""

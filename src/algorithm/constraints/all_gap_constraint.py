@@ -15,6 +15,11 @@ class AllGapConstraint(IConstraint):
     The constraint fails if any two adjacent exam dates within a cohort are
     separated by strictly fewer than K days (i.e. delta < K is a violation;
     delta == K is allowed).
+
+    Gaps are measured between calendar dates, not between (date, time_slot) pairs.
+    If exams were grouped by (date, time_slot), two same-day exams in different slots
+    would fall into separate groups with no adjacent pair to compare - allowing a student
+    to face two exams on the same day without triggering the K-day gap requirement.
     """
 
     def __init__(self, k: int) -> None:

@@ -17,6 +17,11 @@ class CollisionConstraint(IConstraint):
     Unlike AllGapConstraint, the grouping key is program_id alone (not
     (program_id, year)), so year-1 and year-2 students in the same program
     share the same daily elective budget.
+
+    Elective counts are grouped per (program_id, date), not per (program_id, date, time_slot).
+    If time_slot were part of the key, two electives from the same program on the same day
+    in different slots would each occupy a separate cell and bypass the daily cap - even
+    though the student faces both exams on the same day.
     """
 
     def __init__(self, k: int) -> None:

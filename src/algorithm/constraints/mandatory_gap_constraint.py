@@ -7,7 +7,13 @@ from src.models.enums import ReqType
 class MandatoryGapConstraint(IConstraint):
     """
     Verifies that any two exams categorized as Obligatory belonging to the exact
-    same academic program and structural year are separated by strictly more than K calendar days.
+    same academic program and structural year are separated by at least K calendar days.
+    A gap strictly less than K causes the constraint to fail; a gap equal to K is allowed.
+
+    Gaps are measured between calendar dates, not between (date, time_slot) pairs.
+    If exams were grouped by (date, time_slot), two same-day exams in different slots
+    would fall into separate groups with no adjacent pair to compare - allowing a student
+    to face two obligatory exams on the same day without triggering the K-day gap requirement.
     """
 
     def __init__(self, k: int) -> None:
@@ -15,8 +21,8 @@ class MandatoryGapConstraint(IConstraint):
         Parameters
         ----------
         k:
-            Gap parameter. A gap less than or equal to k between consecutive obligatory
-            exams in the same cohort will cause the constraint to fail.
+            Gap parameter. A gap strictly less than k causes the constraint to fail;
+            a gap equal to k is allowed.
             Must be a positive integer.
         """
         if k <= 0:
@@ -26,7 +32,7 @@ class MandatoryGapConstraint(IConstraint):
     def is_satisfied(self, schedule: ExamSchedule) -> bool:
         """
         Return False if any pair of obligatory exams for the same cohort
-        (program + year) is scheduled with a gap less than or equal to K.
+        (program + year) is scheduled with a gap strictly less than K.
         """
         cohort_dates = self._group_by_cohort(schedule)
 

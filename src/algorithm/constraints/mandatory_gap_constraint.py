@@ -21,8 +21,8 @@ class MandatoryGapConstraint(IConstraint):
         Parameters
         ----------
         k:
-            Gap parameter. A gap less than or equal to k between consecutive obligatory
-            exams in the same cohort will cause the constraint to fail.
+            Gap parameter. A gap strictly less than k causes the constraint to fail;
+            a gap equal to k is allowed.
             Must be a positive integer.
         """
         if k <= 0:
@@ -32,7 +32,7 @@ class MandatoryGapConstraint(IConstraint):
     def is_satisfied(self, schedule: ExamSchedule) -> bool:
         """
         Return False if any pair of obligatory exams for the same cohort
-        (program + year) is scheduled with a gap less than or equal to K.
+        (program + year) is scheduled with a gap strictly less than K.
         """
         cohort_dates = self._group_by_cohort(schedule)
 

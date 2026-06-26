@@ -127,7 +127,8 @@ class AppService(IAppService):
         self._datastore.set_rooms([])
         self._datastore.save()
         self._mark_dirty()
-        self.clear_results()
+        if not self._generation_active:
+            self.clear_results()
 
     def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
 

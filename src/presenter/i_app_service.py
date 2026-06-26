@@ -34,6 +34,14 @@ class IAppService(ABC):
         """
 
     @abstractmethod
+    def clear_rooms(self) -> None:
+        """Remove all stored rooms from the data store and mark the app dirty.
+
+        Called when a rooms file fails to parse so that previously loaded rooms
+        cannot be silently used in the next generation run.
+        """
+
+    @abstractmethod
     def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
         """Parse and store course and period files.
 

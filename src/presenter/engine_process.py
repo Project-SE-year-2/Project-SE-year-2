@@ -130,7 +130,7 @@ def _solve_single_period(engine, period, courses_dict, writer, score_proxy, noti
         return
 
     try:
-        total = engine.solve_to_disk(
+        engine.solve_to_disk(
             period, courses_dict, writer,
             on_batch_written=on_batch,
             constraint_checker=checker,

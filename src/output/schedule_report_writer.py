@@ -1,7 +1,6 @@
 from src.output.i_output_writer import IOutputWriter
 from src.models.exam_schedule import ExamSchedule
 from src.models.exam_period import ExamPeriod
-from src.models.course import Course
 from src.output.export_formatters.schedule_export_formatter import ExportFormatterFactory
 
 

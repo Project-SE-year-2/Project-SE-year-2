@@ -58,7 +58,6 @@ from datetime import date as _date
 
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
-    QApplication,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -77,7 +76,7 @@ from src.styles.icons import load_pixmap, ICON_DOWNLOAD
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
 from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutputWidget
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
-from src.views.settings_screen.ranking_config_widget import RankingConfigWidget, RankingConfigDialog
+from src.views.settings_screen.ranking_config_widget import RankingConfigDialog
 from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
 from src.views.output_screen.window_state import WindowState
@@ -786,7 +785,7 @@ class OutputScreen(QWidget):
         fetches that period's schedule directly via get_period_schedule().
         No Cartesian-product scanning or cross-period interference.
         """
-        pid = self._active_period_id()
+        self._active_period_id()
         state = self._active_window_state()
         state.move_to(index)
 
@@ -808,7 +807,7 @@ class OutputScreen(QWidget):
         self.service.refresh_ranked_view()
         self._refresh_screen_display()
 
-    def _on_prefetch_needed(self, loaded_so_far: int) -> None:
+    def _on_prefetch_needed(self, _loaded_so_far: int) -> None:
         # No-op in isolated mode — each NEXT fetches on demand.
         pass
 

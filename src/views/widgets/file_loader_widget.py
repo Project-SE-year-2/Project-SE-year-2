@@ -3,7 +3,7 @@ from pathlib import Path
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtWidgets import (
     QWidget, QPushButton, QLabel, QFileDialog,
-    QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy, QScrollArea,
+    QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy,
 )
 
 import src.styles.theme as th

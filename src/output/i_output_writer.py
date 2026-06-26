@@ -18,4 +18,3 @@ class IOutputWriter(ABC):
         output_path: str,
     ) -> None:
         """Write the scheduling results to the given output path."""
-        pass

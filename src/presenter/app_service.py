@@ -191,7 +191,6 @@ class AppService(IAppService):
         """Called by the 'Refresh View' banner (Task 121) to accept newly written scores.
         Since we now fetch dynamically on every navigation, this is mostly a no-op 
         or signals the UI to redraw."""
-        pass
 
     def get_sort_order(self) -> list[str]:
         """Return the active sort column list."""

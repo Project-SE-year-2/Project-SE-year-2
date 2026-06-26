@@ -80,7 +80,7 @@ class _FlowLayout(QLayout):
         right_edge  = rect.right() - margins.right()
 
         for item in self._items:
-            w = item.widget()
+            item.widget()
             hint = item.sizeHint()
             next_x = x + hint.width()
             if next_x > right_edge and line_height > 0:
@@ -96,7 +96,6 @@ class _FlowLayout(QLayout):
         return y + line_height - rect.y() + margins.bottom()
 
 from src.presenter.i_app_service import IAppService
-from src.views.widgets.program_list_widget import abbreviate_name
 import src.styles.theme as th
 
 _MAX_PROGRAMS = 5

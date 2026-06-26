@@ -12,7 +12,7 @@ Numbers update automatically after every drag or checkbox toggle.
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox,
-    QPushButton, QDialog, QDialogButtonBox,
+    QPushButton, QDialog,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QSize, QTimer
 from PyQt5.QtGui import QFont
@@ -72,7 +72,7 @@ _DEFAULT_CHECKED: set[str] = set()
 class _RowWidget(QWidget):
     """One row inside the list: drag-handle | badge | title+description | checkbox."""
 
-    def __init__(self, key: str, title: str, description: str, parent=None):
+    def __init__(self, key: str, title: str, _description: str, parent=None):
         super().__init__(parent)
 
         self.key = key

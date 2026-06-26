@@ -573,6 +573,7 @@ class TestOutputScreen(unittest.TestCase):
 
     def test_period_ready_shows_sorting_update_banner_when_schedule_already_displayed(self):
         """Verify that new active-period data shows a refresh banner instead of auto-refreshing."""
+        self.mock_service.get_sort_order.return_value = None 
         self.mock_service.get_schedule_count.return_value = 5
         self.screen._current_semester = "FALL"
         self.screen._current_moed = "Aleph"
@@ -583,6 +584,17 @@ class TestOutputScreen(unittest.TestCase):
         self.assertTrue(self.screen._active_window_state().has_pending_update)
         self.assertFalse(self.screen._sorting_update_banner.isHidden())
 
+    def test_period_ready_calls_check_better_solution_when_sort_active(self):
+        """Verify that when a sort is active, we check for a better solution instead of blindly showing the banner."""
+        self.mock_service.get_sort_order.return_value = "some_column_name"
+        self.mock_service.get_best_score.return_value = 95.0 
+        self.screen._current_semester = "FALL"
+        self.screen._current_moed = "Aleph"
+        self.screen._calendar_displaying_data = True
+        
+        with patch.object(self.screen, '_check_better_solution') as mock_check:
+            self.screen._on_period_ready("FALL_Aleph")
+            mock_check.assert_called_once_with("FALL_Aleph")
 
     def test_period_ready_ignores_non_active_period_for_sorting_banner(self):
         """Verify that non-active period updates do not show the refresh banner."""

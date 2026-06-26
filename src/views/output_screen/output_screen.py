@@ -147,6 +147,11 @@ class OutputScreen(QWidget):
         # early as the next poll tick. Reset to 0 means "recapture on next render".
         self._ranked_baseline: int = 0
 
+        # EP-150: best (rank-1) score last seen per period, for the active sort.
+        # When it improves, a strictly better schedule was found → notify. Empty
+        # entry means "re-baseline on next poll" (no false notification).
+        self._best_seen: dict[str, float] = {}
+
         # Delayed empty-state: fires 2 s after we decide there's no data,
         # but is cancelled immediately if real data arrives first.
         self._empty_timer = QTimer(self)
@@ -438,11 +443,11 @@ class OutputScreen(QWidget):
         row.setContentsMargins(16, 12, 16, 12)
         row.setSpacing(12)
 
-        label = QLabel("New optimized schedules are available.")
-        label.setStyleSheet(
+        self._sorting_update_label = QLabel("New optimized schedules are available.")
+        self._sorting_update_label.setStyleSheet(
             "color: #1D4ED8; font-size: 13px; font-weight: 700;"
         )
-        row.addWidget(label, stretch=1)
+        row.addWidget(self._sorting_update_label, stretch=1)
 
         refresh_btn = QPushButton("Refresh View")
         refresh_btn.setCursor(Qt.PointingHandCursor)
@@ -470,8 +475,14 @@ class OutputScreen(QWidget):
         self._success_banner.setVisible(True)
         self._success_timer.start(5000)
 
-    def _show_sorting_update_banner(self) -> None:
-        """Show the optimized-results pending update banner."""
+    def _show_sorting_update_banner(self, message: str | None = None) -> None:
+        """Show the optimized-results pending update banner.
+
+        message overrides the banner text — used by EP-150 to say specifically
+        that a *better* schedule was found rather than just "more available".
+        """
+        if message is not None:
+            self._sorting_update_label.setText(message)
         self._sorting_update_banner.setVisible(True)
 
 
@@ -499,6 +510,7 @@ class OutputScreen(QWidget):
         self._hide_sorting_update_banner()
         # Recapture the baseline for whatever period we land on.
         self._ranked_baseline = 0
+        self._best_seen.clear()
 
         # Guard: on Windows a modal QMessageBox (e.g. the "download success"
         # popup) re-fires showEvent on the active QStackedWidget page when it
@@ -560,6 +572,7 @@ class OutputScreen(QWidget):
         self._check_conflicts_next = True
         self._calendar_displaying_data = False
         self._ranked_baseline = 0   # recapture for the newly active period
+        self._best_seen.clear()
         self._refresh_screen_display()
 
     def _on_moed_changed(self, moed: str) -> None:
@@ -577,6 +590,7 @@ class OutputScreen(QWidget):
         self._global_index = self._active_window_state().current()
         self._check_conflicts_next = True
         self._ranked_baseline = 0   # recapture for the newly active moed
+        self._best_seen.clear()
         self._refresh_screen_display()
 
     # ── Central display refresh ───────────────────────────────────────────────
@@ -795,6 +809,9 @@ class OutputScreen(QWidget):
         # The view now reflects every schedule generated so far — move the
         # baseline up so the banner only reappears when newer ones arrive.
         self._ranked_baseline = self._active_period_count()
+        # Re-baseline the best score too, so EP-150 only re-fires on a future
+        # improvement beyond what the user just accepted.
+        self._best_seen.pop(self._active_period_id(), None)
         # Re-query scores.db so the refreshed view uses the latest ranked order.
         self.service.refresh_ranked_view()
         self._refresh_screen_display()
@@ -802,6 +819,23 @@ class OutputScreen(QWidget):
     def _on_prefetch_needed(self, loaded_so_far: int) -> None:
         # No-op in isolated mode — each NEXT fetches on demand.
         pass
+
+    def _check_better_solution(self, period_id: str) -> None:
+        """EP-150: pop the banner when the best-ranked schedule improves.
+
+        Asks the service for the rank-1 value of the active primary sort column.
+        Because that optimum only moves toward "better" as more schedules are
+        scored, any change from the previously seen value means a strictly better
+        schedule was found. The first observation only records a baseline so we
+        never notify on the very first poll.
+        """
+        best = self.service.get_best_score(period_id)
+        if best is None:
+            return
+        previous = self._best_seen.get(period_id)
+        self._best_seen[period_id] = best
+        if previous is not None and best != previous:
+            self._show_sorting_update_banner("A better schedule was found.")
 
     def _update_navigator(self) -> None:
         """Push the active period's local index and exact per-period total.
@@ -863,9 +897,13 @@ class OutputScreen(QWidget):
                     self.semester_tabs.set_enabled_all(True)
                     self._refresh_screen_display()
                     return
-                # Already showing data — if more schedules have arrived since the
-                # view was built, offer a refresh as early as this poll tick.
-                if self._ranked_baseline > 0 and count > self._ranked_baseline:
+                # Already showing data — decide whether to raise the banner.
+                if self.service.get_sort_order():
+                    # A sort is active: notify only when a *better* top-ranked
+                    # schedule appears (EP-150), which is the meaningful event.
+                    self._check_better_solution(pid)
+                elif self._ranked_baseline > 0 and count > self._ranked_baseline:
+                    # No sort: fall back to "more schedules available" (EP-149).
                     self._show_sorting_update_banner()
         except Exception:
             pass
@@ -934,7 +972,12 @@ class OutputScreen(QWidget):
         if self._calendar_displaying_data:
             state = self._active_window_state()
             state.mark_pending()
-            self._show_sorting_update_banner()
+            
+            if self.service.get_sort_order():
+                self._check_better_solution(period_id)
+            else:
+                self._show_sorting_update_banner()
+            
             return
 
         # Data just arrived for the currently-visible period — update count and render.
@@ -986,6 +1029,7 @@ class OutputScreen(QWidget):
         self._global_index = 0
         self._hide_sorting_update_banner()
         self._ranked_baseline = 0   # the new sort defines a fresh baseline
+        self._best_seen.clear()
         self._refresh_screen_display()
 
     def _on_back_clicked(self) -> None:

@@ -346,9 +346,7 @@ def test_dynamic_index_persists_across_multiple_fetch_calls(db, engine):
         rows = engine.fetch_window("fall_a", sort_cols, limit=5, offset=0)
         assert len(rows) == 5
 
-    # Cache must contain exactly one entry for this combination.
-    assert engine._built_indexes.count(tuple(sort_cols)) if hasattr(engine._built_indexes, "count") \
-        else tuple(sort_cols) in engine._built_indexes
+    assert tuple(sort_cols) in engine._built_indexes
 
 
 def test_avg_room_distance_date_only_mode_uses_tie_breaker_order(tmp_path):

@@ -44,7 +44,7 @@ ROW_COLUMNS: tuple = (
 
 
 class RankingQueryEngine:
-    """Read-only ranked retrieval from scores.db."""
+    """Ranked retrieval from scores.db with on-demand composite index creation."""
 
     def __init__(self, db_path: Path) -> None:
         # Read-write connection required so _ensure_index_for() can CREATE INDEX.

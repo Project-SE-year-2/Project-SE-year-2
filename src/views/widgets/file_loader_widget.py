@@ -520,7 +520,10 @@ class FileLoaderWidget(QWidget):
         except Exception as error:
             self._rooms_zone.clear()
             self._loaded_rooms_path = None
-            self._service.clear_rooms()
+            try:
+                self._service.clear_rooms()
+            except Exception:
+                pass
             self._show_error(str(error))
 
     def _refresh_file_panel(self) -> None:

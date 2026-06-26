@@ -115,7 +115,8 @@ class AppService(IAppService):
         self._datastore.set_rooms(rooms)
         self._datastore.save()
         self._mark_dirty()
-        self.clear_results()
+        if not self._generation_active:
+            self.clear_results()
 
     def clear_rooms(self) -> None:
         """Remove stored rooms from DataStore and mark the app dirty.

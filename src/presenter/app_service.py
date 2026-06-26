@@ -173,6 +173,28 @@ class AppService(IAppService):
         return self._constraint_settings
 
     # ------------------------------------------------------------------ #
+    # EP-150 — "a better solution was found" detection                    #
+    # ------------------------------------------------------------------ #
+
+    def get_best_score(self, period_id: str) -> float | None:
+        """Best (rank-1) value for the active primary sort column, or None.
+
+        Returns None when no sort order is active or no scores exist yet.
+        The optimum over a growing result set only ever moves in the "better"
+        direction, so any change in this value means a strictly better schedule
+        has been found — which the UI uses to raise a notification (EP-150).
+        """
+        if not self._sort_cols:
+            return None
+        engine = self._get_ranking_engine()
+        if engine is None:
+            return None
+        try:
+            return engine.best_score(period_id, self._sort_cols[0])
+        except Exception:
+            return None
+
+    # ------------------------------------------------------------------ #
     # EP-149 — stale-result clearing & "needs regeneration" tracking      #
     # ------------------------------------------------------------------ #
 

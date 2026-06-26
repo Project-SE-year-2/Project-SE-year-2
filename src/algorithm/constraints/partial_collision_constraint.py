@@ -6,9 +6,10 @@ from src.algorithm.constraints.i_partial_constraint import IPartialConstraint
 class PartialCollisionConstraint(IPartialConstraint):
     """Prunes partial schedules whose elective collision count already exceeds K.
 
-    Conflict detection is date-level only: time_slot is intentionally ignored
-    so that two exams on the same calendar date are always a conflict,
-    regardless of whether they are assigned to different time slots.
+    Elective counts are grouped per (program_id, date), not per (program_id, date, time_slot).
+    If time_slot were part of the key, two electives from the same program on the same day
+    in different slots would each occupy a separate cell and bypass the daily cap - even
+    though the student faces both exams on the same day.
     """
 
     def __init__(self, k: int) -> None:

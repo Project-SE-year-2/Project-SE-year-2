@@ -5,7 +5,12 @@ from src.algorithm.constraints.i_partial_constraint import IPartialConstraint
 
 
 class PartialDailyCapConstraint(IPartialConstraint):
-    """Prunes partial schedules whose daily exam count already exceeds K."""
+    """Prunes partial schedules whose daily exam count already exceeds K.
+
+    Exams are counted per calendar day, not per (date, time_slot). If time_slot
+    were part of the grouping key, two exams on the same day in different slots
+    would each count in a separate cell and bypass the daily cap.
+    """
 
     def __init__(self, k: int) -> None:
         """Store the maximum allowed number of exams per calendar day."""

@@ -8,9 +8,10 @@ from src.models.enums import ReqType
 class PartialMandatoryGapConstraint(IPartialConstraint):
     """Prunes partial schedules with too-small gaps between obligatory exams in the same cohort.
 
-    Conflict detection is date-level only: time_slot is intentionally ignored
-    so that two exams on the same calendar date are always a conflict,
-    regardless of whether they are assigned to different time slots.
+    Gaps are measured between calendar dates, not between (date, time_slot) pairs.
+    If exams were grouped by (date, time_slot), two same-day exams in different slots
+    would fall into separate groups with no adjacent pair to compare - allowing a student
+    to face two obligatory exams on the same day without triggering the K-day gap requirement.
     """
 
     def __init__(self, k: int) -> None:

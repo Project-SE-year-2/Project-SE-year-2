@@ -33,6 +33,8 @@ class _PartialImpl(IAppService):
 class _FullImpl(IAppService):
     """Implements every abstract method with a no-op body."""
 
+    def load_rooms(self, path): pass  # Task 140: room scheduling file loader
+    def clear_rooms(self): pass      # Task 140: invalidate rooms after failed load
     # EP-74, EP-77: Updated signature to include programs_path
     def load_data(self, courses_path, dates_path, mode, programs_path=None): pass
     def get_available_programs(self): return []
@@ -85,6 +87,9 @@ def test_all_abstract_methods_are_callable_on_full_implementation():
 
     # Call every method — if any are missing this will throw AttributeError / TypeError
     
+    service.load_rooms("rooms.csv")  # Task 140: room scheduling file loader
+    service.clear_rooms()            # Task 140: invalidate rooms after failed load
+
     # EP-74, EP-77: Test load_data WITHOUT the optional programs_path (Backward compatibility)
     service.load_data("a.txt", "b.txt", "replace")
     

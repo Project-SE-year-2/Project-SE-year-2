@@ -57,13 +57,13 @@ class LoadedFilesPanel(QFrame):
 
             name_lbl = QLabel(Path(path).name)
             name_lbl.setStyleSheet(
-                f"color: {th.TEXT_PRIMARY}; font-size: 24px;"
+                f"color: {th.TEXT_PRIMARY}; font-size: 17px;"
                 f" font-weight: 600; background: transparent; border: none;"
             )
 
             ok_lbl = QLabel("Uploaded successfully")
             ok_lbl.setStyleSheet(
-                f"color: {th.SUCCESS_COLOR}; font-size: 21px;"
+                f"color: {th.SUCCESS_COLOR}; font-size: 14px;"
                 " background: transparent; border: none;"
             )
 
@@ -378,6 +378,8 @@ class FileLoaderWidget(QWidget):
         super().__init__(parent)
         self._service = service
         self._validator = validator or FilePathValidator()
+        self._course_date_paths: list[str] = []
+        self._loaded_rooms_path: str | None = None
         self._build_ui()
         self._connect_signals()
 
@@ -403,9 +405,24 @@ class FileLoaderWidget(QWidget):
             dialog_caption="Select Dates File",
             single_file=True,   # dates zone always holds exactly one file
         )
+        # Optional rooms file zone - only needed when "Enable Room Scheduling" is on.
+        # Format: room_id,building,capacity (one room per line).
+        # Calling load_rooms() replaces previously stored rooms in the data store.
+        self._rooms_zone = DropZoneCard(
+            icon=ICON_FILE,
+            title="Rooms File",
+            hint="Drag & drop rooms file here\n(or click to browse)\nCSV, Text (.csv, .txt)",
+            dialog_caption="Select Rooms File",
+            single_file=True,
+        )
 
-        zones_row.addWidget(self._courses_zone)
-        zones_row.addWidget(self._dates_zone)
+        zones_row.addWidget(self._courses_zone, stretch=1)
+        zones_row.addWidget(self._dates_zone, stretch=1)
+        zones_row.addWidget(self._rooms_zone, stretch=1)
+        # QSizePolicy.Ignored tells Qt to disregard each zone's preferred/ minimum
+        # width so stretch=1 produces exactly equal thirds regardless of title length.
+        for zone in (self._courses_zone, self._dates_zone, self._rooms_zone):
+            zone.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         layout.addLayout(zones_row)
 
         # ── Replace / Add toggle ───────────────────────────────────────────
@@ -469,8 +486,12 @@ class FileLoaderWidget(QWidget):
         self._add_toggle.clicked.connect(lambda: self._set_mode(replace=False))
         self._courses_zone.file_added.connect(self._on_file_selected)
         self._dates_zone.file_added.connect(self._on_file_selected)
+        # Rooms zone: parse and store rooms immediately on drop/ browse so the
+        # service is ready before the user clicks Generate.
+        self._rooms_zone.file_added.connect(self._on_rooms_file_selected)
         self._load_button.clicked.connect(self._load_files)
     # Switches between Replace and Add mode and notifies the drop zones.
+    # The rooms zone is always single-file so replace mode has no effect on it.
     def _set_mode(self, replace: bool) -> None:
         self._replace_toggle.setChecked(replace)
         self._add_toggle.setChecked(not replace)
@@ -485,6 +506,32 @@ class FileLoaderWidget(QWidget):
         self._message_label.setText("")
         self._loaded_files_panel.clear()
         self._sync_validation()
+
+    def _on_rooms_file_selected(self, path: str) -> None:
+        """Parse and store rooms immediately when a rooms file is dropped or browsed.
+
+        Rooms are loaded eagerly (not waiting for the Load Files button) so that
+        the service is ready before the user clicks Generate.  Errors are shown
+        inline in the status label without blocking the rest of the form.
+        """
+        try:
+            self._service.load_rooms(path)
+            self._loaded_rooms_path = path
+        except Exception as error:
+            self._rooms_zone.clear()
+            self._loaded_rooms_path = None
+            try:
+                self._service.clear_rooms()
+            except Exception:
+                pass
+            self._show_error(str(error))
+
+    def _refresh_file_panel(self) -> None:
+        """Rebuild LoadedFilesPanel from all currently known file paths."""
+        paths = list(self._course_date_paths)
+        if self._loaded_rooms_path:
+            paths.append(self._loaded_rooms_path)
+        self._loaded_files_panel.set_files(paths)
 
     # Loads all queued courses files against the single dates file.
     # The first courses file uses the selected mode; additional ones always use append.
@@ -502,8 +549,8 @@ class FileLoaderWidget(QWidget):
                 effective_mode = mode if i == 0 else "append"
                 self._service.load_data(courses_path, dates_path, effective_mode)
 
-            all_loaded = courses_paths + ([dates_path] if dates_path else [])
-            self._loaded_files_panel.set_files(all_loaded)
+            self._course_date_paths = courses_paths + ([dates_path] if dates_path else [])
+            self._refresh_file_panel()
             self._show_success("Files loaded successfully.")
             self.files_loaded.emit()
             self._sync_validation(courses=True, dates=True)

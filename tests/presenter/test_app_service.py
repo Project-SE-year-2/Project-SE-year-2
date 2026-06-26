@@ -786,8 +786,92 @@ def test_get_period_schedule_falls_back_when_no_sort_active(monkeypatch):
     # went through disk path, not ranked path
     assert "FALL_Aleph" in disk_called  
 
+
 # ------------------------------------------------------------------ #
-# PDF / TXT export writer selection                                  #
+# _format_schedule_rows — room scheduling integration                  #
+# ------------------------------------------------------------------ #
+
+def test_format_schedule_rows_room_based(monkeypatch):
+    """_format_schedule_rows must produce rooms_display strings and capacity keys
+    when the placement carries time-slot and room data."""
+    from src.models.exam_placement import ExamPlacement
+    from src.models.room import Room
+    from src.models.enums import TimeSlot
+
+    service = _make_service(monkeypatch)
+    service._selected_programs = {"83101"}
+
+    course = _make_course("10001")
+    course.num_students = 45
+
+    period = _make_period()
+    room = Room("202", "B", 60)  # Room(room_id, building, capacity)
+    placement = ExamPlacement(date(2026, 2, 1), TimeSlot.MORNING, (room,))
+
+    schedule = ExamSchedule(period)
+    schedule.assign(course, placement)
+
+    rows = service._format_schedule_rows(schedule)
+
+    assert len(rows) == 1
+    row = rows[0]
+
+    assert row["time_slot"] == "MORNING"
+    assert row["num_students"] == 45
+    assert row["total_capacity"] == 60
+    assert "rooms_display" in row
+    assert len(row["rooms_display"]) == 1
+    assert "Building B" in row["rooms_display"][0]
+    assert "202" in row["rooms_display"][0]
+    assert "60 seats" in row["rooms_display"][0]
+
+
+def test_format_schedule_rows_date_only(monkeypatch):
+    """Date-only placements must not produce room keys — existing callers unaffected."""
+    service = _make_service(monkeypatch)
+    service._selected_programs = {"83101"}
+
+    course  = _make_course("10002")
+    period  = _make_period()
+    schedule = _make_schedule(period, course, date(2026, 2, 1))
+
+    rows = service._format_schedule_rows(schedule)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert "time_slot"     not in row
+    assert "rooms_display" not in row
+    assert "num_students"  not in row
+    assert "total_capacity" not in row
+
+
+# ------------------------------------------------------------------ #
+# clear_rooms - stale data after failed load                           #
+# ------------------------------------------------------------------ #
+
+def test_clear_rooms_after_failed_load_removes_stored_rooms(monkeypatch):
+    """Valid rooms loaded → invalid file selected → DataStore rooms must be empty.
+
+    Covers the reviewer's requirement: a failed room-file parse must invalidate
+    any previously loaded rooms so the engine cannot silently use stale data.
+    """
+    from src.models.room import Room
+
+    service = _make_service(monkeypatch)
+
+    # Prime DataStore with a valid room set (simulates a successful prior load).
+    service._datastore.set_rooms([Room("101", "A", 50)])
+    assert len(service._datastore.get_rooms()) == 1
+
+    # clear_rooms() is what _on_rooms_file_selected calls on parse failure.
+    service.clear_rooms()
+
+    assert service._datastore.get_rooms() == []
+    assert service.needs_generation() is True
+
+
+# ------------------------------------------------------------------ #
+# PDF / TXT export writer selection                                    #
 # ------------------------------------------------------------------ #
 
 def test_create_export_writer_returns_pdf_writer_for_pdf(monkeypatch):

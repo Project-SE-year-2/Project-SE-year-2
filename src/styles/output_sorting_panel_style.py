@@ -5,16 +5,16 @@ The widget logic lives in the ranking configuration component; this module
 keeps the output-screen visual treatment separate from the settings screen.
 """
 
-PANEL_WIDTH = 340
+PANEL_WIDTH = 460
 PANEL_MARGIN = 20
 PANEL_SPACING = 12
 
 ROW_MARGIN_H = 12
-ROW_MARGIN_V = 12
+ROW_MARGIN_V = 16
 ROW_SPACING = 10
 HANDLE_WIDTH = 18
-BADGE_SIZE = 26
-BADGE_FONT_PT = 9
+BADGE_SIZE = 28
+BADGE_FONT_PT = 10
 TEXT_BLOCK_SPACING = 4
 
 PANEL_WIDGET = """
@@ -58,18 +58,18 @@ CHECKBOX = """
 """
 
 BADGE_ACTIVE = (
-    "background-color: #4F46E5; color: #FFFFFF; border-radius: 13px;"
+    "background-color: #4F46E5; color: #FFFFFF; border-radius: 14px;"
 )
 BADGE_INACTIVE = (
-    "background-color: #F1F5F9; color: #94A3B8; border-radius: 13px;"
+    "background-color: #F1F5F9; color: #94A3B8; border-radius: 14px;"
 )
 
 DRAG_HANDLE = "color: #CBD5E1; font-size: 18px;"
-ROW_TITLE_LABEL = "color: #111827; font-size: 13px; font-weight: 700;"
-DESCRIPTION_LABEL = "color: #6B7280; font-size: 11px;"
+ROW_TITLE_LABEL = "color: #111827; font-size: 15px; font-weight: 700;"
+DESCRIPTION_LABEL = "color: #6B7280; font-size: 13px;"
 
-TITLE_LABEL = "font-weight: 700; font-size: 14px; color: #0F172A;"
-SUBTITLE_LABEL = "font-size: 11px; color: #64748B;"
+TITLE_LABEL = "font-weight: 700; font-size: 16px; color: #0F172A;"
+SUBTITLE_LABEL = "font-size: 13px; color: #64748B;"
 
 APPLY_BUTTON = """
     QPushButton {
@@ -78,7 +78,7 @@ APPLY_BUTTON = """
         border: none;
         border-radius: 8px;
         padding: 10px 14px;
-        font-size: 13px;
+        font-size: 15px;
         font-weight: 700;
     }
     QPushButton:hover {

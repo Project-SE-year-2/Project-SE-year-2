@@ -28,6 +28,7 @@ from src.output.schedule_report_writer import ScheduleReportWriter
 from src.models.exam_schedule import ExamSchedule
 from src.models.constraint_settings import ConstraintSettings
 from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
+from src.parsers.room_file_parser import RoomFileParser
 from src.presenter.ranking_query_engine import RankingQueryEngine
 from src.algorithm.period_results_writer import BATCH_SIZE
 from src.output.pdf_schedule_report_writer import PdfScheduleReportWriter
@@ -94,6 +95,40 @@ class AppService(IAppService):
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 — File loading                                       #
     # ------------------------------------------------------------------ #
+
+    def load_rooms(self, path: str) -> None:
+        """Parse a rooms CSV file and persist the rooms in the data store.
+
+        Replaces any previously stored rooms so that the next generation run
+        picks up the new set.  The engine reads rooms from DataStore via
+        _prepare_engine(), so no extra wiring is needed here.
+
+        Args:
+            path: Absolute path to the rooms file (room_id,building,capacity per line).
+
+        Raises:
+            FileNotFoundError: if the path does not exist.
+            ValueError:        if the file is empty or malformed.
+        """
+        self._validate_paths(path)
+        rooms = RoomFileParser().parse(path)
+        self._datastore.set_rooms(rooms)
+        self._datastore.save()
+        self._mark_dirty()
+        if not self._generation_active:
+            self.clear_results()
+
+    def clear_rooms(self) -> None:
+        """Remove stored rooms from DataStore and mark the app dirty.
+
+        Called when a rooms file fails to parse so that previously loaded rooms
+        cannot be silently used in the next generation run.
+        """
+        self._datastore.set_rooms([])
+        self._datastore.save()
+        self._mark_dirty()
+        if not self._generation_active:
+            self.clear_results()
 
     def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
 
@@ -699,69 +734,71 @@ class AppService(IAppService):
             raise IndexError(f"Schedule index {index} is out of range (0–{len(self._results) - 1}).")
 
         schedule: ExamSchedule = self._results[index]
+        rows = self._format_schedule_rows(schedule)
+
         result: dict = {}
+        for row in rows:
+            sem_key  = row["semester"]
+            moed_key = row["moed"]
+            result.setdefault(sem_key, {}).setdefault(moed_key, []).append(row)
+        return result
 
-        for (semester, moed), course_date_map in schedule.groupBySemesterAndMoed().items():
+    def _format_schedule_rows(self, schedule: ExamSchedule) -> list[dict]:
+        """Format a schedule's courses into a flat list of row dicts for calendar/table display.
+
+        Each dict always contains:
+            course_number, course_name, type, programs, exam_date, semester, moed
+
+        When the placement carries room-scheduling data (is_room_based=True), the dict
+        also contains:
+            time_slot      (str)       — "MORNING" / "AFTERNOON" / "EVENING"
+            rooms_display  (list[str]) — pre-formatted bullet strings, one per room
+            num_students   (int)       — student count for the course
+            total_capacity (int)       — combined capacity of all assigned rooms
+
+        Date-only placements omit these keys so existing callers are unaffected.
+        """
+        result = []
+        for (semester, moed), course_placement_map in schedule.groupBySemesterAndMoedWithPlacements().items():
             sem_key  = semester.value if hasattr(semester, "value") else str(semester)
-            moed_key = moed.value    if hasattr(moed,     "value") else str(moed)
+            moed_key = moed.value     if hasattr(moed,     "value") else str(moed)
 
-            if sem_key not in result:
-                result[sem_key] = {}
-            if moed_key not in result[sem_key]:
-                result[sem_key][moed_key] = []
-
-            for course, exam_date in course_date_map.items():
-                # Collect every selected program this course belongs to
+            for course, placement in course_placement_map.items():
+                # Collect only the programs the user has selected so the UI
+                # doesn't show programs that aren't part of this generation run.
                 programs = [
                     req.program_id
                     for req in course.requirements
                     if req.program_id in self._selected_programs
                 ]
-                # Use the req_type from the first matching requirement
                 req_type = "Obligatory"
                 for req in course.requirements:
                     if req.program_id in self._selected_programs:
                         req_type = req.req_type.value
                         break
 
-                result[sem_key][moed_key].append({
+                row = {
                     "course_number": course.course_id,
                     "course_name":   course.name,
                     "type":          req_type,
                     "programs":      programs,
-                    "exam_date":     exam_date,
-                })
+                    "exam_date":     placement.date,
+                    "semester":      sem_key,
+                    "moed":          moed_key,
+                }
 
-        return result
+                # Room-scheduling mode: attach slot + room + capacity data.
+                # The guide (Technical Design & UI) requires these fields in the output.
+                if placement.is_room_based:
+                    row["time_slot"]     = placement.time_slot.value
+                    row["rooms_display"] = [
+                        f"• Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
+                        for r in placement.rooms
+                    ]
+                    row["num_students"]   = getattr(course, "num_students", 0)
+                    row["total_capacity"] = placement.total_capacity
 
-    def _format_schedule_rows(self, schedule: ExamSchedule) -> list[dict]:
-        """Helper to format a single schedule's courses into a flat list of dicts for table display."""
-        result = []
-        for (semester, moed), course_date_map in schedule.groupBySemesterAndMoed().items():
-            sem_key = semester.value if hasattr(semester, "value") else str(semester)
-            moed_key = moed.value if hasattr(moed, "value") else str(moed)
-
-            for course, exam_date in course_date_map.items():
-                programs = [
-                    req.program_id
-                    for req in course.requirements
-                    if req.program_id in self._selected_programs
-                ]
-                req_type = "Obligatory"
-                for req in course.requirements:
-                    if req.program_id in self._selected_programs:
-                        req_type = req.req_type.value
-                        break
-
-                result.append({
-                    "course_number": course.course_id,
-                    "course_name": course.name,
-                    "type": req_type,
-                    "programs": programs,
-                    "exam_date": exam_date,
-                    "semester": sem_key,
-                    "moed": moed_key,
-                })
+                result.append(row)
         return result
 
     def export_schedule(self, index: int, path: str) -> None:

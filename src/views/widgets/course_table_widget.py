@@ -163,8 +163,8 @@ class CourseTableWidget(QWidget):
         self._empty_w = QWidget()
         self._empty_w.setStyleSheet("background: transparent;")
         el = QVBoxLayout(self._empty_w)
-        el.setAlignment(Qt.AlignCenter)
-        el.setSpacing(12)
+        
+        el.addStretch()
 
         icon_lbl = QLabel()
         icon_lbl.setAlignment(Qt.AlignCenter)
@@ -178,8 +178,12 @@ class CourseTableWidget(QWidget):
             f" font-family: {th.FONT_FAMILY};"
         )
 
-        el.addWidget(icon_lbl)
-        el.addWidget(lbl)
+        el.addWidget(icon_lbl, alignment=Qt.AlignCenter)
+        el.addSpacing(12)
+        el.addWidget(lbl, alignment=Qt.AlignCenter)
+        
+        el.addStretch()
+        
         layout.addWidget(self._empty_w, stretch=1)
 
     # ── Filter ────────────────────────────────────────────────────────────────

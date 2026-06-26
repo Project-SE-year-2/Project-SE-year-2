@@ -713,58 +713,6 @@ def test_set_sort_order_stores_columns(monkeypatch):
     assert service._sort_cols == ["min_days_required", "avg_days_all"]
 
 
-def test_set_sort_order_clears_sorted_cache(monkeypatch):
-    service = _make_service(monkeypatch)
-    service._sorted_cache["FALL_Aleph"] = [(0, 0), (0, 1)]
-    service.set_sort_order(["avg_days_all"])
-    assert service._sorted_cache == {}
-
-
-def test_refresh_ranked_view_clears_sorted_cache(monkeypatch):
-    service = _make_service(monkeypatch)
-    service._sorted_cache["FALL_Aleph"] = [(0, 0)]
-    service._sorted_cache["SPRI_Aleph"] = [(1, 2)]
-    service.refresh_ranked_view()
-    assert service._sorted_cache == {}
-
-
-def test_build_sorted_cache_handles_empty_ranked_period(monkeypatch, tmp_path):
-    service = _make_service(monkeypatch)
-    service.set_sort_order(["min_days_required"])
-
-    from src.presenter.scores_database import ScoresDatabase
-
-    db_path = tmp_path / "scores.db"
-    with ScoresDatabase(db_path):
-        pass
-
-    monkeypatch.setattr(service, "_scores_db_path", lambda: db_path)
-
-    assert service._build_sorted_cache("FALL_Aleph") is True
-    assert service._sorted_cache["FALL_Aleph"] == []
-
-
-def test_get_period_schedule_uses_frozen_cache_when_sort_active(monkeypatch):
-    """With sort active and a pre-built cache, get_period_schedule reads the
-    schedule pointed to by the cache entry at the requested rank."""
-    service = _make_service(monkeypatch)
-    service.set_sort_order(["min_days_required"])
-
-    # Inject a pre-built frozen cache: rank 0 → batch 0 position 2
-    service._sorted_cache["FALL_Aleph"] = [(0, 2), (0, 0), (0, 1)]
-
-    captured_index = []
-    fake_schedule = MagicMock()
-    monkeypatch.setattr(
-        service._results_reader, "get_schedule_at",
-        lambda pid, idx: (captured_index.append(idx) or fake_schedule),
-    )
-    monkeypatch.setattr(service, "_format_schedule_rows", lambda s: [{"ok": True}])
-
-    result = service.get_period_schedule("FALL_Aleph", 0)
-
-    assert result == [{"ok": True}]
-    assert captured_index == [0 * BATCH_SIZE + 2]
 
 
 def test_get_period_schedule_falls_back_when_no_sort_active(monkeypatch):

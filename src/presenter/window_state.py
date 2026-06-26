@@ -21,7 +21,6 @@ When batch_written fires:
 
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Optional
 
 from src.presenter.ranking_query_engine import RankingQueryEngine, ROW_COLUMNS
 

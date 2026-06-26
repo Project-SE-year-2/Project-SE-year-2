@@ -27,6 +27,7 @@ class ExamSchedule:
         # Core storage keeps rich placement data. The public assignments
         # property below preserves the old Course -> date API.
         self._store: dict[tuple, ExamPlacement] = {}
+        self._by_date: dict[DateType, list[Course]] = {}
 
     # ------------------------------------------------------------------
     # Per-period interface used by BacktrackingSolver
@@ -53,10 +54,18 @@ class ExamSchedule:
         """Assign a course to either a legacy date or a full ExamPlacement."""
         placement = self._as_placement(exam_date)
         self._store[(self.period, course)] = placement
+        if placement.date not in self._by_date:
+            self._by_date[placement.date] = []
+        self._by_date[placement.date].append(course)
 
     def unassign(self, course: Course) -> None:
         """Remove a course placement from this schedule if it exists."""
-        self._store.pop((self.period, course), None)
+        placement = self._store.pop((self.period, course), None)
+        if placement:
+            try:
+                self._by_date[placement.date].remove(course)
+            except ValueError:
+                pass
 
     def copy(self) -> "ExamSchedule":
         """Return an independent schedule copy with the same placements."""
@@ -64,6 +73,7 @@ class ExamSchedule:
         clone.semester = self.semester
         clone.moed = self.moed
         clone._store = dict(self._store)
+        clone._by_date = {d: list(courses) for d, courses in self._by_date.items()}
         return clone
 
     # ------------------------------------------------------------------
@@ -76,7 +86,15 @@ class ExamSchedule:
         merged.semester = self.semester
         merged.moed = self.moed
         merged._store = {**self._store, **other._store}
+        for d, courses in self._by_date.items():
+            merged._by_date[d] = merged._by_date.get(d, []) + list(courses)
+        for d, courses in other._by_date.items():
+            merged._by_date[d] = merged._by_date.get(d, []) + list(courses)
         return merged
+
+    def get_courses_on_date(self, exam_date: DateType) -> list[Course]:
+        """Fast lookup for courses assigned on a specific date."""
+        return self._by_date.get(exam_date, [])
 
     # ------------------------------------------------------------------
     # Display helpers

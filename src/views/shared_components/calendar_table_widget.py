@@ -45,7 +45,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -65,7 +64,7 @@ from src.styles.calendar_table_style import (
     SAVE_BTN_STYLE,
     SEPARATOR_COLOR,
 )
-from src.views.shared_components.calendar_widgets import InputDayCell, MonthGrid, OutputDayCell
+from src.views.shared_components.calendar_widgets import MonthGrid
 from src.views.shared_components.calendar_widgets._constants import EN_LOCALE
 
 

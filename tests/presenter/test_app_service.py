@@ -846,6 +846,31 @@ def test_format_schedule_rows_date_only(monkeypatch):
 
 
 # ------------------------------------------------------------------ #
+# clear_rooms - stale data after failed load                           #
+# ------------------------------------------------------------------ #
+
+def test_clear_rooms_after_failed_load_removes_stored_rooms(monkeypatch):
+    """Valid rooms loaded → invalid file selected → DataStore rooms must be empty.
+
+    Covers the reviewer's requirement: a failed room-file parse must invalidate
+    any previously loaded rooms so the engine cannot silently use stale data.
+    """
+    from src.models.room import Room
+
+    service = _make_service(monkeypatch)
+
+    # Prime DataStore with a valid room set (simulates a successful prior load).
+    service._datastore.set_rooms([Room("101", "A", 50)])
+    assert len(service._datastore.get_rooms()) == 1
+
+    # clear_rooms() is what _on_rooms_file_selected calls on parse failure.
+    service.clear_rooms()
+
+    assert service._datastore.get_rooms() == []
+    assert service.needs_generation() is True
+
+
+# ------------------------------------------------------------------ #
 # PDF / TXT export writer selection                                    #
 # ------------------------------------------------------------------ #
 

@@ -117,6 +117,17 @@ class AppService(IAppService):
         self._mark_dirty()
         self.clear_results()
 
+    def clear_rooms(self) -> None:
+        """Remove stored rooms from DataStore and mark the app dirty.
+
+        Called when a rooms file fails to parse so that previously loaded rooms
+        cannot be silently used in the next generation run.
+        """
+        self._datastore.set_rooms([])
+        self._datastore.save()
+        self._mark_dirty()
+        self.clear_results()
+
     def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
 
         # Validate mandatory paths

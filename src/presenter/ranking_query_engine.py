@@ -1,7 +1,7 @@
 """
 ranking_query_engine.py
 -----------------------
-Read-only query interface for scores.db.
+Query interface for ranked schedule retrieval from scores.db.
 
 fetch_window() returns list[tuple] with columns in this fixed order:
     (batch_number, index_in_batch, min_days_required, avg_days_all,
@@ -16,8 +16,10 @@ on millions of rows.
 
 _ensure_index_for() closes this gap: the first time a particular sort_cols
 combination is seen it issues CREATE INDEX IF NOT EXISTS for the full
-multi-column composite, then caches the combination in _built_indexes so that
-subsequent calls skip the DB round-trip entirely.
+multi-column composite (including tie-breaker columns batch_number and
+index_in_batch), then caches the combination in _built_indexes so that
+subsequent calls skip the DB round-trip entirely.  This guarantees SQLite
+uses a COVERING INDEX for the full ORDER BY with no TEMP B-TREE fallback.
 """
 
 import sqlite3

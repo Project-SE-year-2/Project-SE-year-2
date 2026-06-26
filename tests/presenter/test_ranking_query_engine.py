@@ -302,6 +302,41 @@ def test_dynamic_index_correct_sort_order_preserved(db, engine):
     assert rows[2][IDX_CONFLICTS] == 3
 
 
+def test_dynamic_index_eliminates_temp_btree_in_query_plan(db, engine):
+    """EXPLAIN QUERY PLAN must show a covering index and no TEMP B-TREE for multi-column sort.
+
+    This directly verifies the Jira acceptance criterion: multi-column sorting
+    must not fall back to an in-memory sort after _ensure_index_for() runs.
+    """
+    db.insert_batch("fall_a", [(0, i, _m(min_days=float(i), conflicts=i % 5)) for i in range(20)])
+
+    # Trigger dynamic index creation via fetch_window.
+    engine.fetch_window("fall_a", ["min_days_required", "elective_conflicts"], limit=10, offset=0)
+
+    # Run EXPLAIN QUERY PLAN for the same ORDER BY that fetch_window uses.
+    plan_rows = engine._conn.execute(
+        "EXPLAIN QUERY PLAN "
+        "SELECT batch_number, index_in_batch "
+        "FROM scores WHERE period_id = ? "
+        "ORDER BY min_days_required DESC, elective_conflicts ASC, "
+        "batch_number ASC, index_in_batch ASC "
+        "LIMIT 10 OFFSET 0",
+        ("fall_a",),
+    ).fetchall()
+
+    plan_details = [dict(row)["detail"] for row in plan_rows]
+
+    # The dynamic index must be used.
+    assert any("idx_dynamic" in d for d in plan_details), (
+        f"Expected dynamic index in query plan, got: {plan_details}"
+    )
+
+    # No temporary B-tree sort must appear — the index covers the full ORDER BY.
+    assert all("TEMP B-TREE" not in d for d in plan_details), (
+        f"Unexpected TEMP B-TREE in query plan: {plan_details}"
+    )
+
+
 def test_dynamic_index_persists_across_multiple_fetch_calls(db, engine):
     """Index created on first call is still used by later calls without re-creation."""
     db.insert_batch("fall_a", [(0, i, _m(min_days=float(i), avg_days=float(i))) for i in range(10)])

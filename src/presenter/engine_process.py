@@ -65,11 +65,30 @@ def _db_writer(score_queue: queue.Queue, db_path: Path) -> None:
             item = score_queue.get()
             if item is _QueueScoresProxy._SENTINEL:
                 break
-            period_id, payload = item
-            if period_id == "__clear__":
-                scores_db.clear_period(payload)
-            else:
-                scores_db.insert_batch(period_id, payload)
+                
+            items = [item]
+            stop = False
+            try:
+                while len(items) < 50:
+                    nxt = score_queue.get_nowait()
+                    if nxt is _QueueScoresProxy._SENTINEL:
+                        stop = True
+                        break
+                    items.append(nxt)
+            except queue.Empty:
+                pass
+                
+            for it in items:
+                period_id, payload = it
+                if period_id == "__clear__":
+                    scores_db.clear_period(payload)
+                else:
+                    scores_db.insert_batch(period_id, payload, commit=False)
+            
+            scores_db.commit()
+            
+            if stop:
+                break
 
 
 # ------------------------------------------------------------------ #
@@ -91,8 +110,18 @@ def _solve_single_period(engine, period, courses_dict, writer, score_proxy, noti
     checker = ConstraintChecker(constraint_settings) if constraint_settings is not None else None
     scorer = ScheduleScorer.default()
 
-    # ── Feasibility pre-check ─────────────────────────────────────────────────
+    # ── Fast Feasibility Math Pre-checks ──────────────────────────────────────
+    from src.algorithm.math_feasibility_checker import MathFeasibilityChecker
+    
     courses = list(courses_dict.keys())
+    math_feasible, math_reason = MathFeasibilityChecker.check_feasibility(courses, period, constraint_settings)
+    if not math_feasible:
+        score_proxy.clear_period(pid)
+        notify_queue.put({"type": "period_infeasible", "period_id": pid, "reason": math_reason})
+        notify_queue.put({"type": "period_done", "period_id": pid})
+        return
+
+    # ── Feasibility pre-check ─────────────────────────────────────────────────
     feasible, reason = engine.check_feasibility(period, courses)
     if not feasible:
         score_proxy.clear_period(pid)  # clear stale DB rows so UI doesn't poll for missing files
@@ -148,7 +177,7 @@ def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue, results_path: s
                 writer = PeriodResultsWriter(root_path=results_path)
 
                 # Queue shared between solver threads (producers) and writer thread (consumer).
-                score_queue: queue.Queue = queue.Queue()
+                score_queue: queue.Queue = queue.Queue(maxsize=1000)
                 score_proxy = _QueueScoresProxy(score_queue)
 
                 # Start the single DB writer thread before any solvers.

@@ -19,7 +19,7 @@ Signals
 """
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
+    QDialog, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame,
 )
 from PyQt5.QtCore import pyqtSignal, Qt
@@ -28,17 +28,19 @@ from src.views.settings_screen.constraint_config_widget import ConstraintConfigW
 from src.models.constraint_settings import ConstraintSettings
 
 
-class SettingsScreen(QWidget):
+class SettingsDialog(QDialog):
     """
-    Structural canvas that hosts ConstraintConfigWidget with a header bar
-    providing back-navigation.
+    Dialog canvas that hosts ConstraintConfigWidget with a header bar.
     """
 
-    switch_to_input = pyqtSignal()
     settings_confirmed = pyqtSignal()
 
     def __init__(self, service, parent=None):
-        super().__init__(parent)
+        # Qt.Tool makes it a floating tool window without standard OS window controls,
+        # or we can use Qt.FramelessWindowHint | Qt.Dialog to remove the OS title bar entirely.
+        super().__init__(parent, Qt.Dialog | Qt.FramelessWindowHint)
+        self.setModal(True)
+        self.setStyleSheet("QDialog { background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; }")
         # Keep a reference so sub-widgets added in EP-109/EP-112 can use it.
         self.service = service
         self._build_ui()
@@ -57,7 +59,7 @@ class SettingsScreen(QWidget):
         root.addLayout(self._make_panels(), stretch=1)
 
     def _make_header(self) -> QWidget:
-        """Top bar with a back button on the left and a centred title."""
+        """Top bar with a centred title and cancel/apply buttons."""
         header = QWidget()
         header.setFixedHeight(56)
         header.setStyleSheet("background-color: #FFFFFF;")
@@ -65,27 +67,27 @@ class SettingsScreen(QWidget):
         layout = QHBoxLayout(header)
         layout.setContentsMargins(16, 0, 16, 0)
 
-        self.back_btn = QPushButton("← Back")
-        self.back_btn.setFixedWidth(80)
-        self.back_btn.setStyleSheet(
-            "QPushButton { border: none; color: #3B82F6; font-size: 14px; }"
-            "QPushButton:hover { color: #1D4ED8; }"
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setFixedWidth(80)
+        self.cancel_btn.setStyleSheet(
+            "QPushButton { border: none; color: #64748B; font-size: 14px; }"
+            "QPushButton:hover { color: #475569; }"
         )
-        self.back_btn.clicked.connect(self.switch_to_input.emit)
+        self.cancel_btn.clicked.connect(self.reject)
 
         title = QLabel("Settings")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1E293B;")
 
         self.apply_btn = QPushButton("Apply")
-        self.apply_btn.setFixedWidth(80)
+        self.apply_btn.setFixedWidth(100)
         self.apply_btn.setStyleSheet(
-            "QPushButton { background-color: #3B82F6; color: white; border-radius: 6px; font-size: 14px; }"
+            "QPushButton { background-color: #3B82F6; color: white; border-radius: 6px; font-size: 16px; font-weight: bold; padding: 6px; }"
             "QPushButton:hover { background-color: #2563EB; }"
         )
         self.apply_btn.clicked.connect(self._on_apply)
 
-        layout.addWidget(self.back_btn)
+        layout.addWidget(self.cancel_btn)
         layout.addWidget(title, stretch=1)
         layout.addWidget(self.apply_btn)
 
@@ -113,10 +115,10 @@ class SettingsScreen(QWidget):
     def _on_apply(self) -> None:
         """Private click handler for the Apply button.
 
-        Emits settings_confirmed so MainWindow can read constraint settings
-        from this screen and push them to the service layer.
+        Emits settings_confirmed and accepts the dialog so MainWindow can read constraint settings.
         """
         self.settings_confirmed.emit()
+        self.accept()
 
     def get_constraint_settings(self) -> ConstraintSettings:
         """Return typed constraint settings collected from the constraint panel."""

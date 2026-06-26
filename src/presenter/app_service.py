@@ -78,10 +78,6 @@ class AppService(IAppService):
         # EP-119 - sort order for ranked schedule retrieval
         self._sort_cols: list[str] = []
         self._ranking_engine: RankingQueryEngine | None = None
-        # Frozen snapshot: per-period list of (batch_number, index_in_batch) in sorted order.
-        # Populated lazily on first ranked access; cleared when sort changes or refresh requested.
-        self._sorted_cache: dict[str, list[tuple[int, int]]] = {}
-        self._sorted_cache_counts: dict[str, int] = {}
         self._constraint_settings = ConstraintSettings()
         
         self._finished_periods: set[str] = set()
@@ -190,14 +186,12 @@ class AppService(IAppService):
         technical design.
         """
         self._sort_cols = list(sort_cols)
-        self._sorted_cache.clear()
-        self._sorted_cache_counts.clear()
 
     def refresh_ranked_view(self) -> None:
-        """Clear the frozen snapshot so the next navigation re-queries scores.db.
-        Called by the 'Refresh View' banner (Task 121) to accept newly written scores."""
-        self._sorted_cache.clear()
-        self._sorted_cache_counts.clear()
+        """Called by the 'Refresh View' banner (Task 121) to accept newly written scores.
+        Since we now fetch dynamically on every navigation, this is mostly a no-op 
+        or signals the UI to redraw."""
+        pass
 
     def get_sort_order(self) -> list[str]:
         """Return the active sort column list."""
@@ -260,7 +254,6 @@ class AppService(IAppService):
         self._results_by_period = {}
         self._last_metadata = {}
         self._current_indices = {}
-        self._sorted_cache = {}
         self._finished_periods = set()
         self._infeasible_periods = set()
 
@@ -415,8 +408,6 @@ class AppService(IAppService):
         self._results_by_period.clear()
         self._last_metadata.clear()
         self._current_indices.clear()
-        self._sorted_cache.clear()
-        self._sorted_cache_counts.clear()
         self._finished_periods.clear()
         self._infeasible_periods.clear()
         self._generation_active = True
@@ -582,10 +573,6 @@ class AppService(IAppService):
             ranked = self._get_ranked_schedule(period_id, index)
             if ranked is not None:
                 return ranked
-            # If ranking data is not available yet, keep showing the regular
-            # disk/in-memory schedule instead of blanking the output screen.
-            if self._sorted_cache.get(period_id):
-                return []
 
         # ── Disk mode ─────────────────────────────────────────────────────────
         disk_count = self._results_reader.get_count(period_id)
@@ -612,58 +599,29 @@ class AppService(IAppService):
         return []
 
     def _get_ranked_schedule(self, period_id: str, rank: int) -> list[dict] | None:
-        """Return the schedule at the given rank using the current sorted index.
-
-        The sorted index is refreshed when scores.db receives more rows, so
-        applying a sort changes only retrieval order while generation, polling,
-        and the visible counter continue to progress normally.
+        """Return the schedule at the given rank by querying scores.db dynamically.
+        
+        This fetches only a single row (LIMIT 1 OFFSET rank) instead of querying
+        and caching the entire dataset, removing RAM bloat and CPU overhead.
         """
-        if period_id not in self._sorted_cache:
-            if not self._build_sorted_cache(period_id):
-                return None
-        else:
-            engine = self._get_ranking_engine()
-            cached_count = self._sorted_cache_counts.get(period_id)
-
-            if engine is not None and cached_count is not None:
-                try:
-                    current_count = engine.count(period_id)
-                    if current_count > cached_count:
-                        self._build_sorted_cache(period_id)
-                except Exception:
-                    pass
-        indices = self._sorted_cache[period_id]
-        if rank >= len(indices):
+        engine = self._get_ranking_engine()
+        if engine is None:
             return None
-        batch_number, index_in_batch = indices[rank]
+
+        # Fetch exactly 1 row at the requested rank offset.
         try:
+            rows = engine.fetch_window(period_id, self._sort_cols, limit=1, offset=rank)
+            if not rows:
+                return None
+            batch_number, index_in_batch = rows[0][:2]
+            
             linear_index = batch_number * BATCH_SIZE + index_in_batch
             schedule = self._results_reader.get_schedule_at(period_id, linear_index)
             return self._format_schedule_rows(schedule)
         except Exception:
             return None
 
-    def _build_sorted_cache(self, period_id: str) -> bool:
-        """Query scores.db for all scored rows in sorted order and store as a frozen index list.
 
-        Only (batch_number, index_in_batch) tuples are loaded - not the full schedule
-        data, which stays in batch files on disk. Memory cost is negligible regardless
-        of result set size. The cache is refreshed when new scored rows appear.
-        """
-        engine = self._get_ranking_engine()
-        if engine is None:
-            return False
-        try:
-            total = engine.count(period_id)
-            self._sorted_cache_counts[period_id] = total
-            if total == 0:
-                self._sorted_cache[period_id] = []
-                return True
-            rows = engine.fetch_window(period_id, self._sort_cols, limit=total, offset=0)
-            self._sorted_cache[period_id] = [(r[0], r[1]) for r in rows]
-            return True
-        except Exception:
-            return False
 
     def _get_ranking_engine(self) -> RankingQueryEngine | None:
         """Return a live RankingQueryEngine, or None if scores.db does not exist."""
@@ -932,14 +890,16 @@ class AppService(IAppService):
         for period_id, local_index in period_indices.items():
             schedule = None
 
-            # Ranked mode - resolve rank to physical linear index via frozen snapshot
-            if self._sort_cols and period_id in self._sorted_cache:
-                indices = self._sorted_cache[period_id]
-                if 0 <= local_index < len(indices):
-                    batch_number, index_in_batch = indices[local_index]
-                    linear_index = batch_number * BATCH_SIZE + index_in_batch
+            # Ranked mode - resolve rank to physical linear index
+            if self._sort_cols:
+                engine = self._get_ranking_engine()
+                if engine is not None:
                     try:
-                        schedule = self._results_reader.get_schedule_at(period_id, linear_index)
+                        rows = engine.fetch_window(period_id, self._sort_cols, limit=1, offset=local_index)
+                        if rows:
+                            batch_number, index_in_batch = rows[0][:2]
+                            linear_index = batch_number * BATCH_SIZE + index_in_batch
+                            schedule = self._results_reader.get_schedule_at(period_id, linear_index)
                     except Exception as exc:
                         print(f"AppService: export ranked read failed for {period_id}: {exc}")
                 if schedule is not None:

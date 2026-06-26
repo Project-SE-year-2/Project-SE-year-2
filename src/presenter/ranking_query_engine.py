@@ -127,7 +127,7 @@ class RankingQueryEngine:
             f"LIMIT ? OFFSET ?",
             (period_id, limit, offset),
         ).fetchall()
-        return [tuple(row) for row in rows]
+        return rows
 
     def best_score(self, period_id: str, primary_col: str) -> Optional[float]:
         """Return the best (rank-1) value of primary_col for this period."""

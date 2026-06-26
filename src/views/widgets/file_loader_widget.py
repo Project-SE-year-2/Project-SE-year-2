@@ -168,8 +168,13 @@ class DropZoneCard(QFrame):
             " background: transparent; border: none;"
         )
 
+        icon_layout = QHBoxLayout()
+        icon_layout.addStretch()
+        icon_layout.addWidget(self._icon_lbl)
+        icon_layout.addStretch()
+
         layout.addStretch()
-        layout.addWidget(self._icon_lbl)
+        layout.addLayout(icon_layout)
         layout.addWidget(self._title_lbl)
         layout.addWidget(self._hint_lbl)
         layout.addWidget(self._file_lbl)
@@ -394,13 +399,13 @@ class FileLoaderWidget(QWidget):
 
         self._courses_zone = DropZoneCard(
             icon=ICON_FILE,
-            title="Courses File",
+            title="Courses",
             hint="Drag & drop courses file here\n(or click to browse)\nCSV, Text (.csv, .txt)",
             dialog_caption="Select Courses File",
         )
         self._dates_zone = DropZoneCard(
             icon=ICON_CALENDAR,
-            title="Dates File",
+            title="Dates",
             hint="Drag & drop dates file here\n(or click to browse)\nCSV, Text (.csv, .txt)",
             dialog_caption="Select Dates File",
             single_file=True,   # dates zone always holds exactly one file
@@ -410,7 +415,7 @@ class FileLoaderWidget(QWidget):
         # Calling load_rooms() replaces previously stored rooms in the data store.
         self._rooms_zone = DropZoneCard(
             icon=ICON_FILE,
-            title="Rooms File",
+            title="Rooms",
             hint="Drag & drop rooms file here\n(or click to browse)\nCSV, Text (.csv, .txt)",
             dialog_caption="Select Rooms File",
             single_file=True,

@@ -256,6 +256,7 @@ class ScoresDatabase:
         self,
         period_id: str,
         rows: list[tuple[int, int, ScheduleMetrics]],
+        commit: bool = True
     ) -> None:
         """
         Persist metrics for an entire batch in a single transaction.
@@ -292,9 +293,13 @@ class ScoresDatabase:
                 for batch_num, idx_in_batch, m in rows
             ],
         )
+        if commit:
+            self._conn.commit()
+            if self._queue is not None:
+                self._queue.put({"event": "batch_written", "period_id": period_id, "count": len(rows)})
+
+    def commit(self) -> None:
         self._conn.commit()
-        if self._queue is not None:
-            self._queue.put({"event": "batch_written", "period_id": period_id, "count": len(rows)})
 
     @staticmethod
     def _finite_or_zero(value: float) -> float:

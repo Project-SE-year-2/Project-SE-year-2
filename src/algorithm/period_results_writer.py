@@ -78,7 +78,7 @@ class PeriodResultsWriter:
             partial_batch.extend(to_add)
             
             batch_file.parent.mkdir(parents=True, exist_ok=True)
-            temp_batch_file = batch_file.with_suffix(".tmp")
+            temp_batch_file = batch_file.with_suffix(".part")
             with open(temp_batch_file, "wb") as f:
                 pickle.dump(partial_batch, f)
             self._safe_replace(temp_batch_file, batch_file)
@@ -94,7 +94,7 @@ class PeriodResultsWriter:
             batch_file = self._batch_path(period_id, batch_index)
 
             batch_file.parent.mkdir(parents=True, exist_ok=True)
-            temp_batch_file = batch_file.with_suffix(".tmp")
+            temp_batch_file = batch_file.with_suffix(".part")
             with open(temp_batch_file, "wb") as f:
                 pickle.dump(batch, f)
             self._safe_replace(temp_batch_file, batch_file)
@@ -108,7 +108,7 @@ class PeriodResultsWriter:
         """Write manifest — must be called while holding the period lock."""
         manifest_path = self._root / period_id / "manifest.json"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = manifest_path.with_suffix(".tmp")
+        temp_path = manifest_path.with_suffix(".part")
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump({"count": count}, f)
         self._safe_replace(temp_path, manifest_path)

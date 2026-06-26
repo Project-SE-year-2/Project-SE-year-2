@@ -166,12 +166,6 @@ class PeriodRowWidget(QFrame):
         date_l.setContentsMargins(0, 0, 0, 0)
         date_l.setSpacing(6)
 
-        icon_lbl = QLabel("📅")
-        icon_lbl.setStyleSheet(
-            f"font-size: 14px; background: transparent;"
-        )
-        icon_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-
         start = self.period.start_date.strftime("%d/%m/%Y")
         end   = self.period.end_date.strftime("%d/%m/%Y")
         date_lbl = QLabel(f"{start}  —  {end}")
@@ -180,7 +174,6 @@ class PeriodRowWidget(QFrame):
             " background: transparent;"
         )
 
-        date_l.addWidget(icon_lbl)
         date_l.addWidget(date_lbl)
         row.addWidget(date_w)
 

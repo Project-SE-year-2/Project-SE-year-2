@@ -798,7 +798,6 @@ class MoedCalendarOutputWidget(QWidget):
         """Show 'no schedules' state when the period doesn't exist in the data."""
         name = semester or "this semester"
         self._empty_lbl.setText(f"No schedules available for {name}.")
-        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester}" if semester else "—")
         self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_EMPTY)
@@ -826,7 +825,6 @@ class MoedCalendarOutputWidget(QWidget):
                 break
 
         # ── Update header ─────────────────────────────────────────────────────
-        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester} {year}")
 
         # Compute overall date range across all moeds for the subtitle

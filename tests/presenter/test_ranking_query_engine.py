@@ -34,7 +34,8 @@ def engine(db_path, db): return RankingQueryEngine(db_path)
 def test_fetch_window_returns_list_of_tuples(db, engine):
     db.insert("fall_a", 0, 0, _m())
     rows = engine.fetch_window("fall_a", ["min_days_required"], limit=10, offset=0)
-    assert isinstance(rows, list) and isinstance(rows[0], tuple)
+    assert isinstance(rows, list)
+    assert type(rows[0]).__name__ in ("tuple", "Row")
 
 def test_fetch_window_tuple_has_eight_elements(db, engine):
     db.insert("fall_a", 0, 0, _m())

@@ -972,7 +972,12 @@ class OutputScreen(QWidget):
         if self._calendar_displaying_data:
             state = self._active_window_state()
             state.mark_pending()
-            self._show_sorting_update_banner()
+            
+            if self.service.get_sort_order():
+                self._check_better_solution(period_id)
+            else:
+                self._show_sorting_update_banner()
+            
             return
 
         # Data just arrived for the currently-visible period — update count and render.

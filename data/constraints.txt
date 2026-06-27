@@ -1,0 +1,50 @@
+# ==============================================================================
+# Exam Scheduling Constraints & Ranking Configuration
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Advanced Constraints (Filtering)
+# ------------------------------------------------------------------------------
+# The solver will completely reject schedules that do not meet these rules.
+# Enabled variables must be true/false, and '_k' variables represent the target threshold.
+
+# ADVANCED_CONSTRAINTS
+
+# Ensure at least K days between mandatory exams in the same cohort
+mandatory_gap_enabled=true
+mandatory_gap_k=2
+
+# Cap the peak number of exams that can be scheduled across all programs on a single day
+daily_cap_enabled=true
+daily_cap_k=3
+
+# Prevent more than K elective course conflicts on the same day for a single program
+elective_conflicts_enabled=true
+elective_conflicts_k=1
+
+# Advanced Room Scheduling Rules (requires rooms configuration to be loaded)
+room_scheduling_enabled=false
+
+# ------------------------------------------------------------------------------
+# 2. Ranking Configuration (Sorting)
+# ------------------------------------------------------------------------------
+# The system will sort all *valid* schedules based on the priorities defined below.
+# The topmost metric will be used as the primary sort key. If there are ties, the 
+# system will use the second metric as a tie-breaker, and so forth.
+
+{{# RANKING:}}
+
+# 1. Prioritize schedules with fewer exams on the busiest calendar day overall.
+max_exams_per_day
+
+# 2. Prioritize schedules with a larger minimum gap between mandatory exams.
+min_days_required
+
+# 3. Prioritize schedules with fewer same-day elective clashes.
+elective_conflicts
+
+# 4. Prioritize schedules with a wider average spacing between consecutive exams.
+avg_days_all
+
+# 5. Prioritize schedules where first and last mandatory exams are furthest apart.
+span_required

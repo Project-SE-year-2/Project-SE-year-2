@@ -27,7 +27,7 @@ class AppController:
             if os.path.getsize(path) == 0:
                 raise ValueError(f"Error: The file at {path} is empty!")
 
-    def run(self, courses_path: str, periods_path: str, programs_path: str, constraint_settings=None, rooms=None):
+    def run(self, courses_path: str, periods_path: str, programs_path: str, constraint_settings=None, rooms=None, ranking_config=None):
         self._validate_paths([courses_path, periods_path, programs_path])
 
         courses = self.course_parser.parse(courses_path)
@@ -60,14 +60,58 @@ class AppController:
 
         self.engine = SchedulingEngine(constraint_validator, catalog, index, constraint_settings, rooms)
 
-        schedules, metadata = self.engine.generateAll(scheduling_tasks)
+        # Fetch per-period results
+        period_results_by_period = {}
+        for period_result in self.engine.iterPeriodResults(scheduling_tasks):
+            period_results_by_period[period_result.period] = period_result
 
+        all_sub_results = []
+        metadata = {}
+
+        checker = None
         if constraint_settings is not None:
             checker = ConstraintChecker(constraint_settings)
-            schedules = [
-                schedule for schedule in schedules
-                if checker.is_valid(schedule)
-            ]
+
+        scorer = None
+        ascending_cols = {"elective_conflicts", "max_exams_per_day", "avg_room_distance"}
+        if ranking_config:
+            from src.algorithm.scoring.schedule_scorer import ScheduleScorer
+            scorer = ScheduleScorer.default()
+
+        for period in scheduling_tasks.keys():
+            period_result = period_results_by_period[period]
+            valid_schedules = period_result.schedules
+            
+            if checker is not None:
+                valid_schedules = [s for s in valid_schedules if checker.is_valid(s)]
+                
+            if scorer is not None and ranking_config:
+                metrics_dict = {s: scorer.compute_scores(s) for s in valid_schedules}
+                def sort_fn(sched):
+                    m = metrics_dict[sched]
+                    keys = []
+                    for col in ranking_config:
+                        val = getattr(m, col)
+                        if col in ascending_cols:
+                            keys.append(val)
+                        else:
+                            keys.append(-val)
+                    keys.append(sched.sort_key)
+                    return tuple(keys)
+                valid_schedules.sort(key=sort_fn)
+                
+            all_sub_results.append(valid_schedules)
+            metadata[period] = period_result.metadata
+
+        from src.algorithm.schedule_combiner import ScheduleCombiner
+        combined = ScheduleCombiner().combineSubResults(all_sub_results)
+        
+        # If ranking is enabled, keep the cartesian product order so the best combinations appear first.
+        # Otherwise, use chronological sort.
+        if not ranking_config:
+            combined.sort(key=lambda s: s.sort_key)
+            
+        schedules = combined
 
         project_root = os.path.normpath(os.path.join(os.path.dirname(courses_path), ".."))
         output_dir = os.path.join(project_root, "output")

@@ -25,7 +25,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSizePolicy,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -101,7 +100,7 @@ class _SemesterTabCard(QFrame):
         pix = load_pixmap(meta["icon"], size=22)
         if not pix.isNull():
             self._icon_lbl.setPixmap(pix)
-        layout.addWidget(self._icon_lbl)
+        # layout.addWidget(self._icon_lbl)
 
         # Semester name — uses accent colour
         self._name_lbl = QLabel(meta["id"])

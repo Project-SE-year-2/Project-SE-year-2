@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import QMainWindow, QStackedWidget, QMessageBox
 from src.presenter.app_service import AppService
 from src.views.input_screen.input_screen import InputScreen
 from src.views.output_screen.output_screen import OutputScreen
-from src.views.settings_screen.settings_screen import SettingsScreen
+from src.views.settings_screen.settings_dialog import SettingsDialog
 
 class MainWindow(QMainWindow):
     """
@@ -38,20 +38,14 @@ class MainWindow(QMainWindow):
         # Inject the SAME service instance into all screens
         self.input_screen = InputScreen(self.service)
         self.output_screen = OutputScreen(self.service)
-        self.settings_screen = SettingsScreen(self.service)
-
-        # InputScreen=0, OutputScreen=1, SettingsScreen=2
+        # InputScreen=0, OutputScreen=1
         self.stacked_widget.addWidget(self.input_screen)    # Index 0
         self.stacked_widget.addWidget(self.output_screen)   # Index 1
-        self.stacked_widget.addWidget(self.settings_screen) # Index 2
 
         # Wire navigation signals
         self.input_screen.switch_to_output.connect(self._show_output_screen)
-        self.input_screen.switch_to_settings.connect(self._show_settings_screen)
+        self.input_screen.switch_to_settings.connect(self._show_settings_dialog)
         self.output_screen.switch_to_input.connect(self._show_input_screen)
-        # Settings back-navigation must NOT wipe results — user is just browsing settings.
-        self.settings_screen.switch_to_input.connect(self._return_to_input_without_wipe)
-        self.settings_screen.settings_confirmed.connect(self._on_settings_confirmed)
         # Route output-screen sort changes to AppService and reset output position.
         self.output_screen.ranking_panel.sort_order_changed.connect(self.service.set_sort_order)
         self.output_screen.ranking_panel.sort_order_changed.connect(self.output_screen.on_sort_changed)
@@ -60,13 +54,31 @@ class MainWindow(QMainWindow):
         """Switches the stacked widget to the Output Screen (Index 1)."""
         self.stacked_widget.setCurrentIndex(1)
 
-    def _show_settings_screen(self):
-        """Switches the stacked widget to the Settings Screen (Index 2)."""
-        self.stacked_widget.setCurrentIndex(2)
+    def _show_settings_dialog(self):
+        """Instantiates and shows the SettingsDialog."""
+        dialog = SettingsDialog(self.service, parent=self)
+        
+        # We need a local reference to the dialog inside the connection
+        def on_confirmed():
+            try:
+                settings = dialog.get_constraint_settings()
+            except ValueError as exc:
+                QMessageBox.warning(
+                    self,
+                    "Invalid Constraint Settings",
+                    str(exc),
+                )
+                return
+            
+            self.service.set_constraint_settings(settings)
+            if hasattr(self.input_screen, "check_existing_results"):
+                self.input_screen.check_existing_results()
 
-    def _return_to_input_without_wipe(self):
-        """Return to the Input Screen from Settings without wiping generated results."""
-        self.stacked_widget.setCurrentIndex(0)
+        dialog.settings_confirmed.connect(on_confirmed)
+        
+        # Load the current settings into the dialog
+        dialog.set_constraint_settings(self.service.get_constraint_settings())
+        dialog.exec_()
 
     def _wipe_results(self):
         """Cleanly stop the background engine and aggressively wipe the disk."""
@@ -90,28 +102,4 @@ class MainWindow(QMainWindow):
         self._wipe_results()
         super().closeEvent(event)
 
-    def _on_settings_confirmed(self):
-        """Apply constraint settings from SettingsScreen to the service layer.
-
-        Validates the constraint settings first — shows a warning dialog and
-        stays on the Settings screen if the values are invalid.
-        """
-        try:
-            settings = self.settings_screen.get_constraint_settings()
-        except ValueError as exc:
-            QMessageBox.warning(
-                self,
-                "Invalid Constraint Settings",
-                str(exc),
-            )
-            return
-
-        # Push constraint settings to the presenter. When the constraints change
-        # this clears stale results inside the service (EP-149 bug 2).
-        self.service.set_constraint_settings(settings)
-
-        self._return_to_input_without_wipe()
-        # Refresh the input screen so the "View Calendar" button reflects whether
-        # results still exist after a possible constraint change.
-        if hasattr(self.input_screen, "check_existing_results"):
-            self.input_screen.check_existing_results()
+    # Settings confirmed handling is now local to the dialog lambda.

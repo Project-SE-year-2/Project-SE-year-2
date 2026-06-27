@@ -1,5 +1,5 @@
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
-from PyQt5.QtGui import QColor, QIcon
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QFrame, QSizePolicy,
@@ -8,7 +8,6 @@ from PyQt5.QtWidgets import (
 
 import src.styles.theme as th
 from src.presenter.generate_worker import GenerateWorker
-from src.styles.icons import load_pixmap, ICON_CALENDAR_PLUS
 from src.styles.input_screen_style import INPUT_SCREEN_STYLE
 from src.views.shared_components.error_banner import ErrorBanner
 from src.views.shared_components.loading_spinner import LoadingSpinner
@@ -75,19 +74,19 @@ class InputScreen(QWidget):
         programs_body_layout.setContentsMargins(0, 0, 0, 0)
         programs_body_layout.setSpacing(th.SPACING_LARGE)
 
-        left_stack = QWidget()
-        left_stack.setStyleSheet("background: transparent;")
-        left_layout = QVBoxLayout(left_stack)
+        self._left_stack = QWidget()
+        self._left_stack.setStyleSheet("background: transparent;")
+        left_layout = QVBoxLayout(self._left_stack)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(th.SPACING_SMALL)
         left_layout.addWidget(self.program_list, stretch=1)
         left_layout.addWidget(self.selected_panel)
 
-        programs_body_layout.addWidget(left_stack,        stretch=2)
+        programs_body_layout.addWidget(self._left_stack,  stretch=2)
         programs_body_layout.addWidget(self.course_table, stretch=3)
 
+        self._left_stack.setVisible(False)
         self.selected_panel.setVisible(False)
-        self.program_list.setVisible(False)
 
         # ── Tab page 1: Exam Periods ───────────────────────────────────────
         # period_list on the LEFT, period_editor on the RIGHT (horizontal split)
@@ -117,18 +116,12 @@ class InputScreen(QWidget):
         bar_layout = QHBoxLayout(bar)
         bar_layout.setContentsMargins(th.SPACING_XL, 0, th.SPACING_XL, 0)
 
-        self.generate_btn = QPushButton("  Generate Schedule")
-        _gen_pix = load_pixmap(ICON_CALENDAR_PLUS, size=20)
-        if not _gen_pix.isNull():
-            self.generate_btn.setIcon(QIcon(_gen_pix))
-
+        self.generate_btn = QPushButton("Generate A New Schedule")
         self.generate_btn.setObjectName("generateBtn")
         self.generate_btn.setVisible(False)
         self.generate_btn.clicked.connect(self._on_generate_clicked)
 
-        self.view_calendar_btn = QPushButton("  View Calendar")
-        if not _gen_pix.isNull():
-            self.view_calendar_btn.setIcon(QIcon(_gen_pix))
+        self.view_calendar_btn = QPushButton("View Current Calendar")
         self.view_calendar_btn.setObjectName("viewCalendarBtn")
         self.view_calendar_btn.setVisible(False)
         self.view_calendar_btn.clicked.connect(self.switch_to_output.emit)
@@ -136,7 +129,7 @@ class InputScreen(QWidget):
         self.spinner      = LoadingSpinner()
         self.error_banner = ErrorBanner()
 
-        self.settings_btn = QPushButton("⚙ Settings")
+        self.settings_btn = QPushButton("Settings")
         self.settings_btn.setObjectName("settingsBtn")
         self.settings_btn.clicked.connect(self.switch_to_settings.emit)
 
@@ -178,12 +171,12 @@ class InputScreen(QWidget):
         tab_bar_l.setContentsMargins(th.SPACING_LARGE, 0, th.SPACING_LARGE, 0)
         tab_bar_l.setSpacing(0)
 
-        self._tab_programs_btn = QPushButton("🎓  Study Programs")
+        self._tab_programs_btn = QPushButton("Study Programs")
         self._tab_programs_btn.setObjectName("tabBtnActive")
         self._tab_programs_btn.setCursor(Qt.PointingHandCursor)
         self._tab_programs_btn.clicked.connect(lambda: self._switch_tab(0))
 
-        self._tab_periods_btn = QPushButton("📅  Exam Periods")
+        self._tab_periods_btn = QPushButton("Exam Periods")
         self._tab_periods_btn.setObjectName("tabBtn")
         self._tab_periods_btn.setCursor(Qt.PointingHandCursor)
         self._tab_periods_btn.clicked.connect(lambda: self._switch_tab(1))
@@ -344,6 +337,7 @@ class InputScreen(QWidget):
         # Refresh programs from the newly loaded files
         self.program_list.refresh()
         self.program_list.setVisible(True)
+        self._left_stack.setVisible(True)
 
         # In the tabbed layout the Exam Periods tab is always accessible, so
         # refresh and show the period list immediately after file load — the

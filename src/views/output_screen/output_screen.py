@@ -58,7 +58,6 @@ from datetime import date as _date
 
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
-    QApplication,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -77,7 +76,7 @@ from src.styles.icons import load_pixmap, ICON_DOWNLOAD
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
 from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutputWidget
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
-from src.views.settings_screen.ranking_config_widget import RankingConfigWidget
+from src.views.settings_screen.ranking_config_widget import RankingConfigDialog
 from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
 from src.views.output_screen.window_state import WindowState
@@ -295,8 +294,13 @@ class OutputScreen(QWidget):
         self.download_btn.setObjectName("downloadBtn")
         self.download_btn.clicked.connect(self._on_download_clicked)
 
+        self.sort_settings_btn = QPushButton("Sort Settings")
+        self.sort_settings_btn.setObjectName("sortSettingsBtn")
+        self.sort_settings_btn.clicked.connect(self._show_sort_settings)
+
         toolbar.addWidget(self.back_btn)
         toolbar.addStretch()
+        toolbar.addWidget(self.sort_settings_btn)
         toolbar.addWidget(self.download_btn)
         main_layout.addLayout(toolbar)
 
@@ -330,10 +334,10 @@ class OutputScreen(QWidget):
         self.four_month.exam_day_clicked.connect(self._on_exam_day_clicked)
         self.four_month.moed_changed.connect(self._on_moed_changed)
 
-        self.ranking_panel = RankingConfigWidget()
+        self._sort_dialog = RankingConfigDialog(self)
+        self.ranking_panel = self._sort_dialog.ranking_widget
 
         body_layout.addWidget(self.four_month, stretch=1)
-        body_layout.addWidget(self.ranking_panel)
         main_layout.addLayout(body_layout, stretch=1)
 
         self.navigator   = self.four_month.navigator
@@ -348,6 +352,10 @@ class OutputScreen(QWidget):
         self.calendar = CalendarTableWidget()
         self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
         # exam_clicked intentionally NOT connected (would open dialog twice)
+
+    def _show_sort_settings(self):
+        """Open the Sorting Preferences dialog."""
+        self._sort_dialog.exec_()
 
     def _build_conflict_banner(self) -> QFrame:
         banner = QFrame()
@@ -791,7 +799,7 @@ class OutputScreen(QWidget):
         fetches that period's schedule directly via get_period_schedule().
         No Cartesian-product scanning or cross-period interference.
         """
-        pid = self._active_period_id()
+        self._active_period_id()
         state = self._active_window_state()
         state.move_to(index)
 
@@ -816,7 +824,7 @@ class OutputScreen(QWidget):
         self.service.refresh_ranked_view()
         self._refresh_screen_display()
 
-    def _on_prefetch_needed(self, loaded_so_far: int) -> None:
+    def _on_prefetch_needed(self, _loaded_so_far: int) -> None:
         # No-op in isolated mode — each NEXT fetches on demand.
         pass
 

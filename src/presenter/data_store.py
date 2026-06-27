@@ -8,10 +8,8 @@ without a custom serialiser).
 File location: <project_root>/data/datastore.pkl
 """
 
-import os
 import pickle
 from pathlib import Path
-from datetime import date
 
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod

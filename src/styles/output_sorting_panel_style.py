@@ -20,7 +20,8 @@ TEXT_BLOCK_SPACING = 4
 PANEL_WIDGET = """
     QWidget#OutputSortingPanel {
         background-color: #FFFFFF;
-        border-left: 1px solid #E5E7EB;
+        border: 1px solid #E5E7EB;
+        border-radius: 12px;
     }
 """
 

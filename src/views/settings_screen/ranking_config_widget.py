@@ -12,7 +12,7 @@ Numbers update automatically after every drag or checkbox toggle.
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox,
-    QPushButton,
+    QPushButton, QDialog,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QSize, QTimer
 from PyQt5.QtGui import QFont
@@ -72,25 +72,22 @@ _DEFAULT_CHECKED: set[str] = set()
 class _RowWidget(QWidget):
     """One row inside the list: drag-handle | badge | title+description | checkbox."""
 
-    def __init__(self, key: str, title: str, description: str, parent=None):
+    def __init__(self, key: str, title: str, _description: str, parent=None):
         super().__init__(parent)
 
         self.key = key
 
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(_style.ROW_MARGIN_H, _style.ROW_MARGIN_V,
-                                 _style.ROW_MARGIN_H, _style.ROW_MARGIN_V)
-        outer.setSpacing(_style.ROW_SPACING)
+        outer.setContentsMargins(8, 4, 8, 4)
+        outer.setSpacing(8)
 
-        # ── Drag handle ───────────────────────────────────────────────────
         handle = QLabel("⠿")
         handle.setStyleSheet(_style.DRAG_HANDLE)
         handle.setFixedWidth(_style.HANDLE_WIDTH)
         outer.addWidget(handle)
 
-        # ── Priority badge ────────────────────────────────────────────────
         self.badge = QLabel("1")
-        self.badge.setFixedSize(_style.BADGE_SIZE, _style.BADGE_SIZE)
+        self.badge.setFixedSize(22, 22)  # slightly smaller badge
         self.badge.setAlignment(Qt.AlignCenter)
         font = QFont()
         font.setBold(True)
@@ -98,24 +95,11 @@ class _RowWidget(QWidget):
         self.badge.setFont(font)
         self._set_badge_active(True)
         outer.addWidget(self.badge)
-
-        # ── Text block: title (large) + description (small) ───────────────
-        text_block = QVBoxLayout()
-        text_block.setSpacing(_style.TEXT_BLOCK_SPACING)
-
+        
         title_lbl = QLabel(title)
-        title_lbl.setWordWrap(True)
         title_lbl.setStyleSheet(_style.ROW_TITLE_LABEL)
-        text_block.addWidget(title_lbl)
-
-        desc_lbl = QLabel(description)
-        desc_lbl.setWordWrap(True)
-        desc_lbl.setStyleSheet(_style.DESCRIPTION_LABEL)
-        text_block.addWidget(desc_lbl)
-
-        outer.addLayout(text_block, stretch=1)
-
-        # ── Checkbox ──────────────────────────────────────────────────────
+        outer.addWidget(title_lbl, stretch=1)
+        
         self.checkbox = QCheckBox()
         self.checkbox.setChecked(True)
         self.checkbox.setStyleSheet(_style.CHECKBOX)
@@ -163,10 +147,9 @@ class RankingConfigWidget(QWidget):
 
     def _build_ui(self) -> None:
         self.setObjectName("OutputSortingPanel")
-        self.setFixedWidth(_style.PANEL_WIDTH)
         self.setStyleSheet(_style.PANEL_WIDGET)
 
-        # QVBoxLayout stacks children top-to-bottom.
+        # QVBoxLayout for vertical layout across the dialog
         layout = QVBoxLayout(self)
         layout.setContentsMargins(
             _style.PANEL_MARGIN,
@@ -176,18 +159,27 @@ class RankingConfigWidget(QWidget):
         )
         layout.setSpacing(_style.PANEL_SPACING)
 
+        left_ctrl = QVBoxLayout()
         # Section title shown above the list.
         title = QLabel("Sorting Preferences")
         title.setStyleSheet(_style.TITLE_LABEL)
-        layout.addWidget(title)
+        left_ctrl.addWidget(title)
 
         # Instructional subtitle below the title.
         subtitle = QLabel("Select criteria and drag to set priority")
         subtitle.setStyleSheet(_style.SUBTITLE_LABEL)
-        layout.addWidget(subtitle)
+        left_ctrl.addWidget(subtitle)
+        
+        left_ctrl.addStretch()
+
+        # Removed Apply button from here, will handle in Dialog
+        
+        layout.addLayout(left_ctrl)
 
         # QListWidget is the scrollable container that holds all metric rows.
         self._list = QListWidget()
+        # Ensure it is a standard vertical list
+        self._list.setFlow(QListWidget.TopToBottom)
 
         # InternalMove: rows can be dragged and dropped within this same list
         # to reorder them.  Qt handles the drag animation automatically.
@@ -200,7 +192,7 @@ class RankingConfigWidget(QWidget):
         self._list.setSelectionMode(QAbstractItemView.SingleSelection)
 
         # 4-pixel gap between cards so they look separated.
-        self._list.setSpacing(4)
+        self._list.setSpacing(8)
 
         self._list.setStyleSheet(_style.LIST_WIDGET)
 
@@ -212,13 +204,8 @@ class RankingConfigWidget(QWidget):
         # rows here instead of only refreshing badges.
         self._list.model().rowsMoved.connect(self._on_rows_moved)
 
-        # stretch=1 makes the list expand to fill all remaining vertical space.
+        # stretch=1 makes the list expand to fill all remaining horizontal space.
         layout.addWidget(self._list, stretch=1)
-
-        self.apply_btn = QPushButton("Apply")
-        self.apply_btn.setStyleSheet(_style.APPLY_BUTTON)
-        self.apply_btn.clicked.connect(self._emit_sort_order)
-        layout.addWidget(self.apply_btn)
 
     def _populate_list(self, order: list[str], checked: set[str]) -> None:
         """Clear the list and rebuild one _RowWidget per key in order."""
@@ -245,6 +232,7 @@ class RankingConfigWidget(QWidget):
             # Store the metric key as hidden data on the item so we can
             # read it back in get_sort_order() without parsing the label text.
             item.setData(Qt.UserRole, key)
+            # Make the item a good fixed size for wrapping (Removed fixed width to stop text cutoff)
 
             # ItemIsEnabled   — row responds to clicks
             # ItemIsSelectable — row can be highlighted
@@ -256,7 +244,8 @@ class RankingConfigWidget(QWidget):
             )
 
             # Tell the list how tall this item should be so the custom widget fits.
-            item.setSizeHint(row_widget.sizeHint())
+            # Width of 0 allows it to expand horizontally to the full width of the QListWidget.
+            item.setSizeHint(QSize(0, 48))
 
             self._list.addItem(item)
 
@@ -266,50 +255,7 @@ class RankingConfigWidget(QWidget):
         # Set correct badge numbers for the initial state.
         self._refresh_badges()
 
-        # Item size hints were taken before the rows knew their real width, so
-        # recompute them now that every row is in the list.
-        self._sync_row_heights()
 
-    def _sync_row_heights(self) -> None:
-        """Resize each item to fit its word-wrapped text at the list's real width.
-
-        QListWidget fixes an item's size hint when the row is added — before the
-        row knows how wide it will actually be on screen.  Word-wrapped
-        descriptions then report a too-small height, so the lower rows get
-        clipped, and a clipped row can repaint blank after a scroll (only the
-        checkbox survives — exactly the reported bug).
-
-        For each row we temporarily pin it to the real available width, measure
-        the height its wrapped text needs, then release the width so the view
-        can still stretch the row to fill the item.
-        """
-        avail = self._list.viewport().width() - 2 * self._list.spacing() - 2
-        if avail <= 0:
-            return
-        for i in range(self._list.count()):
-            item = self._list.item(i)
-            widget = self._list.itemWidget(item)
-            if widget is None:
-                continue
-            widget.setFixedWidth(avail)
-            widget.adjustSize()
-            height = widget.sizeHint().height()
-            # Release the temporary width pin (0 .. unbounded) so the view may
-            # resize the row to the full item width on layout.
-            widget.setMinimumWidth(0)
-            widget.setMaximumWidth(_QWIDGETSIZE_MAX)
-            item.setSizeHint(QSize(avail, height))
-
-    def resizeEvent(self, event) -> None:
-        # The panel width is fixed, but the viewport width is only known once
-        # the widget is laid out — recompute heights whenever it changes.
-        super().resizeEvent(event)
-        self._sync_row_heights()
-
-    def showEvent(self, event) -> None:
-        # First reliable point where the viewport has its real width.
-        super().showEvent(event)
-        self._sync_row_heights()
 
     def _refresh_badges(self) -> None:
         """Walk the list top-to-bottom and assign sequential numbers to checked rows.
@@ -406,3 +352,53 @@ class RankingConfigWidget(QWidget):
         active = set(valid) if checked is None else (checked & set(full_order))
 
         self._populate_list(full_order, active)
+
+
+class RankingConfigDialog(QDialog):
+    """
+    Dialog wrapper around RankingConfigWidget.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent, Qt.Dialog | Qt.FramelessWindowHint)
+        self.setModal(True)
+        self.setStyleSheet("QDialog { background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; }")
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(600)
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
+
+        self.ranking_widget = RankingConfigWidget()
+        # Remove the widget's internal border since the dialog already encapsulates it
+        self.ranking_widget.setStyleSheet(
+            _style.PANEL_WIDGET.replace("border: 1px solid #E5E7EB;", "border: none;")
+        )
+        layout.addWidget(self.ranking_widget, stretch=1)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setFixedWidth(80)
+        self.cancel_btn.setStyleSheet(
+            "QPushButton { border: none; color: #64748B; font-size: 14px; }"
+            "QPushButton:hover { color: #475569; }"
+        )
+        self.cancel_btn.clicked.connect(self.reject)
+
+        self.apply_btn = QPushButton("Apply")
+        self.apply_btn.setFixedWidth(100)
+        self.apply_btn.setStyleSheet(_style.APPLY_BUTTON)
+        self.apply_btn.clicked.connect(self._on_apply)
+
+        btn_layout.addWidget(self.cancel_btn)
+        btn_layout.addWidget(self.apply_btn)
+
+        layout.addLayout(btn_layout)
+
+    def _on_apply(self):
+        self.ranking_widget._emit_sort_order()
+        self.accept()

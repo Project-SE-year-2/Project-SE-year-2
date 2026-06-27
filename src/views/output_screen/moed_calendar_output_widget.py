@@ -203,12 +203,7 @@ class MoedCalendarOutputWidget(QWidget):
         row = QHBoxLayout()
         row.setSpacing(10)
 
-        # Left block: season icon + title stack
-        self._icon_lbl = QLabel()
-        self._icon_lbl.setStyleSheet("background: transparent;")
-        self._icon_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self._icon_lbl.setPixmap(load_pixmap("fall", size=24))  # default; updated on load
-        row.addWidget(self._icon_lbl)
+        # Left block: title stack
 
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
@@ -223,22 +218,22 @@ class MoedCalendarOutputWidget(QWidget):
         row.addStretch()
 
         # Centre-left: מועד א / מועד ב / מועד ג toggle
-        self._moed_aleph_btn = QPushButton("Moed A  📅")
+        self._moed_aleph_btn = QPushButton("Moed A")
         self._moed_aleph_btn.setObjectName("moedBtnSelected")
         self._moed_aleph_btn.setCursor(Qt.PointingHandCursor)
         self._moed_aleph_btn.clicked.connect(lambda: self._on_moed_btn("Aleph"))
 
-        self._moed_bet_btn = QPushButton("Moed B  📅")
+        self._moed_bet_btn = QPushButton("Moed B")
         self._moed_bet_btn.setObjectName("moedBtn")
         self._moed_bet_btn.setCursor(Qt.PointingHandCursor)
         self._moed_bet_btn.clicked.connect(lambda: self._on_moed_btn("Bet"))
 
-        self._moed_gimel_btn = QPushButton("Moed C  📅")
+        self._moed_gimel_btn = QPushButton("Moed C")
         self._moed_gimel_btn.setObjectName("moedBtn")
         self._moed_gimel_btn.setCursor(Qt.PointingHandCursor)
         self._moed_gimel_btn.clicked.connect(lambda: self._on_moed_btn("Gimel"))
 
-        self._moed_all_btn = QPushButton("All Sessions  🗓")
+        self._moed_all_btn = QPushButton("All Sessions")
         self._moed_all_btn.setObjectName("moedBtn")
         self._moed_all_btn.setCursor(Qt.PointingHandCursor)
         self._moed_all_btn.clicked.connect(lambda: self._on_moed_btn("All"))
@@ -559,13 +554,7 @@ class MoedCalendarOutputWidget(QWidget):
         self._multi_month_mode = multi_month
         self._rebuild_month_cards()
 
-    def _set_icon_pixmap(self, semester: str) -> None:
-        """Update the header icon to the season image for *semester*."""
-        icon_name = _SEMESTER_ICONS.get(semester, ICON_CALENDAR)
-        self._icon_lbl.setPixmap(load_pixmap(icon_name, size=24))
-
     def _update_header(self, semester: str, year: int) -> None:
-        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester} {year}")
 
         if self._period_start and self._period_end:
@@ -784,7 +773,6 @@ class MoedCalendarOutputWidget(QWidget):
     def show_loading(self, semester: str = "") -> None:
         name = semester or "schedules"
         self._loading_lbl.setText(f"Loading {name} schedules…")
-        self._set_icon_pixmap(semester)
         self._semester_title.setText(semester or "—")
         self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_LOADING)
@@ -798,7 +786,7 @@ class MoedCalendarOutputWidget(QWidget):
     def show_empty(self, semester: str = "") -> None:
         name = semester or "this semester"
         self._empty_lbl.setText(f"No schedules available for {name}.")
-        self._set_icon_pixmap(semester)
+
         self._semester_title.setText(f"{semester}" if semester else "—")
         self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_EMPTY)
@@ -810,7 +798,6 @@ class MoedCalendarOutputWidget(QWidget):
         """Show 'no schedules' state when the period doesn't exist in the data."""
         name = semester or "this semester"
         self._empty_lbl.setText(f"No schedules available for {name}.")
-        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester}" if semester else "—")
         self._semester_subtitle.setText("")
         self._stack.setCurrentIndex(_PAGE_EMPTY)
@@ -838,7 +825,6 @@ class MoedCalendarOutputWidget(QWidget):
                 break
 
         # ── Update header ─────────────────────────────────────────────────────
-        self._set_icon_pixmap(semester)
         self._semester_title.setText(f"{semester} {year}")
 
         # Compute overall date range across all moeds for the subtitle

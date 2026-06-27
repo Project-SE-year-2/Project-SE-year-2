@@ -17,8 +17,8 @@ class ConstraintValidator:
 
     def canAssign(self, course: Course, exam_date: date, schedule: ExamSchedule) -> bool:
         """True if assigning course to exam_date causes no conflict with the partial schedule."""
-        for assigned_course, assigned_date in schedule.assignments.items():
-            if not self._collision_validator.isValid(course, exam_date, assigned_course, assigned_date):
+        for assigned_course in schedule.get_courses_on_date(exam_date):
+            if not self._collision_validator.isValid(course, exam_date, assigned_course, exam_date):
                 return False
         return True
 

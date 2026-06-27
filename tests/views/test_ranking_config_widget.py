@@ -224,7 +224,9 @@ class TestRankingConfigWidgetSignal(unittest.TestCase):
     """sort_order_changed signal fires only when Apply is clicked."""
 
     def setUp(self):
-        self.widget = RankingConfigWidget()
+        from src.views.settings_screen.ranking_config_widget import RankingConfigDialog
+        self.dialog = RankingConfigDialog()
+        self.widget = self.dialog.ranking_widget
         self.received: list = []
         self.widget.sort_order_changed.connect(self.received.append)
 
@@ -238,13 +240,13 @@ class TestRankingConfigWidgetSignal(unittest.TestCase):
     def test_apply_signal_payload_contains_checked_keys_in_visual_order(self):
         self._row_widget(0).checkbox.setChecked(True)
         self._row_widget(1).checkbox.setChecked(True)
-        self.widget.apply_btn.click()
+        self.dialog.apply_btn.click()
         self.assertEqual(self.received[-1], [_DEFAULT_ORDER[0], _DEFAULT_ORDER[1]])
 
     def test_apply_signal_emits_empty_list_when_all_unchecked(self):
         self._row_widget(0).checkbox.setChecked(True)
         self._row_widget(0).checkbox.setChecked(False)
-        self.widget.apply_btn.click()
+        self.dialog.apply_btn.click()
         self.assertEqual(self.received[-1], [])
 
 

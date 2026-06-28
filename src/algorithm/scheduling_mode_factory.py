@@ -425,6 +425,8 @@ class RoomSchedulingFeasibilityChecker(DomainFeasibilityChecker):
         self._placement_factory = placement_factory
         self._room_allocator = room_allocator
 
+    # Intentionally performs both candidate existence and room-allocation
+    # validation in a single pass to avoid traversing the remaining courses twice.
     def has_viable_assignment(
         self,
         remaining: list[Course],
@@ -468,6 +470,10 @@ class RoomSchedulingFeasibilityChecker(DomainFeasibilityChecker):
         """Validate room-mode data and capacity before any backtracking search."""
         total_capacity = self._room_allocator.total_capacity
 
+        # We don't validate individual room capacities here because
+        # RoomAllocator already guarantees that every allocated room
+        # has a positive capacity (Room.__post_init__) and performs
+        # the actual allocation validation.
         for course in courses:
             num_students = getattr(course, "num_students", 0)
             if num_students <= 0:

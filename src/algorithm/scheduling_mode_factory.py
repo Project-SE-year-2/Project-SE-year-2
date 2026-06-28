@@ -420,15 +420,60 @@ class DateOnlyFeasibilityChecker(DomainFeasibilityChecker):
 class RoomSchedulingFeasibilityChecker(DomainFeasibilityChecker):
     """Feasibility checker for room-aware scheduling mode."""
 
-    def __init__(self, domain_provider: SchedulingDomainProvider, room_allocator: RoomAllocator) -> None:
+    def __init__(self, domain_provider: SchedulingDomainProvider, placement_factory: RoomPlacementFactory, room_allocator: RoomAllocator) -> None:
         super().__init__(domain_provider)
+        self._placement_factory = placement_factory
         self._room_allocator = room_allocator
+
+    # Intentionally performs both candidate existence and room-allocation
+    # validation in a single pass to avoid traversing the remaining courses twice.
+    def has_viable_assignment(
+        self,
+        remaining: list[Course],
+        partial: ExamSchedule,
+        period: ExamPeriod,
+        constraint_validator: ConstraintValidator,
+        partial_constraint_checker: PartialConstraintChecker | None = None,
+    ) -> bool:
+        """Return True only if every remaining course has at least one allocatable room candidate."""
+        for course in remaining:
+            candidates = self._domain_provider.candidates_for(
+                course,
+                partial,
+                period,
+                constraint_validator,
+                partial_constraint_checker,
+            )
+
+            if not candidates:
+                return False
+
+            if not self._has_allocatable_candidate(course, candidates, partial):
+                return False
+
+        return True
+
+    def _has_allocatable_candidate(
+        self,
+        course: Course,
+        candidates: list,
+        partial: ExamSchedule,
+    ) -> bool:
+        """Return True if at least one candidate can be converted into an ExamPlacement."""
+        for candidate in candidates:
+            placement = self._placement_factory.create(candidate, course, partial)
+            if placement is not None:
+                return True
+        return False
 
     def validate_courses(self, courses: list[Course]) -> tuple[bool, str]:
         """Validate room-mode data and capacity before any backtracking search."""
-        # Room.capacity > 0 is already enforced by Room.__post_init__, so no
-        # explicit room-capacity check is needed here.
         total_capacity = self._room_allocator.total_capacity
+
+        # We don't validate individual room capacities here because
+        # RoomAllocator already guarantees that every allocated room
+        # has a positive capacity (Room.__post_init__) and performs
+        # the actual allocation validation.
         for course in courses:
             num_students = getattr(course, "num_students", 0)
             if num_students <= 0:
@@ -436,11 +481,13 @@ class RoomSchedulingFeasibilityChecker(DomainFeasibilityChecker):
                     f"Course '{course.course_id}' must have a positive student count "
                     "for room scheduling."
                 )
+
             if num_students > total_capacity:
                 return False, (
                     f"Course '{course.course_id}' has {num_students} students, "
                     f"but total room capacity is only {total_capacity}."
                 )
+
         return True, ""
 
 
@@ -472,11 +519,12 @@ class SchedulingModeFactory:
 
         room_allocator = RoomAllocator(rooms)
         domain_provider = RoomSchedulingDomainProvider()
+        placement_factory = RoomPlacementFactory(room_allocator)
         return SchedulingComponents(
             domain_provider=domain_provider,
             # RoomPlacementFactory owns the room_allocator — it is the one that
             # converts ExamBlock candidates into ExamPlacement objects with rooms.
-            placement_factory=RoomPlacementFactory(room_allocator),
-            feasibility_checker=RoomSchedulingFeasibilityChecker(domain_provider, room_allocator),
+            placement_factory=placement_factory,
+            feasibility_checker=RoomSchedulingFeasibilityChecker(domain_provider, placement_factory, room_allocator),
             room_allocator=room_allocator,
         )

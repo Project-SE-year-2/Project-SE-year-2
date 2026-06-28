@@ -79,11 +79,19 @@ class AppController:
             scorer = ScheduleScorer.default()
 
         for period in scheduling_tasks.keys():
+            if period not in period_results_by_period:
+                if len(scheduling_tasks[period]) > 0:
+                    raise RuntimeError(f"Period {period.semester.value}_{period.moed.value} has courses but yielded zero feasible schedules.")
+                continue
+                
             period_result = period_results_by_period[period]
             valid_schedules = period_result.schedules
             
             if checker is not None:
                 valid_schedules = [s for s in valid_schedules if checker.is_valid(s)]
+                
+            if len(valid_schedules) == 0 and len(scheduling_tasks[period]) > 0:
+                raise RuntimeError(f"Period {period.semester.value}_{period.moed.value} has courses but yielded zero feasible schedules after constraint checking.")
                 
             all_sub_results.append(valid_schedules)
             metadata[period] = period_result.metadata
@@ -91,10 +99,35 @@ class AppController:
         from src.algorithm.schedule_combiner import ScheduleCombiner
         combined = ScheduleCombiner().combineSubResults(all_sub_results)
         
-        # If ranking is enabled, keep the cartesian product order so the best combinations appear first.
-        # Otherwise, use chronological sort.
         if scorer is not None and ranking_config:
-            metrics_dict = {s: scorer.compute_scores(s) for s in combined}
+            def score_combined_schedule(combined_sched, scorer_obj):
+                from src.models.exam_schedule import ExamSchedule
+                from src.algorithm.scoring.schedule_metrics import ScheduleMetrics
+                
+                period_placements = {}
+                for p, course, placement in combined_sched.iter_placements():
+                    period_placements.setdefault(p, []).append((course, placement))
+                    
+                sub_metrics = []
+                for p, placements in period_placements.items():
+                    sub_sched = ExamSchedule(p)
+                    for course, placement in placements:
+                        sub_sched.assign(course, placement)
+                    sub_metrics.append(scorer_obj.compute_scores(sub_sched))
+                    
+                if not sub_metrics:
+                    return ScheduleMetrics()
+                    
+                return ScheduleMetrics(
+                    min_days_required=min(m.min_days_required for m in sub_metrics),
+                    avg_days_all=sum(m.avg_days_all for m in sub_metrics) / len(sub_metrics),
+                    elective_conflicts=sum(m.elective_conflicts for m in sub_metrics),
+                    span_required=sum(m.span_required for m in sub_metrics),
+                    max_exams_per_day=max(m.max_exams_per_day for m in sub_metrics),
+                    avg_room_distance=sum(m.avg_room_distance for m in sub_metrics) / len(sub_metrics)
+                )
+
+            metrics_dict = {s: score_combined_schedule(s, scorer) for s in combined}
             def sort_fn(sched):
                 m = metrics_dict[sched]
                 keys = []
@@ -109,7 +142,7 @@ class AppController:
             combined.sort(key=sort_fn)
         else:
             combined.sort(key=lambda s: s.sort_key)
-            
+
         schedules = combined
 
         project_root = os.path.normpath(os.path.join(os.path.dirname(courses_path), ".."))

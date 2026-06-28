@@ -1,5 +1,10 @@
 import pytest
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
 from src.app_controller import AppController
+from src.cli_main import main
 
 def test_validate_paths_raises_error_if_file_missing():
     controller = AppController()
@@ -59,3 +64,68 @@ FALL,Aleph
             str(periods_file),
             str(programs_file)
         )
+
+def _write(path: Path, content: str) -> None:
+    path.write_text(content, encoding="utf-8")
+
+
+def test_cli_reads_ranking_block_from_constraints_file_and_sorts_output(tmp_path):
+    """CLI must read {{# RANKING:}} from constraints file and sort final output."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    courses_path = data_dir / "courses.txt"
+    dates_path = data_dir / "dates.txt"
+    programs_path = data_dir / "programs.txt"
+    constraints_path = data_dir / "constraints.txt"
+
+    _write(courses_path, """$$$$
+Course 1
+C1
+Dr Tester
+83101,1,FALL,Obligatory
+Exam
+$$$$
+Course 2
+C2
+Dr Tester
+83101,1,FALL,Obligatory
+Exam
+""")
+
+    _write(dates_path, """$$$$
+FALL, Aleph
+01-01-2026, 03-01-2026
+""")
+
+    _write(programs_path, "83101\n")
+
+    _write(constraints_path, """
+# ADVANCED_CONSTRAINTS
+
+{{# RANKING:}}
+avg_days_all
+""")
+
+    argv = [
+        "cli_main.py",
+        "--courses-file", str(courses_path),
+        "--dates-file", str(dates_path),
+        "--programs-file", str(programs_path),
+        "--constraints-file", str(constraints_path),
+    ]
+
+    with patch.object(sys, "argv", argv):
+        main()
+
+    output_dir = tmp_path / "output"
+    files = list(output_dir.glob("schedule_output_*"))
+    assert files
+
+    content = files[0].read_text(encoding="utf-8")
+
+    first_schedule = content.split("Schedule #2")[0]
+
+    assert "01-01-2026" in first_schedule
+    assert "03-01-2026" in first_schedule
+    assert "02-01-2026" not in first_schedule

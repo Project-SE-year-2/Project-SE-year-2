@@ -102,14 +102,11 @@ def test_clear_results_empties_in_memory_state(monkeypatch):
     svc._results = ["x"]
     svc._results_by_period = {"FALL_Aleph": ["x"]}
     svc._current_indices = {"FALL_Aleph": 0}
-    svc._sorted_cache = {"FALL_Aleph": [(0, 0)]}
-
     svc.clear_results()
 
     assert svc._results == []
     assert svc._results_by_period == {}
     assert svc._current_indices == {}
-    assert svc._sorted_cache == {}
 
 
 def test_changing_constraints_clears_results(monkeypatch):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
 
 from src.models.enums import TimeSlot
 from src.models.room import Room

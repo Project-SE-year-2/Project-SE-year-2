@@ -16,8 +16,5 @@ class BasicVersionValidator(ICollisionValidator):
     def isValid(self, courseA: Course, dateA: date, courseB: Course, dateB: date) -> bool:
         if dateA != dateB:
             return True
-        # Same date — check whether the two courses share any obligatory group
-        for group_courses in self._index.obligatoryGroups().values():
-            if courseA in group_courses and courseB in group_courses:
-                return False
-        return True
+        # Same date — use O(1) lookup to check if the two courses share any obligatory group
+        return not self._index.do_collide(courseA, courseB)

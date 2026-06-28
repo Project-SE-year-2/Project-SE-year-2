@@ -12,6 +12,7 @@ class ConstraintIndex:
         self._obligatory_groups: dict[tuple, list[Course]] = {}
         self._exam_courses: list[Course] = []
         self._selected_programs: list[str] = []
+        self._collision_set: set[tuple[str, str]] = set()
 
     def build(self, courses: list[Course], programs: list[str]) -> None:
         self._selected_programs = list(programs)
@@ -27,8 +28,22 @@ class ConstraintIndex:
                     if course not in self._obligatory_groups[key]:
                         self._obligatory_groups[key].append(course)
 
+        # Precompute the O(1) collision matrix
+        self._collision_set.clear()
+        for group_courses in self._obligatory_groups.values():
+            n = len(group_courses)
+            for i in range(n):
+                for j in range(i + 1, n):
+                    c1_id = group_courses[i].course_id
+                    c2_id = group_courses[j].course_id
+                    self._collision_set.add(tuple(sorted([c1_id, c2_id])))
+
     def obligatoryGroups(self) -> dict[tuple, list[Course]]:
         return self._obligatory_groups
+
+    def do_collide(self, courseA: Course, courseB: Course) -> bool:
+        """O(1) lookup to check if two courses share an obligatory group."""
+        return tuple(sorted([courseA.course_id, courseB.course_id])) in self._collision_set
 
     def groupKeyFor(self, course: Course) -> tuple | None:
         for req in course.requirements:

@@ -31,12 +31,18 @@ def test_stress_run_cli_creates_output(tmp_path):
     # Run the CLI as a subprocess using the same Python executable
     script = repo / "src" / "cli_main.py"
     assert script.exists(), f"CLI entrypoint not found at {script}"
-
-    # Create an isolated output directory inside tmp_path so we can assert on results
+    
     out_dir = repo / "output"
 
     # Run the CLI (may take a long time depending on the stress data size)
-    subprocess.run([sys.executable, str(script), str(courses), str(dates), str(programs)], cwd=str(repo), check=True)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo)
+    subprocess.run([
+        sys.executable, str(script), 
+        "--courses-file", str(courses), 
+        "--dates-file", str(dates), 
+        "--programs-file", str(programs)
+    ], cwd=str(repo), check=True, env=env)
 
     # Verify that an output file has been created
     files = list(out_dir.glob("schedule_output_*.txt"))

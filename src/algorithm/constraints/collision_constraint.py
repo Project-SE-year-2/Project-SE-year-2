@@ -1,4 +1,3 @@
-from datetime import date
 from src.models.exam_schedule import ExamSchedule
 from src.models.enums import ReqType
 from src.algorithm.constraints.i_constraint import IConstraint

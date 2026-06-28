@@ -107,6 +107,20 @@ QPushButton#backBtn:hover  { background: #F1F5F9; }
 QPushButton#backBtn:pressed { background: #E2E8F0; }
 """
 
+SORT_BTN_STYLE = """
+QPushButton#sortSettingsBtn {
+    background: #FFFFFF;
+    color: #475569;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+}
+QPushButton#sortSettingsBtn:hover  { background: #F1F5F9; border-color: #94A3B8; }
+QPushButton#sortSettingsBtn:pressed { background: #E2E8F0; }
+"""
+
 DOWNLOAD_BTN_STYLE = """
 QPushButton#downloadBtn {
     background: #4338CA;
@@ -171,6 +185,18 @@ QPushButton#backBtn {{
 }}
 QPushButton#backBtn:hover  {{ background: #F1F5F9; }}
 QPushButton#backBtn:pressed {{ background: #E2E8F0; }}
+
+QPushButton#sortSettingsBtn {{
+    background: #FFFFFF;
+    color: #475569;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 20px;
+    font-weight: 600;
+}}
+QPushButton#sortSettingsBtn:hover  {{ background: #F1F5F9; border-color: #94A3B8; }}
+QPushButton#sortSettingsBtn:pressed {{ background: #E2E8F0; }}
 
 QPushButton#downloadBtn {{
     background: #4338CA;

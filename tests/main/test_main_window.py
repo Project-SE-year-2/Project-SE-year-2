@@ -19,18 +19,16 @@ class TestMainWindow(unittest.TestCase):
 
     def test_stacked_widget_initialization(self):
         """
-        Verify that InputScreen=0, OutputScreen=1, SettingsScreen=2.
+        Verify that InputScreen=0, OutputScreen=1.
         """
-        # The stack should contain exactly 3 widgets
-        self.assertEqual(self.window.stacked_widget.count(), 3)
+        # The stack should contain exactly 2 widgets
+        self.assertEqual(self.window.stacked_widget.count(), 2)
 
         from src.views.input_screen.input_screen import InputScreen
         from src.views.output_screen.output_screen import OutputScreen
-        from src.views.settings_screen.settings_screen import SettingsScreen
 
         self.assertIsInstance(self.window.stacked_widget.widget(0), InputScreen)
         self.assertIsInstance(self.window.stacked_widget.widget(1), OutputScreen)
-        self.assertIsInstance(self.window.stacked_widget.widget(2), SettingsScreen)
         
     def test_dependency_injection(self):
         """

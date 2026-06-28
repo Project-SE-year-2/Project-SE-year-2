@@ -68,7 +68,7 @@ class SchedulingEngine:
         n_courses = len(courses)
 
         theoretical = comb(n_days, n_courses) * n_courses if n_courses > 0 else 0
-        period_results = self._solver.solve(courses, period, self._validator) if courses else []
+        period_results = self._solver.solve(courses, period, self._validator)
 
         return PeriodGenerationResult(
             period=period,

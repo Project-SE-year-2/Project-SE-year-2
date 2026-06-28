@@ -22,7 +22,6 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QCheckBox, QSpinBox, QFrame,
 )
-from PyQt5.QtCore import Qt
 
 from src.models.constraint_settings import ConstraintSettings
 

@@ -51,20 +51,26 @@ def main():
 
     # Initialize the AppController as defined in the Class Diagram
     try:
+        from src.parsers.ranking_config_loader import RankingConfigLoader
         controller = AppController()
 
         if known_args.constraints_file:
             settings = ConstraintSettingsLoader.from_file(
                 known_args.constraints_file
             )
+            ranking_config = RankingConfigLoader.from_file(
+                known_args.constraints_file
+            )
         else:
             settings = ConstraintSettingsLoader.from_cli_args(
                 remaining_args
             )
+            ranking_config = None
         
         # Start the application flow using the controller's run method
         # This matches the Runtime Flow UML
-        controller.run(courses_path, dates_path, programs_path, settings)
+        controller.run(courses_path, dates_path, programs_path, settings, ranking_config=ranking_config)
+
         
     except Exception as e:
         # Central error handling for any issues during parsing or execution

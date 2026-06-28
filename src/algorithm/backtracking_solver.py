@@ -284,24 +284,10 @@ class BacktrackingSolver:
     ) -> list:
         """
         Sort dates so the least-constraining date comes first.
-        Skipped when rest is empty or there is only one date candidate.
+        (Disabled for performance: LCV recalculations per node are too expensive
+         and significantly degrade time-to-first-result).
         """
-        if not rest or len(candidates) <= 1:
-            return candidates
-
-        def lcv_score(candidate) -> int:
-            placement = self._placement_factory.create(candidate, course, partial)
-            if placement is None:
-                return 0
-            partial.assign(course, placement)
-            total = sum(
-                self._count_remaining_values(c, partial, period, constraint_validator)
-                for c in rest
-            )
-            partial.unassign(course)
-            return total
-
-        return sorted(candidates, key=lcv_score, reverse=True)
+        return candidates
 
     # ── MRV helpers ───────────────────────────────────────────────────────────
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from copy import error
 from dataclasses import dataclass
 from datetime import date
 from typing import Iterable
@@ -8,7 +7,6 @@ from typing import Iterable
 from PyQt5.QtCore import QDate
 from PyQt5.QtWidgets import (
     QFrame,
-    QHBoxLayout,
     QLabel,
     QVBoxLayout,
     QWidget,
@@ -274,7 +272,7 @@ class PeriodEditorWidget(QWidget):
         self,
         start_qdate: QDate,
         end_qdate: QDate,
-        unavailable_days: set[QDate],
+        _unavailable_days: set[QDate],
     ) -> None:
         if self._current_period_id is None:
             return

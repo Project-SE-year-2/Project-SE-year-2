@@ -12,4 +12,3 @@ class ICollisionValidator(ABC):
     @abstractmethod
     def isValid(self, courseA: Course, dateA: date, courseB: Course, dateB: date) -> bool:
         """Returns True if assigning courseA to dateA and courseB to dateB is conflict-free."""
-        pass

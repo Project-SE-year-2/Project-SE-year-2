@@ -52,6 +52,7 @@ class ExamSchedule:
 
     def assign(self, course: Course, exam_date: DateType | ExamPlacement) -> None:
         """Assign a course to either a legacy date or a full ExamPlacement."""
+        self.unassign(course)
         placement = self._as_placement(exam_date)
         self._store[(self.period, course)] = placement
         if placement.date not in self._by_date:

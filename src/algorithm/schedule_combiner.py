@@ -15,14 +15,16 @@ class ScheduleCombiner:
     """
 
     def combineSubResults(self, sub_results: list[list[ExamSchedule]]) -> list[ExamSchedule]:
-        non_empty = [results for results in sub_results if results]
-        if not non_empty:
+        if not sub_results:
+            return []
+            
+        if any(not results for results in sub_results):
             return []
 
         # Seed with the first period's schedules
-        combined: list[ExamSchedule] = list(non_empty[0])
+        combined: list[ExamSchedule] = list(sub_results[0])
 
-        for period_results in non_empty[1:]:
+        for period_results in sub_results[1:]:
             new_combined: list[ExamSchedule] = []
             for existing in combined:
                 for period_sched in period_results:

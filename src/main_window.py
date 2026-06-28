@@ -73,6 +73,7 @@ class MainWindow(QMainWindow):
             self.service.set_constraint_settings(settings)
             if hasattr(self.input_screen, "check_existing_results"):
                 self.input_screen.check_existing_results()
+            dialog.accept()
 
         dialog.settings_confirmed.connect(on_confirmed)
         

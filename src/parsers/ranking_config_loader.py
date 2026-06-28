@@ -34,9 +34,12 @@ class RankingConfigLoader:
                 continue
                 
             if in_section:
-                # Stop parsing if we hit another block or a comment starting with '#'
-                if stripped.startswith("#") or stripped.startswith("{{#") or "=" in stripped:
+                # Stop parsing if we hit another block or equal sign
+                if stripped.startswith("{{#") or "=" in stripped:
                     in_section = False
+                    continue
+                    
+                if stripped.startswith("#"):
                     continue
                 
                 if stripped in RankingConfigLoader._VALID_KEYS:

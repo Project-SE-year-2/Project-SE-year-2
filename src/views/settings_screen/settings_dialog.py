@@ -118,7 +118,6 @@ class SettingsDialog(QDialog):
         Emits settings_confirmed and accepts the dialog so MainWindow can read constraint settings.
         """
         self.settings_confirmed.emit()
-        self.accept()
 
     def get_constraint_settings(self) -> ConstraintSettings:
         """Return typed constraint settings collected from the constraint panel."""

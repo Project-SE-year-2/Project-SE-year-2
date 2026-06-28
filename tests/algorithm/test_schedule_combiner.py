@@ -80,7 +80,7 @@ def test_combiner_combined_schedules_contain_all_periods():
 
 # Tests that empty period result lists are ignored safely
 # and do not break the combining process.
-def test_combiner_ignores_empty_period_results():
+def test_combiner_aborts_on_empty_period_results():
     fall = ExamPeriod(Semester.FALL, Moed.Aleph, date(2026, 2, 1), date(2026, 2, 1))
     course1 = Course("Physics 1", "83102", "Prof. A", Evaluation.Exam)
 
@@ -95,7 +95,8 @@ def test_combiner_ignores_empty_period_results():
         ]
     )
 
-    assert len(combined) == 1
+    # Empty sub_results indicate infeasibility, the combination should be empty
+    assert len(combined) == 0
 
 
 # Tests that if all sub-results are empty,

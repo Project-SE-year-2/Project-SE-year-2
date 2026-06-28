@@ -85,21 +85,6 @@ class AppController:
             if checker is not None:
                 valid_schedules = [s for s in valid_schedules if checker.is_valid(s)]
                 
-            if scorer is not None and ranking_config:
-                metrics_dict = {s: scorer.compute_scores(s) for s in valid_schedules}
-                def sort_fn(sched):
-                    m = metrics_dict[sched]
-                    keys = []
-                    for col in ranking_config:
-                        val = getattr(m, col)
-                        if col in ascending_cols:
-                            keys.append(val)
-                        else:
-                            keys.append(-val)
-                    keys.append(sched.sort_key)
-                    return tuple(keys)
-                valid_schedules.sort(key=sort_fn)
-                
             all_sub_results.append(valid_schedules)
             metadata[period] = period_result.metadata
 
@@ -108,7 +93,21 @@ class AppController:
         
         # If ranking is enabled, keep the cartesian product order so the best combinations appear first.
         # Otherwise, use chronological sort.
-        if not ranking_config:
+        if scorer is not None and ranking_config:
+            metrics_dict = {s: scorer.compute_scores(s) for s in combined}
+            def sort_fn(sched):
+                m = metrics_dict[sched]
+                keys = []
+                for col in ranking_config:
+                    val = getattr(m, col)
+                    if col in ascending_cols:
+                        keys.append(val)
+                    else:
+                        keys.append(-val)
+                keys.append(sched.sort_key)
+                return tuple(keys)
+            combined.sort(key=sort_fn)
+        else:
             combined.sort(key=lambda s: s.sort_key)
             
         schedules = combined

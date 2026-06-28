@@ -27,9 +27,22 @@ class MathFeasibilityChecker:
         # 1. All Gap Constraint
         if settings.all_gap_enabled:
             gap_all = settings.all_gap_k
-            min_days = (num_courses - 1) * (gap_all + 1) + 1
-            if min_days > available_days:
-                return False, f"Requires {min_days} days for {num_courses} exams with a gap of {gap_all}, but only {available_days} available."
+            
+            # Find the max cohort size (both Obligatory and Elective)
+            cohort_counts_all = {}
+            for course in course_list:
+                seen_cohorts = set()
+                for req in course.requirements:
+                    key = (req.program_id, req.year)
+                    if key not in seen_cohorts:
+                        seen_cohorts.add(key)
+                        cohort_counts_all[key] = cohort_counts_all.get(key, 0) + 1
+            max_in_cohort = max(cohort_counts_all.values()) if cohort_counts_all else 0
+            
+            if max_in_cohort >= 2:
+                min_days = (max_in_cohort - 1) * gap_all + 1
+                if min_days > available_days:
+                    return False, f"A cohort has {max_in_cohort} exams requiring {min_days} days (gap {gap_all}), but only {available_days} available."
 
         # 2. Daily Cap Constraint
         if settings.daily_cap_enabled:
@@ -52,7 +65,7 @@ class MathFeasibilityChecker:
                 # Mandatory Gap
                 if settings.mandatory_gap_enabled:
                     gap_mand = settings.mandatory_gap_k
-                    min_days = (max_obligatory_in_cohort - 1) * (gap_mand + 1) + 1
+                    min_days = (max_obligatory_in_cohort - 1) * gap_mand + 1
                     if min_days > available_days:
                         return False, f"A cohort has {max_obligatory_in_cohort} mandatory exams requiring {min_days} days (gap {gap_mand}), but only {available_days} available."
 

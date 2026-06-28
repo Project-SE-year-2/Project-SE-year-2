@@ -785,7 +785,7 @@ class OutputScreen(QWidget):
         fetches that period's schedule directly via get_period_schedule().
         No Cartesian-product scanning or cross-period interference.
         """
-        self._active_period_id()
+        pid = self._active_period_id()
         state = self._active_window_state()
         state.move_to(index)
 

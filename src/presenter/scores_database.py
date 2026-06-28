@@ -73,6 +73,7 @@ class ScoresDatabase:
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         # Store the queue reference; None means "no cross-process notifications".
         self._queue: Optional[multiprocessing.Queue] = queue
+        self._pending_counts: dict[str, int] = {}
         self._enable_wal()
         self._create_scores_table()
         self._migrate()
@@ -296,10 +297,19 @@ class ScoresDatabase:
         if commit:
             self._conn.commit()
             if self._queue is not None:
-                self._queue.put({"event": "batch_written", "period_id": period_id, "count": len(rows)})
+                pending = self._pending_counts.pop(period_id, 0)
+                self._queue.put({"event": "batch_written", "period_id": period_id, "count": len(rows) + pending})
+        else:
+            if self._queue is not None:
+                self._pending_counts[period_id] = self._pending_counts.get(period_id, 0) + len(rows)
 
     def commit(self) -> None:
         self._conn.commit()
+        if self._queue is not None:
+            for pid, count in self._pending_counts.items():
+                if count > 0:
+                    self._queue.put({"event": "batch_written", "period_id": pid, "count": count})
+        self._pending_counts.clear()
 
     @staticmethod
     def _finite_or_zero(value: float) -> float:

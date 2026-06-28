@@ -52,7 +52,7 @@ class _QueueScoresProxy:
         self._q.put(("__clear__", period_id))
 
 
-def _db_writer(score_queue: queue.Queue, db_path: Path) -> None:
+def _db_writer(score_queue: queue.Queue, db_path: Path, notify_queue: mp.Queue) -> None:
     """
     Dedicated DB writer thread — the ONLY thread that touches scores.db.
 
@@ -60,7 +60,7 @@ def _db_writer(score_queue: queue.Queue, db_path: Path) -> None:
     batch in a single transaction.  Because only this thread writes, SQLite
     never sees concurrent writers and no locking is needed.
     """
-    with ScoresDatabase(db_path) as scores_db:
+    with ScoresDatabase(db_path, queue=notify_queue) as scores_db:
         while True:
             item = score_queue.get()
             if item is _QueueScoresProxy._SENTINEL:
@@ -183,7 +183,7 @@ def _engine_worker(task_queue: mp.Queue, notify_queue: mp.Queue, results_path: s
                 # Start the single DB writer thread before any solvers.
                 db_thread = threading.Thread(
                     target=_db_writer,
-                    args=(score_queue, root / "scores.db"),
+                    args=(score_queue, root / "scores.db", notify_queue),
                     daemon=True,
                 )
                 db_thread.start()

@@ -170,67 +170,81 @@ class TestRankingDragReorder(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestConfirmationWorkflow(unittest.TestCase):
-    def setUp(self):
-        from src.main_window import MainWindow
-        self.window = MainWindow()
-        self.screen = self.window.settings_screen
-        self.panel = self.screen.constraint_panel
-        self.service = self.window.service
-
     def test_valid_apply_saves_settings_and_navigates_home(self):
         """A valid Apply persists the settings and returns to the input screen."""
-        self.panel._checks["all_gap"].click()
-        self.panel._spins["all_gap"].setValue(5)
+        from src.main_window import MainWindow
+        window = MainWindow()
+        service = window.service
 
-        self.window.stacked_widget.setCurrentIndex(2)
-        self.screen.apply_btn.click()
-        QApplication.processEvents()
+        def fake_exec(dialog_self):
+            dialog_self.constraint_panel._checks["all_gap"].click()
+            dialog_self.constraint_panel._spins["all_gap"].setValue(5)
+            dialog_self.apply_btn.click()
 
-        self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
-        saved = self.service.get_constraint_settings()
+        with patch("src.main_window.SettingsDialog.exec_", new=fake_exec):
+            window._show_settings_dialog()
+
+        saved = service.get_constraint_settings()
         self.assertTrue(saved.all_gap_enabled)
         self.assertEqual(saved.all_gap_k, 5)
 
     def test_invalid_apply_warns_and_stays_for_each_constraint(self):
         """Each positive-K constraint enabled with K=0 must block Apply."""
+        from src.main_window import MainWindow
+        window = MainWindow()
+
         for key in _POSITIVE_K_KEYS:
-            from src.main_window import MainWindow
-            window = MainWindow()
-            panel = window.settings_screen.constraint_panel
-            panel._checks[key].setChecked(True)
-            panel._spins[key].setValue(0)        # enabled + 0 → invalid
+            def fake_exec(dialog_self):
+                dialog_self.constraint_panel._checks[key].setChecked(True)
+                dialog_self.constraint_panel._spins[key].setValue(0)
 
-            window.stacked_widget.setCurrentIndex(2)
-            with patch("src.main_window.QMessageBox.warning") as warn:
-                window.settings_screen.apply_btn.click()
-                QApplication.processEvents()
+                with patch("src.main_window.QMessageBox.warning") as warn:
+                    dialog_self.apply_btn.click()
+                    QApplication.processEvents()
+                    warn.assert_called_once()
 
-            self.assertEqual(window.stacked_widget.currentIndex(), 2, msg=key)
-            warn.assert_called_once()
+            with patch("src.main_window.SettingsDialog.exec_", new=fake_exec):
+                window._show_settings_dialog()
 
     def test_elective_conflicts_zero_is_valid(self):
         """elective_conflicts=0 while enabled is a legal target, not an error."""
-        self.panel._checks["elective_conflicts"].click()
-        self.panel._spins["elective_conflicts"].setValue(0)
+        from src.main_window import MainWindow
+        window = MainWindow()
 
-        self.window.stacked_widget.setCurrentIndex(2)
-        with patch("src.main_window.QMessageBox.warning") as warn:
-            self.screen.apply_btn.click()
-            QApplication.processEvents()
+        def fake_exec(dialog_self):
+            dialog_self.constraint_panel._checks["elective_conflicts"].click()
+            dialog_self.constraint_panel._spins["elective_conflicts"].setValue(0)
 
-        warn.assert_not_called()
-        self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
+            with patch("src.main_window.QMessageBox.warning") as warn:
+                dialog_self.apply_btn.click()
+                QApplication.processEvents()
+                warn.assert_not_called()
 
-    def test_back_button_navigates_without_applying(self):
-        """Back returns to input without pushing settings through validation."""
-        self.window.stacked_widget.setCurrentIndex(2)
-        self.screen.back_btn.click()
-        self.assertEqual(self.window.stacked_widget.currentIndex(), 0)
+        with patch("src.main_window.SettingsDialog.exec_", new=fake_exec):
+            window._show_settings_dialog()
+
+    def test_cancel_button_closes_without_applying(self):
+        """Cancel button rejects the dialog without pushing settings through validation."""
+        from src.main_window import MainWindow
+        window = MainWindow()
+
+        def fake_exec(dialog_self):
+            # If the dialog is closed without clicking apply, the settings_confirmed shouldn't be emitted
+            dialog_self.cancel_btn.click()
+
+        with patch("src.main_window.SettingsDialog.exec_", new=fake_exec):
+            with patch.object(window.service, "set_constraint_settings") as mock_set:
+                window._show_settings_dialog()
+                mock_set.assert_not_called()
 
     def test_apply_emits_settings_confirmed_once(self):
+        from src.views.settings_screen.settings_dialog import SettingsDialog
+        from src.presenter.app_service import AppService
+        service = AppService.getInstance()
+        dialog = SettingsDialog(service)
         received = []
-        self.screen.settings_confirmed.connect(lambda: received.append(1))
-        self.screen.apply_btn.click()
+        dialog.settings_confirmed.connect(lambda: received.append(1))
+        dialog.apply_btn.click()
         self.assertEqual(received, [1])
 
 

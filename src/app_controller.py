@@ -79,11 +79,34 @@ class AppController:
             scorer = ScheduleScorer.default()
 
         for period in scheduling_tasks.keys():
+            if period not in period_results_by_period:
+                if len(scheduling_tasks[period]) > 0:
+                    raise RuntimeError(f"Period {period.semester.value}_{period.moed.value} has courses but yielded zero feasible schedules.")
+                continue
+                
             period_result = period_results_by_period[period]
             valid_schedules = period_result.schedules
             
             if checker is not None:
                 valid_schedules = [s for s in valid_schedules if checker.is_valid(s)]
+                
+            if len(valid_schedules) == 0 and len(scheduling_tasks[period]) > 0:
+                raise RuntimeError(f"Period {period.semester.value}_{period.moed.value} has courses but yielded zero feasible schedules after constraint checking.")
+                
+            if scorer is not None and ranking_config:
+                metrics_dict = {s: scorer.compute_scores(s) for s in valid_schedules}
+                def sort_fn(sched):
+                    m = metrics_dict[sched]
+                    keys = []
+                    for col in ranking_config:
+                        val = getattr(m, col)
+                        if col in ascending_cols:
+                            keys.append(val)
+                        else:
+                            keys.append(-val)
+                    keys.append(sched.sort_key)
+                    return tuple(keys)
+                valid_schedules.sort(key=sort_fn)
                 
             all_sub_results.append(valid_schedules)
             metadata[period] = period_result.metadata
@@ -91,24 +114,9 @@ class AppController:
         from src.algorithm.schedule_combiner import ScheduleCombiner
         combined = ScheduleCombiner().combineSubResults(all_sub_results)
         
-        # If ranking is enabled, keep the cartesian product order so the best combinations appear first.
-        # Otherwise, use chronological sort.
-        if scorer is not None and ranking_config:
-            metrics_dict = {s: scorer.compute_scores(s) for s in combined}
-            def sort_fn(sched):
-                m = metrics_dict[sched]
-                keys = []
-                for col in ranking_config:
-                    val = getattr(m, col)
-                    if col in ascending_cols:
-                        keys.append(val)
-                    else:
-                        keys.append(-val)
-                keys.append(sched.sort_key)
-                return tuple(keys)
-            combined.sort(key=sort_fn)
-        else:
+        if not ranking_config:
             combined.sort(key=lambda s: s.sort_key)
+
             
         schedules = combined
 

@@ -138,6 +138,19 @@ class IAppService(ABC):
     # Schedule generation                                                  #
     # ------------------------------------------------------------------ #
 
+    @abstractmethod
+    def clear_results(self) -> None:
+        """Clear the previous run's results and reset the scores database.
+
+        Stops the running scheduling engine if active, deletes the computed
+        schedules directory, resets the scoring database connection, and 
+        wipes all in-memory schedule caches.
+        
+        This contract ensures that modifying or forcing a rebuild of inputs 
+        leaves the system in a clean state so the Output Screen never displays 
+        stale data.
+        """ 
+
     def generate(self) -> int:
         """Run the full blocking generation (backward-compatible).
 

@@ -87,7 +87,7 @@ class MockAppService:
     def is_generating(self):
         return False
 
-    def clear_results(self):
+    def clear_results(self) -> None:
         self.cleared = True
 
 

@@ -387,6 +387,13 @@ class AppService(IAppService):
 
         courses = self._datastore.get_all_courses()
         periods = self._datastore.get_periods()
+
+        if not periods:
+            raise ValueError(
+                "No exam period is configured. "
+                "Please load an exam periods file before generating."
+            )
+
         settings = self.get_constraint_settings()
 
         # Guard: room scheduling requires at least one room to be loaded.
@@ -399,6 +406,12 @@ class AppService(IAppService):
 
         valid_courses = filter_courses_for_scheduling(courses, self._selected_programs)
         scheduling_tasks = match_courses_to_periods(valid_courses, periods)
+
+        if not any(tasks for tasks in scheduling_tasks.values()):
+            raise ValueError(
+                "No courses from the selected programs match any available exam period. "
+                "Please check that your course and exam period files are compatible."
+            )
 
         index = ConstraintIndex()
         index.build(valid_courses, self._selected_programs)

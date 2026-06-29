@@ -54,7 +54,7 @@ class AppService(IAppService):
         return cls._instance
 
     # ------------------------------------------------------------------ #
-    # Construction (private — use getInstance())                          #
+    # Construction (private - use getInstance())                          #
     # ------------------------------------------------------------------ #
 
     def __init__(self) -> None:
@@ -64,14 +64,14 @@ class AppService(IAppService):
         self._selected_programs: list[str] = []
         self._results: list[ExamSchedule] = []
         self._last_metadata: dict = {}
-        # EP-72 — per-period streaming cache
-        # keyed by period_id ("FALL_Aleph", …), values are raw ExamSchedule lists
+        # EP-72 - per-period streaming cache
+        # keyed by period_id ("FALL_Aleph", ...), values are raw ExamSchedule lists
         self._results_by_period: dict[str, list[ExamSchedule]] = {}
-        # EP-82 — file-based per-period navigation
+        # EP-82 - file-based per-period navigation
         self._results_writer = None
         self._results_reader = ResultsReader()   # always available for reading from disk
         self._current_indices: dict[str, int] = {}
-        # EP-83 — multiprocessing: set to EngineProcess() in main.py to enable
+        # EP-83 - multiprocessing: set to EngineProcess() in main.py to enable
         # two-process architecture. None = legacy single-process mode (used by tests).
         self._engine_process = None
         self._generation_active = False
@@ -89,7 +89,7 @@ class AppService(IAppService):
         self._dirty: bool = True
 
     # ------------------------------------------------------------------ #
-    # EP-39 / TASK4 — File loading                                       #
+    # EP-39 / TASK4 - File loading                                       #
     # ------------------------------------------------------------------ #
 
     def load_rooms(self, path: str) -> None:
@@ -110,9 +110,8 @@ class AppService(IAppService):
         rooms = RoomFileParser().parse(path)
         self._datastore.set_rooms(rooms)
         self._datastore.save()
-        self._mark_dirty()
-        if not self._generation_active:
-            self.clear_results()
+        # New rooms invalidate any previous run (cleared only if safe).
+        self._invalidate_results()
 
     def clear_rooms(self) -> None:
         """Remove stored rooms from DataStore and mark the app dirty.
@@ -122,9 +121,8 @@ class AppService(IAppService):
         """
         self._datastore.set_rooms([])
         self._datastore.save()
-        self._mark_dirty()
-        if not self._generation_active:
-            self.clear_results()
+        # Removing rooms invalidates any previous run (cleared only if safe).
+        self._invalidate_results()
 
     def load_data(self, courses_path: str, dates_path: str, mode: str, programs_path: str = None) -> None:
 
@@ -142,7 +140,7 @@ class AppService(IAppService):
         periods = ExamPeriodFileParser().parse(dates_path)
 
         if mode == "replace":
-            # Overwrite in-memory data — save() below will overwrite the file.
+            # Overwrite in-memory data - save() below will overwrite the file.
             # No need to delete the file; pickle.dump replaces its contents.
             self._datastore.set_courses(courses)
             self._datastore.set_periods(periods)
@@ -160,9 +158,8 @@ class AppService(IAppService):
 
         self._datastore.save()
 
-        # New input files invalidate any previous run.
-        self._mark_dirty()
-        self.clear_results()
+        # New input files invalidate any previous run (cleared only if safe).
+        self._invalidate_results()
 
 
     def set_constraint_settings(self, settings: ConstraintSettings) -> None:
@@ -174,8 +171,8 @@ class AppService(IAppService):
         changed = settings != self._constraint_settings
         self._constraint_settings = settings
         if changed:
-            self._mark_dirty()
-            self.clear_results()
+            # Constraint change invalidates the previous run (cleared only if safe).
+            self._invalidate_results()
 
     def set_sort_order(self, sort_cols: list[str]) -> None:
         """Store active ranking columns and clear any frozen ranked snapshots.
@@ -201,7 +198,7 @@ class AppService(IAppService):
         return self._constraint_settings
 
     # ------------------------------------------------------------------ #
-    # EP-150 — "a better solution was found" detection                    #
+    # EP-150 - "a better solution was found" detection                    #
     # ------------------------------------------------------------------ #
 
     def get_best_score(self, period_id: str) -> float | None:
@@ -210,7 +207,7 @@ class AppService(IAppService):
         Returns None when no sort order is active or no scores exist yet.
         The optimum over a growing result set only ever moves in the "better"
         direction, so any change in this value means a strictly better schedule
-        has been found — which the UI uses to raise a notification (EP-150).
+        has been found - which the UI uses to raise a notification (EP-150).
         """
         if not self._sort_cols:
             return None
@@ -223,7 +220,7 @@ class AppService(IAppService):
             return None
 
     # ------------------------------------------------------------------ #
-    # EP-149 — stale-result clearing & "needs regeneration" tracking      #
+    # EP-149 - stale-result clearing & "needs regeneration" tracking      #
     # ------------------------------------------------------------------ #
 
     def needs_generation(self) -> bool:
@@ -239,8 +236,27 @@ class AppService(IAppService):
         """Flag that the inputs changed, so the next Generate re-runs the engine."""
         self._dirty = True
 
+    def _invalidate_results(self) -> None:
+        """Single entry point for "an input changed since the last run".
+
+        Always flags the service dirty so the next Generate re-runs the engine.
+        The actual disk/scores-DB wipe (clear_results) is only performed when no
+        generation is currently active: deleting the results directory and
+        scores.db out from under a running engine would corrupt the in-flight
+        run and let the Output Screen read half-deleted batch files. When a run
+        IS active the dirty flag alone is enough -- the next Generate, started
+        after the current run settles, will do the wipe safely.
+
+        Centralising this here keeps every input mutator (files, programs,
+        periods, rooms, constraints) consistent and removes the duplicated,
+        sometimes-missing guard logic that previously lived in each method.
+        """
+        self._mark_dirty()
+        if not self._generation_active:
+            self.clear_results()
+
     def clear_results(self) -> None:
-        """Drop every trace of the previous run — disk files and in-memory caches.
+        """Drop every trace of the previous run - disk files and in-memory caches.
 
         Called whenever the inputs change (new files, edited constraints, etc.)
         so the output screen can never show schedules that no longer match the
@@ -286,7 +302,7 @@ class AppService(IAppService):
 
 
     # ------------------------------------------------------------------ #
-    # EP-39 / TASK5 — Program & course methods                            #
+    # EP-39 / TASK5 - Program & course methods                            #
     # ------------------------------------------------------------------ #
 
     def get_available_programs(self) -> list[dict]:
@@ -302,7 +318,11 @@ class AppService(IAppService):
                 )
         if list(ids) != self._selected_programs:
             self._selected_programs = list(ids)
-            self._mark_dirty()
+            # Selecting a different set of programs is an input change: it
+            # invalidates the previous run's results and scores DB (cleared
+            # only if safe). Previously this only flagged dirty, leaving stale
+            # schedules on the Output Screen until the next manual wipe.
+            self._invalidate_results()
         else:
             self._selected_programs = list(ids)
 
@@ -323,7 +343,7 @@ class AppService(IAppService):
         return result
 
     # ------------------------------------------------------------------ #
-    # EP-39 / TASK6 — Period management                                   #
+    # EP-39 / TASK6 - Period management                                   #
     # ------------------------------------------------------------------ #
 
     def get_periods(self) -> list[dict]:
@@ -344,24 +364,24 @@ class AppService(IAppService):
         period = self._get_period_or_raise(period_id)
         period.toggle_day(day)
         self._datastore.save()
-        # Editing a period's available days changes what can be scheduled.
-        self._mark_dirty()
-        self.clear_results()
+        # Editing a period's available days changes what can be scheduled
+        # (cleared only if safe).
+        self._invalidate_results()
 
     def shift_period(self, period_id: str, start: date, end: date) -> None:
         period = self._get_period_or_raise(period_id)
         period.shift_dates(start, end)   # raises ValueError if start >= end
         self._datastore.save()
-        # Moving a period's date range invalidates any previous run.
-        self._mark_dirty()
-        self.clear_results()
+        # Moving a period's date range invalidates any previous run
+        # (cleared only if safe).
+        self._invalidate_results()
 
     # ------------------------------------------------------------------ #
-    # EP-68 / TASK7 — Generation & export                                 #
+    # EP-68 / TASK7 - Generation & export                                 #
     # ------------------------------------------------------------------ #
 
     def _prepare_engine(self):
-        """Build and return (engine, scheduling_tasks) — shared by generate() and generate_stream()."""
+        """Build and return (engine, scheduling_tasks) - shared by generate() and generate_stream()."""
         if not self._selected_programs:
             raise ValueError("No programs selected. Select at least one program before generating.")
 
@@ -399,7 +419,7 @@ class AppService(IAppService):
         return engine, scheduling_tasks
 
     def generate(self) -> int:
-        """Blocking generation — waits for all periods. Backward-compatible."""
+        """Blocking generation - waits for all periods. Backward-compatible."""
         engine, scheduling_tasks = self._prepare_engine()
         schedules, metadata = engine.generateAll(scheduling_tasks)
         self._results = schedules
@@ -408,7 +428,7 @@ class AppService(IAppService):
         return len(schedules)
 
     # ------------------------------------------------------------------ #
-    # EP-72 — Streaming generation                                         #
+    # EP-72 - Streaming generation                                         #
     # ------------------------------------------------------------------ #
 
     def generate_stream(self):
@@ -418,7 +438,7 @@ class AppService(IAppService):
         - File-based mode (_results_writer set): writes each period's
           results to disk in batches of 50, initialises _current_indices
           for per-period navigation, and skips the ScheduleCombiner.
-        - Legacy mode (_results_writer is None): same behaviour as before —
+        - Legacy mode (_results_writer is None): same behaviour as before -
           caches results in _results_by_period, runs ScheduleCombiner at the
           end, populates _results for get_schedule() / get_schedule_count().
         """
@@ -433,7 +453,7 @@ class AppService(IAppService):
         self._infeasible_periods.clear()
         self._generation_active = True
 
-        # ── EP-83: Multiprocessing mode ───────────────────────────────────
+        # -- EP-83: Multiprocessing mode -----------------------------------
         # Engine Process runs solve_to_disk() in a separate OS process.
         # Only lightweight period_id strings cross the process boundary.
         if self._engine_process is not None:
@@ -478,12 +498,12 @@ class AppService(IAppService):
                             self._finished_periods.add(pid)
                         self._current_indices.setdefault(pid, 0)
                         yield pid, []
-                self._dirty = False   # run finished cleanly → results are current
+                self._dirty = False   # run finished cleanly -> results are current
             finally:
                 self._generation_active = False
             return
 
-        # ── EP-82: File-based single-process mode ─────────────────────────
+        # -- EP-82: File-based single-process mode -------------------------
         if self._results_writer is not None:
             try:
                 self._current_indices = {}
@@ -492,12 +512,12 @@ class AppService(IAppService):
                     engine.solve_to_disk(period, courses_dict, self._results_writer)
                     self._current_indices.setdefault(pid, 0)
                     yield pid, []
-                self._dirty = False   # run finished cleanly → results are current
+                self._dirty = False   # run finished cleanly -> results are current
             finally:
                 self._generation_active = False
             return
 
-        # ── Legacy mode ───────────────────────────────────────────────────
+        # -- Legacy mode ---------------------------------------------------
         # In-memory collection + ScheduleCombiner (used by all existing tests)
         from src.algorithm.schedule_combiner import ScheduleCombiner
 
@@ -512,7 +532,7 @@ class AppService(IAppService):
             combined = ScheduleCombiner().combineSubResults(all_sub_results)
             combined.sort(key=lambda s: s.sort_key)
             self._results = combined
-            self._dirty = False   # run finished cleanly → results are current
+            self._dirty = False   # run finished cleanly -> results are current
         finally:
             self._generation_active = False
 
@@ -573,11 +593,11 @@ class AppService(IAppService):
                     for pid in self._current_indices
                 )
             return 0
-        # Per-period count — disk first
+        # Per-period count - disk first
         disk_count = self._results_reader.get_count(period_id)
         if disk_count > 0:
             return disk_count
-        # Legacy mode fallback — in-memory per-period results
+        # Legacy mode fallback - in-memory per-period results
         if period_id in self._results_by_period:
             return len(self._results_by_period[period_id])
         return 0
@@ -589,13 +609,13 @@ class AppService(IAppService):
         to return the schedule ranked at position `index` by the chosen metrics.
         Falls back to sequential disk or in-memory reading otherwise.
         """
-        # ── Ranked mode (scores.db + active sort order) ───────────────────────
+        # -- Ranked mode (scores.db + active sort order) -----------------------
         if self._sort_cols:
             ranked = self._get_ranked_schedule(period_id, index)
             if ranked is not None:
                 return ranked
 
-        # ── Disk mode ─────────────────────────────────────────────────────────
+        # -- Disk mode ---------------------------------------------------------
         disk_count = self._results_reader.get_count(period_id)
         if disk_count > 0:
             safe_index = min(max(0, index), disk_count - 1)
@@ -606,7 +626,7 @@ class AppService(IAppService):
                 print(f"AppService: disk read failed for {period_id}[{safe_index}]: {exc}")
                 return []
 
-        # ── Legacy mode (in-memory per-period results) ────────────────────────
+        # -- Legacy mode (in-memory per-period results) ------------------------
         period_schedules = self._results_by_period.get(period_id)
         if period_schedules:
             safe_index = min(max(0, index), len(period_schedules) - 1)
@@ -680,7 +700,7 @@ class AppService(IAppService):
         """Read a contiguous batch of schedules from disk (multiprocessing / file-based mode).
 
         Period results are concatenated in the order they appear in _current_indices.
-        The caller receives formatted list[dict] rows — same shape as legacy mode.
+        The caller receives formatted list[dict] rows - same shape as legacy mode.
         """
         result: list[list[dict]] = []
         global_offset = 0
@@ -710,7 +730,7 @@ class AppService(IAppService):
 
     def get_schedule(self, index: int) -> dict:
         if index < 0 or index >= len(self._results):
-            raise IndexError(f"Schedule index {index} is out of range (0–{len(self._results) - 1}).")
+            raise IndexError(f"Schedule index {index} is out of range (0-{len(self._results) - 1}).")
 
         schedule: ExamSchedule = self._results[index]
         rows = self._format_schedule_rows(schedule)
@@ -730,10 +750,10 @@ class AppService(IAppService):
 
         When the placement carries room-scheduling data (is_room_based=True), the dict
         also contains:
-            time_slot      (str)       — "MORNING" / "AFTERNOON" / "EVENING"
-            rooms_display  (list[str]) — pre-formatted bullet strings, one per room
-            num_students   (int)       — student count for the course
-            total_capacity (int)       — combined capacity of all assigned rooms
+            time_slot      (str)       - "MORNING" / "AFTERNOON" / "EVENING"
+            rooms_display  (list[str]) - pre-formatted bullet strings, one per room
+            num_students   (int)       - student count for the course
+            total_capacity (int)       - combined capacity of all assigned rooms
 
         Date-only placements omit these keys so existing callers are unaffected.
         """
@@ -793,11 +813,11 @@ class AppService(IAppService):
         )
 
     # ------------------------------------------------------------------ #
-    # EP-82 — Per-period navigation & combined export                     #
+    # EP-82 - Per-period navigation & combined export                     #
     # ------------------------------------------------------------------ #
 
     def navigate(self, period_id: str, direction: int) -> dict:
-        """Move the current schedule index for one period only (±1).
+        """Move the current schedule index for one period only (+/-1).
 
         Other periods are unaffected.  Raises ValueError for an unknown
         period_id and IndexError if the new index would go out of bounds.
@@ -815,7 +835,7 @@ class AppService(IAppService):
         if new_idx < 0 or new_idx >= count:
             raise IndexError(
                 f"Schedule index {new_idx} out of range for period "
-                f"'{period_id}' (0–{count - 1})."
+                f"'{period_id}' (0-{count - 1})."
             )
 
         # Update the current index and fetch the new schedule from the disk
@@ -879,7 +899,7 @@ class AppService(IAppService):
 
         Raises:
             RuntimeError: when ``_results_reader`` is not initialised (legacy
-                          in-memory mode — use ``get_schedule_batch`` instead).
+                          in-memory mode - use ``get_schedule_batch`` instead).
         """
         if self._results_reader is None:
             raise RuntimeError("Results reader not initialised.")
@@ -927,7 +947,7 @@ class AppService(IAppService):
                     schedules_to_merge.append([schedule])
                 continue
 
-            # Disk mode — batch files written by EngineProcess / file-based mode
+            # Disk mode - batch files written by EngineProcess / file-based mode
             disk_count = self._results_reader.get_count(period_id)
             if disk_count > 0:
                 safe_idx = min(max(0, local_index), disk_count - 1)
@@ -936,7 +956,7 @@ class AppService(IAppService):
                 except Exception as exc:
                     print(f"AppService: export disk read failed for {period_id}: {exc}")
 
-            # Legacy mode — in-memory per-period results
+            # Legacy mode - in-memory per-period results
             if schedule is None and period_id in self._results_by_period:
                 period_scheds = self._results_by_period[period_id]
                 if period_scheds:

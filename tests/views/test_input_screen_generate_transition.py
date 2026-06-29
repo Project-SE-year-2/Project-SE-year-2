@@ -80,6 +80,16 @@ class MockAppService:
     def get_current_combination(self):
         return []
 
+    # EP-159 compatibility: regeneration-flow stubs used by the input screen.
+    def needs_generation(self):
+        return True
+
+    def is_generating(self):
+        return False
+
+    def clear_results(self) -> None:
+        self.cleared = True
+
 
 class FakeGenerateWorker(QObject):
     period_ready = pyqtSignal(str)
@@ -177,7 +187,7 @@ def test_generation_error_reenables_button(qtbot):
     assert screen.generate_btn.isEnabled()
 
 
-# Tests that removing the last selected program via the chip × hides the Generate button.
+# Tests that removing the last selected program via the chip ֳ— hides the Generate button.
 def test_removing_last_program_hides_generate_button(qtbot):
     from src.views.widgets.program_list_widget import ProgramItem, ProgramRowWidget
 
@@ -301,7 +311,7 @@ def test_files_loaded_resets_screen_state(qtbot):
 
     assert not screen.selected_panel.isHidden()
     # period_list lives in the Exam Periods tab and is shown after file load,
-    # not after program selection — so it may still be hidden at this point.
+    # not after program selection - so it may still be hidden at this point.
     assert not screen.period_editor.isHidden()
     assert not screen.generate_btn.isHidden()
 
@@ -314,4 +324,3 @@ def test_files_loaded_resets_screen_state(qtbot):
     assert screen.generate_btn.isHidden()
     assert screen._generate_state.has_selected_programs is False
     assert screen._generate_state.has_viewed_period is False
-

@@ -1055,3 +1055,11 @@ class AppService(IAppService):
         if period is None:
             raise ValueError(f"Period '{period_id}' not found.")
         return period
+
+    def is_edit_mode(self) -> bool:
+    # Replace with your actual edit mode tracking logic/variable if you have one
+    return getattr(self, "_is_edit_mode", False)
+
+    def set_edit_mode(self, enabled: bool) -> None:
+        # Replace with your actual edit mode setting logic
+        self._is_edit_mode = enabled

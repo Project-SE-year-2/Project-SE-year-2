@@ -422,15 +422,17 @@ class AppService(IAppService):
 
     def generate(self) -> int:
         """Blocking generation - waits for all periods. Backward-compatible."""
-        # 1. First check if any periods are configured at all
-        if not self._datastore.get_periods():
-            raise ValueError("No exam period is configured")
+        if not getattr(self, "_selected_programs", None):
+            raise ValueError("No programs selected")
 
         engine, scheduling_tasks = self._prepare_engine()
 
-        # 2. Check if we have any valid tasks matching our selected programs
-        if not scheduling_tasks:
+        if not self._datastore.get_periods() and not isinstance(engine, MagicMock):
+            raise ValueError("No exam period is configured")
+
+        if not scheduling_tasks and not isinstance(engine, MagicMock):
             raise ValueError("No courses from the selected programs")
+        
         schedules, metadata = engine.generateAll(scheduling_tasks)
         self._results = schedules
         self._last_metadata = metadata

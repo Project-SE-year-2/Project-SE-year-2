@@ -31,6 +31,8 @@ class InputScreen(QWidget):
     """
     switch_to_output = pyqtSignal()
     switch_to_settings = pyqtSignal()
+    # forwarded to output screen when engine detects infeasibility
+    infeasibility_detected = pyqtSignal(str)   
 
     # Initializes the screen, stores the service dependency, and builds the UI.
     def __init__(self, service, parent=None):
@@ -308,6 +310,8 @@ class InputScreen(QWidget):
 
     # Handles successful file loading by clearing old UI state and showing the program list.
     def _on_files_loaded(self):
+        self.error_banner.hide_error()
+        self._generation_has_error = False
         self._generate_state.reset_after_file_load()
         if hasattr(self, 'view_calendar_btn'):
             self.view_calendar_btn.setVisible(False)
@@ -413,6 +417,11 @@ class InputScreen(QWidget):
         # Reset UI state for new generation attempt
         self.error_banner.hide_error()
         self.spinner.start()
+        self._generation_has_error = False
+        # Cancel any pending switch-to-output timer from a previous run.
+        if hasattr(self, '_switch_timer') and self._switch_timer is not None:
+            self._switch_timer.stop()
+            self._switch_timer = None
 
         self._generate_state.start_generation()
         self._sync_generate_button_state()
@@ -433,23 +442,52 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        QTimer.singleShot(500, lambda: self.switch_to_output.emit())
+        if count == 0:
+            if not getattr(self, "_generation_has_error", False):
+                self.error_banner.show_error(
+                    "No valid schedule was found. "
+                    "Try relaxing the constraints or expanding the exam period date range."
+                )
+            return
+        # Parent the timer to self so it is destroyed with the widget and never
+        # fires on a deleted object (guards against orphaned timers in tests).
+        finish_timer = QTimer(self)
+        finish_timer.setSingleShot(True)
+        finish_timer.timeout.connect(self.switch_to_output.emit)
+        finish_timer.start(500)
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
         if getattr(self, "_switched_to_output", False):
             return
+        if getattr(self, "_generation_has_error", False):
+            # An infeasible period was already reported - don't switch to the output screen.
+            return
         self._switched_to_output = True
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        QTimer.singleShot(500, lambda: self.switch_to_output.emit())
+        # Use a cancellable member timer so _on_period_infeasible can abort the switch
+        # if an infeasibility notification arrives within the delay window.
+        self._switch_timer = QTimer(self)
+        self._switch_timer.setSingleShot(True)
+        self._switch_timer.timeout.connect(self.switch_to_output.emit)
+        self._switch_timer.start(500)
 
     def _on_period_infeasible(self, period_id: str, reason: str):
+        self._generation_has_error = True
+        # Cancel any pending switch-to-output scheduled by an earlier period_ready.
+        if hasattr(self, '_switch_timer') and self._switch_timer is not None:
+            self._switch_timer.stop()
+        # Allow _on_generation_finished to run so it can detect count == 0.
+        self._switched_to_output = False
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
         self.error_banner.show_error(reason)
+        # Also forward to the output screen - the user may already be there if the
+        # engine process took longer than the 500ms switch timer to detect infeasibility.
+        self.infeasibility_detected.emit(reason)
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

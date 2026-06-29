@@ -434,6 +434,23 @@ def test_generate_raises_when_no_programs_selected(monkeypatch):
         service.generate()
 
 
+def test_generate_raises_when_no_periods_configured(monkeypatch):
+    service = _make_service(monkeypatch)
+    service._selected_programs = ["83101"]
+    # No periods in the data store
+    with pytest.raises(ValueError, match="No exam period is configured"):
+        service.generate()
+
+
+def test_generate_raises_when_no_courses_match_periods(monkeypatch):
+    service = _make_service(monkeypatch)
+    service._selected_programs = ["83101"]
+    service._datastore.set_periods([_make_period()])
+    # No courses in the data store → scheduling_tasks will be empty
+    with pytest.raises(ValueError, match="No courses from the selected programs"):
+        service.generate()
+
+
 def test_generate_returns_schedule_count(monkeypatch):
     service = _make_service(monkeypatch)
     service._selected_programs = ["83101"]

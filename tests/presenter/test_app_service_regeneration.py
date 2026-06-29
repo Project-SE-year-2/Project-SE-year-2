@@ -1,10 +1,10 @@
 """
-EP-159 Regeneration Flow & Result Reset Fixes.
+EP-159 - Regeneration Flow & Result Reset Fixes.
 
 These tests pin down the behaviour added/fixed in EP-159 on top of the
 EP-149 dirty-flag skeleton:
 
-  1. Selecting a *different* set of programs is an input change it must
+  1. Selecting a *different* set of programs is an input change - it must
      clear the previous run's results and scores DB, not merely flag dirty.
   2. Every input mutator funnels through _invalidate_results(), which clears
      results only when no generation is active. While a run IS active the
@@ -67,7 +67,7 @@ def test_changing_programs_triggers_clear_results(monkeypatch):
 
 
 def test_selecting_identical_programs_does_not_clear(monkeypatch):
-    """Re-selecting the same programs is not a change no wipe, stays clean."""
+    """Re-selecting the same programs is not a change - no wipe, stays clean."""
     svc = _make_service(monkeypatch)
     svc.select_programs(["83101"])
     svc._dirty = False

@@ -54,7 +54,7 @@ class AppService(IAppService):
         return cls._instance
 
     # ------------------------------------------------------------------ #
-    # Construction (private ג€” use getInstance())                          #
+    # Construction (private - use getInstance())                          #
     # ------------------------------------------------------------------ #
 
     def __init__(self) -> None:
@@ -64,14 +64,14 @@ class AppService(IAppService):
         self._selected_programs: list[str] = []
         self._results: list[ExamSchedule] = []
         self._last_metadata: dict = {}
-        # EP-72 ג€” per-period streaming cache
+        # EP-72 - per-period streaming cache
         # keyed by period_id ("FALL_Aleph", ג€¦), values are raw ExamSchedule lists
         self._results_by_period: dict[str, list[ExamSchedule]] = {}
-        # EP-82 ג€” file-based per-period navigation
+        # EP-82 - file-based per-period navigation
         self._results_writer = None
         self._results_reader = ResultsReader()   # always available for reading from disk
         self._current_indices: dict[str, int] = {}
-        # EP-83 ג€” multiprocessing: set to EngineProcess() in main.py to enable
+        # EP-83 - multiprocessing: set to EngineProcess() in main.py to enable
         # two-process architecture. None = legacy single-process mode (used by tests).
         self._engine_process = None
         self._generation_active = False
@@ -89,7 +89,7 @@ class AppService(IAppService):
         self._dirty: bool = True
 
     # ------------------------------------------------------------------ #
-    # EP-39 / TASK4 ג€” File loading                                       #
+    # EP-39 / TASK4 - File loading                                       #
     # ------------------------------------------------------------------ #
 
     def load_rooms(self, path: str) -> None:
@@ -140,7 +140,7 @@ class AppService(IAppService):
         periods = ExamPeriodFileParser().parse(dates_path)
 
         if mode == "replace":
-            # Overwrite in-memory data ג€” save() below will overwrite the file.
+            # Overwrite in-memory data - save() below will overwrite the file.
             # No need to delete the file; pickle.dump replaces its contents.
             self._datastore.set_courses(courses)
             self._datastore.set_periods(periods)
@@ -198,7 +198,7 @@ class AppService(IAppService):
         return self._constraint_settings
 
     # ------------------------------------------------------------------ #
-    # EP-150 ג€” "a better solution was found" detection                    #
+    # EP-150 - "a better solution was found" detection                    #
     # ------------------------------------------------------------------ #
 
     def get_best_score(self, period_id: str) -> float | None:
@@ -207,7 +207,7 @@ class AppService(IAppService):
         Returns None when no sort order is active or no scores exist yet.
         The optimum over a growing result set only ever moves in the "better"
         direction, so any change in this value means a strictly better schedule
-        has been found ג€” which the UI uses to raise a notification (EP-150).
+        has been found - which the UI uses to raise a notification (EP-150).
         """
         if not self._sort_cols:
             return None
@@ -220,7 +220,7 @@ class AppService(IAppService):
             return None
 
     # ------------------------------------------------------------------ #
-    # EP-149 ג€” stale-result clearing & "needs regeneration" tracking      #
+    # EP-149 - stale-result clearing & "needs regeneration" tracking      #
     # ------------------------------------------------------------------ #
 
     def needs_generation(self) -> bool:
@@ -256,7 +256,7 @@ class AppService(IAppService):
             self.clear_results()
 
     def clear_results(self) -> None:
-        """Drop every trace of the previous run ג€” disk files and in-memory caches.
+        """Drop every trace of the previous run - disk files and in-memory caches.
 
         Called whenever the inputs change (new files, edited constraints, etc.)
         so the output screen can never show schedules that no longer match the
@@ -302,7 +302,7 @@ class AppService(IAppService):
 
 
     # ------------------------------------------------------------------ #
-    # EP-39 / TASK5 ג€” Program & course methods                            #
+    # EP-39 / TASK5 - Program & course methods                            #
     # ------------------------------------------------------------------ #
 
     def get_available_programs(self) -> list[dict]:
@@ -343,7 +343,7 @@ class AppService(IAppService):
         return result
 
     # ------------------------------------------------------------------ #
-    # EP-39 / TASK6 ג€” Period management                                   #
+    # EP-39 / TASK6 - Period management                                   #
     # ------------------------------------------------------------------ #
 
     def get_periods(self) -> list[dict]:
@@ -377,11 +377,11 @@ class AppService(IAppService):
         self._invalidate_results()
 
     # ------------------------------------------------------------------ #
-    # EP-68 / TASK7 ג€” Generation & export                                 #
+    # EP-68 / TASK7 - Generation & export                                 #
     # ------------------------------------------------------------------ #
 
     def _prepare_engine(self):
-        """Build and return (engine, scheduling_tasks) ג€” shared by generate() and generate_stream()."""
+        """Build and return (engine, scheduling_tasks) - shared by generate() and generate_stream()."""
         if not self._selected_programs:
             raise ValueError("No programs selected. Select at least one program before generating.")
 
@@ -419,7 +419,7 @@ class AppService(IAppService):
         return engine, scheduling_tasks
 
     def generate(self) -> int:
-        """Blocking generation ג€” waits for all periods. Backward-compatible."""
+        """Blocking generation - waits for all periods. Backward-compatible."""
         engine, scheduling_tasks = self._prepare_engine()
         schedules, metadata = engine.generateAll(scheduling_tasks)
         self._results = schedules
@@ -428,7 +428,7 @@ class AppService(IAppService):
         return len(schedules)
 
     # ------------------------------------------------------------------ #
-    # EP-72 ג€” Streaming generation                                         #
+    # EP-72 - Streaming generation                                         #
     # ------------------------------------------------------------------ #
 
     def generate_stream(self):
@@ -438,7 +438,7 @@ class AppService(IAppService):
         - File-based mode (_results_writer set): writes each period's
           results to disk in batches of 50, initialises _current_indices
           for per-period navigation, and skips the ScheduleCombiner.
-        - Legacy mode (_results_writer is None): same behaviour as before ג€”
+        - Legacy mode (_results_writer is None): same behaviour as before -
           caches results in _results_by_period, runs ScheduleCombiner at the
           end, populates _results for get_schedule() / get_schedule_count().
         """
@@ -593,11 +593,11 @@ class AppService(IAppService):
                     for pid in self._current_indices
                 )
             return 0
-        # Per-period count ג€” disk first
+        # Per-period count - disk first
         disk_count = self._results_reader.get_count(period_id)
         if disk_count > 0:
             return disk_count
-        # Legacy mode fallback ג€” in-memory per-period results
+        # Legacy mode fallback - in-memory per-period results
         if period_id in self._results_by_period:
             return len(self._results_by_period[period_id])
         return 0
@@ -700,7 +700,7 @@ class AppService(IAppService):
         """Read a contiguous batch of schedules from disk (multiprocessing / file-based mode).
 
         Period results are concatenated in the order they appear in _current_indices.
-        The caller receives formatted list[dict] rows ג€” same shape as legacy mode.
+        The caller receives formatted list[dict] rows - same shape as legacy mode.
         """
         result: list[list[dict]] = []
         global_offset = 0
@@ -750,10 +750,10 @@ class AppService(IAppService):
 
         When the placement carries room-scheduling data (is_room_based=True), the dict
         also contains:
-            time_slot      (str)       ג€” "MORNING" / "AFTERNOON" / "EVENING"
-            rooms_display  (list[str]) ג€” pre-formatted bullet strings, one per room
-            num_students   (int)       ג€” student count for the course
-            total_capacity (int)       ג€” combined capacity of all assigned rooms
+            time_slot      (str)       - "MORNING" / "AFTERNOON" / "EVENING"
+            rooms_display  (list[str]) - pre-formatted bullet strings, one per room
+            num_students   (int)       - student count for the course
+            total_capacity (int)       - combined capacity of all assigned rooms
 
         Date-only placements omit these keys so existing callers are unaffected.
         """
@@ -813,7 +813,7 @@ class AppService(IAppService):
         )
 
     # ------------------------------------------------------------------ #
-    # EP-82 ג€” Per-period navigation & combined export                     #
+    # EP-82 - Per-period navigation & combined export                     #
     # ------------------------------------------------------------------ #
 
     def navigate(self, period_id: str, direction: int) -> dict:
@@ -899,7 +899,7 @@ class AppService(IAppService):
 
         Raises:
             RuntimeError: when ``_results_reader`` is not initialised (legacy
-                          in-memory mode ג€” use ``get_schedule_batch`` instead).
+                          in-memory mode - use ``get_schedule_batch`` instead).
         """
         if self._results_reader is None:
             raise RuntimeError("Results reader not initialised.")
@@ -947,7 +947,7 @@ class AppService(IAppService):
                     schedules_to_merge.append([schedule])
                 continue
 
-            # Disk mode ג€” batch files written by EngineProcess / file-based mode
+            # Disk mode - batch files written by EngineProcess / file-based mode
             disk_count = self._results_reader.get_count(period_id)
             if disk_count > 0:
                 safe_idx = min(max(0, local_index), disk_count - 1)
@@ -956,7 +956,7 @@ class AppService(IAppService):
                 except Exception as exc:
                     print(f"AppService: export disk read failed for {period_id}: {exc}")
 
-            # Legacy mode ג€” in-memory per-period results
+            # Legacy mode - in-memory per-period results
             if schedule is None and period_id in self._results_by_period:
                 period_scheds = self._results_by_period[period_id]
                 if period_scheds:

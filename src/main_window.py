@@ -86,7 +86,7 @@ class MainWindow(QMainWindow):
 
         Delegates to the service's public clear_results(), which stops any
         running engine, deletes the correct results root (batch files +
-        scores.db) and resets in-memory state ג€” instead of hardcoding the
+        scores.db) and resets in-memory state - instead of hardcoding the
         results path or touching private engine internals from the View.
         """
         self.service.clear_results()

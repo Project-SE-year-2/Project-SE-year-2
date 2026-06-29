@@ -340,7 +340,7 @@ class InputScreen(QWidget):
         self._left_stack.setVisible(True)
 
         # In the tabbed layout the Exam Periods tab is always accessible, so
-        # refresh and show the period list immediately after file load ג€” the
+        # refresh and show the period list immediately after file load - the
         # user should see all available periods without having to select a
         # program first.
         self.period_list.refresh()
@@ -366,7 +366,7 @@ class InputScreen(QWidget):
         else:
             self.selected_panel.clear()
             self.period_list.clear_selection()
-            # Keep period_list visible ג€” it lives in its own tab and should
+            # Keep period_list visible - it lives in its own tab and should
             # always show available periods regardless of program selection.
             self.period_editor.clear()
             self.period_editor.setVisible(False)

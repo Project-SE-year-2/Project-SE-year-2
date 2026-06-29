@@ -311,7 +311,7 @@ def test_files_loaded_resets_screen_state(qtbot):
 
     assert not screen.selected_panel.isHidden()
     # period_list lives in the Exam Periods tab and is shown after file load,
-    # not after program selection ג€” so it may still be hidden at this point.
+    # not after program selection - so it may still be hidden at this point.
     assert not screen.period_editor.isHidden()
     assert not screen.generate_btn.isHidden()
 

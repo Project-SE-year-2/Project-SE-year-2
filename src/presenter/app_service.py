@@ -1058,7 +1058,7 @@ class AppService(IAppService):
 
     def is_edit_mode(self) -> bool:
     # Replace with your actual edit mode tracking logic/variable if you have one
-    return getattr(self, "_is_edit_mode", False)
+        return getattr(self, "_is_edit_mode", False)
 
     def set_edit_mode(self, enabled: bool) -> None:
         # Replace with your actual edit mode setting logic

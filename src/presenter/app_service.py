@@ -31,6 +31,7 @@ from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
 from src.parsers.room_file_parser import RoomFileParser
 from src.presenter.ranking_query_engine import RankingQueryEngine
 from src.algorithm.period_results_writer import BATCH_SIZE
+from src.algorithm.manual_move_validator import ManualMoveValidator
 from src.output.pdf_schedule_report_writer import PdfScheduleReportWriter
 
 
@@ -79,7 +80,8 @@ class AppService(IAppService):
         self._sort_cols: list[str] = []
         self._ranking_engine: RankingQueryEngine | None = None
         self._constraint_settings = ConstraintSettings()
-        
+        self._constraint_index: "ConstraintIndex | None" = None
+
         self._finished_periods: set[str] = set()
         self._infeasible_periods: set[str] = set()
 
@@ -422,6 +424,7 @@ class AppService(IAppService):
 
         index = ConstraintIndex()
         index.build(valid_courses, self._selected_programs)
+        self._constraint_index = index
 
         catalog = ExamPeriodCatalog(periods)
         collision_validator = BasicVersionValidator(index)
@@ -925,6 +928,29 @@ class AppService(IAppService):
             if direction == +1
             else "Already at the first combination."
         )
+
+    def validate_manual_move(
+        self,
+        period_id: str,
+        exam_rows: list[dict],
+        moving_exam: dict,
+        target_date: date,
+    ) -> list[dict]:
+        period = next(
+            (p for p in self.get_periods() if p["id"] == period_id), None
+        )
+        if period is None:
+            return [{"rule": "period_not_found", "reason": f"Period '{period_id}' not found."}]
+
+        errors = ManualMoveValidator().validate(
+            exam_rows=exam_rows,
+            moving_exam=moving_exam,
+            target_date=target_date,
+            period=period,
+            settings=self._constraint_settings,
+            constraint_index=self._constraint_index,
+        )
+        return [{"rule": e.rule, "reason": e.reason} for e in errors]
 
     def get_current_combination(self) -> list[dict]:
         """Return the currently selected schedule combination across all periods.

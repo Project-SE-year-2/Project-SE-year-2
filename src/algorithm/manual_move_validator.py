@@ -89,7 +89,7 @@ class ManualMoveValidator:
             errors.extend(self._check_elective_collision(moving_exam, target_date, other_rows, settings.elective_conflicts_k))
 
         if settings.room_scheduling_enabled:
-            errors.extend(self._check_room_scheduling(moving_exam["course_name"], target_date))
+            errors.extend(self._check_room_scheduling(moving_exam, target_date, other_rows))
 
         return errors
 
@@ -254,13 +254,30 @@ class ManualMoveValidator:
 
     def _check_room_scheduling(
         self,
-        moving_name: str,
+        moving_exam: dict,
         target_date: date,
+        other_rows: list[dict],
     ) -> list[MoveValidationError]:
-        return [MoveValidationError(
-            rule="room_scheduling",
-            reason=(
-                f"Room scheduling is enabled. Moving '{moving_name}' to {target_date} "
-                f"requires verifying room and time-slot availability."
-            ),
-        )]
+        moving_slot = moving_exam.get("time_slot")
+        moving_rooms = set(moving_exam.get("room_ids", []))
+
+        if not moving_slot or not moving_rooms:
+            return []
+
+        errors = []
+        moving_name = moving_exam["course_name"]
+        for other in other_rows:
+            if other["exam_date"] != target_date:
+                continue
+            if other.get("time_slot") != moving_slot:
+                continue
+            shared = moving_rooms & set(other.get("room_ids", []))
+            if shared:
+                errors.append(MoveValidationError(
+                    rule="room_scheduling",
+                    reason=(
+                        f"'{moving_name}' and '{other['course_name']}' would both use "
+                        f"room(s) {', '.join(sorted(shared))} in the {moving_slot} slot on {target_date}."
+                    ),
+                ))
+        return errors

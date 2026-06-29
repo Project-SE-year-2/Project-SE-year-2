@@ -301,6 +301,7 @@ class AppService(IAppService):
         self._current_indices = {}
         self._finished_periods = set()
         self._infeasible_periods = set()
+        self._constraint_index = None
 
 
     def load_constraint_settings_from_file(self, path: str) -> None:
@@ -829,6 +830,7 @@ class AppService(IAppService):
                 # The guide (Technical Design & UI) requires these fields in the output.
                 if placement.is_room_based:
                     row["time_slot"]     = placement.time_slot.value
+                    row["room_ids"]      = [r.room_id for r in placement.rooms]
                     row["rooms_display"] = [
                         f"• Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
                         for r in placement.rooms

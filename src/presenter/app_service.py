@@ -87,7 +87,7 @@ class AppService(IAppService):
         # Starts dirty so the very first Generate always runs. Set back to clean
         # after a successful generation; flipped to dirty by any input change.
         self._dirty: bool = True
-        
+
         self._is_edit_mode = False
 
     # ------------------------------------------------------------------ #
@@ -422,7 +422,15 @@ class AppService(IAppService):
 
     def generate(self) -> int:
         """Blocking generation - waits for all periods. Backward-compatible."""
+        # 1. First check if any periods are configured at all
+        if not self._datastore.get_periods():
+            raise ValueError("No exam period is configured")
+
         engine, scheduling_tasks = self._prepare_engine()
+
+        # 2. Check if we have any valid tasks matching our selected programs
+        if not scheduling_tasks:
+            raise ValueError("No courses from the selected programs")
         schedules, metadata = engine.generateAll(scheduling_tasks)
         self._results = schedules
         self._last_metadata = metadata
@@ -824,7 +832,7 @@ class AppService(IAppService):
         Other periods are unaffected.  Raises ValueError for an unknown
         period_id and IndexError if the new index would go out of bounds.
         """
-        if self._edit_mode:
+        if self._is_edit_mode:
             raise RuntimeError("Navigation is disabled during edit mode.")
         # Ensure the requested period is valid and exists in our navigation state
         if period_id not in self._current_indices:

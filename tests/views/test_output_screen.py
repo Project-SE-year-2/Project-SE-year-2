@@ -679,106 +679,105 @@ class TestOutputScreen(unittest.TestCase):
 
         assert state.has_pending_update is False
 
-    def test_move_to_updates_current_and_history():
-        """Verify that move_to stores the previous index and updates current."""
-        state = WindowState()
-        state.move_to(3)
+def test_move_to_updates_current_and_history():
+    """Verify that move_to stores the previous index and updates current."""
+    state = WindowState()
+    state.move_to(3)
 
-        assert state.current() == 3
-        assert state.history_stack == [0]
-
-
-    def test_back_restores_previous_index():
-        """Verify that back returns to the previous index."""
-        state = WindowState()
-        state.move_to(2)
-        state.move_to(5)
-
-        assert state.back() == 2
-        assert state.current() == 2
+    assert state.current() == 3
+    assert state.history_stack == [0]
 
 
-    def test_clear_resets_state():
-        """Verify that clear resets current, history."""
-        state = WindowState()
-        state.move_to(3)
+def test_back_restores_previous_index():
+    """Verify that back returns to the previous index."""
+    state = WindowState()
+    state.move_to(2)
+    state.move_to(5)
 
-        state.clear()
+    assert state.back() == 2
+    assert state.current() == 2
 
-        assert state.current() == 0
-        assert state.history_stack == []
+
+def test_clear_resets_state():
+    """Verify that clear resets current, history."""
+    state = WindowState()
+    state.move_to(3)
+
+    state.clear()
+
+    assert state.current() == 0
+    assert state.history_stack == []
 
 # ---------------------------------------------------------------------------
 # Module-level helper
 # ---------------------------------------------------------------------------
 
-    def _make_minimal_exam() -> dict:
-        return {
-            "course_number": "83111",
-            "course_name":   "Data Structures",
-            "type":          "Obligatory",
-            "programs":      ["83101"],
-            "exam_date":     date(2026, 9, 10),
-            "semester":      "FALL",
-            "moed":          "Aleph",
-        }
+def _make_minimal_exam() -> dict:
+    return {
+        "course_number": "83111",
+        "course_name":   "Data Structures",
+        "type":          "Obligatory",
+        "programs":      ["83101"],
+        "exam_date":     date(2026, 9, 10),
+        "semester":      "FALL",
+        "moed":          "Aleph",
+    }
 
-    def test_edit_mode_activation_toggles_ui_elements(self):
-        """Verify that entering Edit Mode sets state, hides EDIT, shows SAVE/CANCEL and custom banner."""
-        self.mock_service.is_edit_mode.return_value = False
-        self.screen._sync_edit_mode_ui()
-        
-        # Before init
-        self.assertTrue(self.screen.edit_btn.isVisible())
-        self.assertFalse(self.screen.save_btn.isVisible())
-        self.assertFalse(self.screen._edit_mode_banner.isVisible())
+def test_edit_mode_activation_toggles_ui_elements(self):
+    """Verify that entering Edit Mode sets state, hides EDIT, shows SAVE/CANCEL and custom banner."""
+    self.mock_service.is_edit_mode.return_value = False
+    self.screen._sync_edit_mode_ui()
+    
+    # Before init
+    self.assertTrue(self.screen.edit_btn.isVisible())
+    self.assertFalse(self.screen.save_btn.isVisible())
+    self.assertFalse(self.screen._edit_mode_banner.isVisible())
 
-        # Pretend to press on Edit
-        self.screen.edit_btn.click()
-        self.mock_service.set_edit_mode.assert_called_once_with(True)
-        
-        # Activating Mock
-        self.mock_service.is_edit_mode.return_value = True
-        self.screen._sync_edit_mode_ui()
-        
-        # After init
-        self.assertFalse(self.screen.edit_btn.isVisible())
-        self.assertTrue(self.screen.save_btn.isVisible())
-        self.assertTrue(self.screen.cancel_btn.isVisible())
-        self.assertTrue(self.screen._edit_mode_banner.isVisible())
-        
-        # Checking if elements terminated
-        self.assertFalse(self.screen.back_btn.isEnabled())
-        self.assertFalse(self.screen.semester_tabs.isEnabled())
+    # Pretend to press on Edit
+    self.screen.edit_btn.click()
+    self.mock_service.set_edit_mode.assert_called_once_with(True)
+    
+    # Activating Mock
+    self.mock_service.is_edit_mode.return_value = True
+    self.screen._sync_edit_mode_ui()
+    
+    # After init
+    self.assertFalse(self.screen.edit_btn.isVisible())
+    self.assertTrue(self.screen.save_btn.isVisible())
+    self.assertTrue(self.screen.cancel_btn.isVisible())
+    self.assertTrue(self.screen._edit_mode_banner.isVisible())
+    
+    # Checking if elements terminated
+    self.assertFalse(self.screen.back_btn.isEnabled())
+    self.assertFalse(self.screen.semester_tabs.isEnabled())
 
-    def test_save_and_cancel_restore_view_mode(self):
-        """Verify that clicking SAVE or CANCEL exits edit mode and restores elements."""
-        self.mock_service.is_edit_mode.return_value = True
-        self.screen._sync_edit_mode_ui()
-        
-        # Press Save
-        self.screen.save_btn.click()
-        self.mock_service.set_edit_mode.assert_called_with(False)
-        
-        # Press Cancel
-        self.screen.cancel_btn.click()
-        self.mock_service.set_edit_mode.assert_called_with(False)
+def test_save_and_cancel_restore_view_mode(self):
+    """Verify that clicking SAVE or CANCEL exits edit mode and restores elements."""
+    self.mock_service.is_edit_mode.return_value = True
+    self.screen._sync_edit_mode_ui()
+    
+    # Press Save
+    self.screen.save_btn.click()
+    self.mock_service.set_edit_mode.assert_called_with(False)
+    
+    # Press Cancel
+    self.screen.cancel_btn.click()
+    self.mock_service.set_edit_mode.assert_called_with(False)
 
-    def test_polling_and_generation_signals_are_blocked_during_edit_mode(self):
-        """Verify that background threads or polling cannot replace data or show banners during editing."""
-        self.mock_service.is_edit_mode.return_value = True
-        self.mock_service.get_sort_order.return_value = None
-        self.mock_service.get_schedule_count.return_value = 100 # נניח שיש הרבה פלטים חדשים
-        
-        # Runs auto pulling after Edit
-        self.screen._poll_schedule_count()
-        # Banner got to stay activated to not disturb the user
-        self.assertFalse(self.screen._sorting_update_banner.isVisible())
-        
-        # הרצת אירוע הגעת נתונים מהמנוע בזמן עריכה
-        # Runs event of comming data from engine while editing
-        self.screen._on_period_ready("FALL_Aleph")
-        self.assertFalse(self.screen._sorting_update_banner.isVisible())
+def test_polling_and_generation_signals_are_blocked_during_edit_mode(self):
+    """Verify that background threads or polling cannot replace data or show banners during editing."""
+    self.mock_service.is_edit_mode.return_value = True
+    self.mock_service.get_sort_order.return_value = None
+    self.mock_service.get_schedule_count.return_value = 100
+
+    # Runs auto pulling after Edit
+    self.screen._poll_schedule_count()
+    # Banner got to stay activated to not disturb the user
+    self.assertFalse(self.screen._sorting_update_banner.isVisible())
+    
+    # Runs event of comming data from engine while editing
+    self.screen._on_period_ready("FALL_Aleph")
+    self.assertFalse(self.screen._sorting_update_banner.isVisible())
 
 
 

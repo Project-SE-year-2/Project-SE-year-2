@@ -420,7 +420,7 @@ class AppService(IAppService):
 
         return engine, scheduling_tasks
 
-        def generate(self) -> int:
+    def generate(self) -> int:
         """Blocking generation - waits for all periods. Backward-compatible."""
         if not getattr(self, "_selected_programs", None):
             raise ValueError("No programs selected")

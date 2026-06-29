@@ -449,12 +449,10 @@ class InputScreen(QWidget):
                 "Try relaxing the constraints or expanding the exam period date range."
             )
             return
-        # Parent the timer to self so it is destroyed with the widget and never
-        # fires on a deleted object (guards against orphaned timers in tests).
-        finish_timer = QTimer(self)
-        finish_timer.setSingleShot(True)
-        finish_timer.timeout.connect(self.switch_to_output.emit)
-        finish_timer.start(500)
+        self._finish_timer = QTimer(self)
+        self._finish_timer.setSingleShot(True)
+        self._finish_timer.timeout.connect(self.switch_to_output.emit)
+        self._finish_timer.start(500)
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
@@ -496,6 +494,14 @@ class InputScreen(QWidget):
         prefix, _, moed = period_id.partition("_")
         season = _PREFIX_MAP.get(prefix.upper(), prefix)
         return f"{season} – {moed}" if moed else period_id
+
+    def closeEvent(self, event):
+        """Stop all pending switch timers before destruction to prevent use-after-free."""
+        for attr in ("_switch_timer", "_finish_timer"):
+            t = getattr(self, attr, None)
+            if t is not None:
+                t.stop()
+        super().closeEvent(event)
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

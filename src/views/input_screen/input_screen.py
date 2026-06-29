@@ -126,7 +126,7 @@ class InputScreen(QWidget):
         self.view_calendar_btn = QPushButton("View Current Calendar")
         self.view_calendar_btn.setObjectName("viewCalendarBtn")
         self.view_calendar_btn.setVisible(False)
-self.view_calendar_btn.clicked.connect(self.navigator_widget.switch_to_output.emit)
+        self.view_calendar_btn.clicked.connect(self.navigator_widget.switch_to_output.emit)
         self.spinner      = LoadingSpinner()
         self.error_banner = ErrorBanner()
 

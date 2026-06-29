@@ -12,6 +12,7 @@ class ScheduleNavigatorWidget(QWidget):
         super().__init__(parent)
         self._current_index = 0
         self._total_count = 0
+        self._navigation_enabled = True
         self._init_ui()
 
     def _init_ui(self):
@@ -51,11 +52,22 @@ class ScheduleNavigatorWidget(QWidget):
         self.counter_label.setText(f"Schedule {display_index} of {self._total_count}")
         self._update_buttons()
 
+
+    def set_navigation_enabled(self, enabled: bool) -> None:
+        """Enable or disable schedule navigation while preserving current state."""
+        self._navigation_enabled = enabled
+        self._update_buttons()
+
+
     def _update_buttons(self):
-        """Enable/disable Previous and Next buttons based on the current index and total count"""
-        self.prev_btn.setEnabled(self._current_index > 0)
+        """Enable/disable Previous and Next buttons based on the current index and total count."""
+        self.prev_btn.setEnabled(
+            self._navigation_enabled and self._current_index > 0
+        )
         self.next_btn.setEnabled(
-            self._total_count > 0 and self._current_index < self._total_count - 1
+            self._navigation_enabled
+            and self._total_count > 0
+            and self._current_index < self._total_count - 1
         )
 
     def _on_prev(self):

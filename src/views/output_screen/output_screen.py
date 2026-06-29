@@ -139,6 +139,8 @@ class OutputScreen(QWidget):
         # True only when the calendar is actually rendering a real schedule.
         # Used by the poll timer to know when a re-render is still needed.
         self._calendar_displaying_data: bool = False
+        self._edit_mode: bool = False
+        self._pending_refresh_while_editing: bool = False
 
         # EP-149 bug 1: number of schedules the current view reflects. When the
         # active period's count grows past this, the poll timer pops the refresh
@@ -298,9 +300,22 @@ class OutputScreen(QWidget):
         self.sort_settings_btn.setObjectName("sortSettingsBtn")
         self.sort_settings_btn.clicked.connect(self._show_sort_settings)
 
+        self.edit_btn = QPushButton("EDIT")
+        self.edit_btn.setObjectName("editBtn")
+        self.edit_btn.clicked.connect(self.enter_edit_mode)
+
+        self.save_edit_btn = QPushButton("SAVE")
+        self.save_edit_btn.setObjectName("saveEditBtn")
+        self.save_edit_btn.clicked.connect(self._on_save_edit_clicked)
+
+        self.cancel_edit_btn = QPushButton("CANCEL")
+        self.cancel_edit_btn.setObjectName("cancelEditBtn")
+        self.cancel_edit_btn.clicked.connect(self._on_cancel_edit_clicked)
+
         toolbar.addWidget(self.back_btn)
         toolbar.addStretch()
         toolbar.addWidget(self.sort_settings_btn)
+        toolbar.addWidget(self.edit_btn)
         toolbar.addWidget(self.download_btn)
         main_layout.addLayout(toolbar)
 
@@ -321,6 +336,9 @@ class OutputScreen(QWidget):
         self._sorting_update_banner = self._build_sorting_update_banner()
         self._sorting_update_banner.setVisible(False)
         main_layout.addWidget(self._sorting_update_banner)
+        self._edit_mode_banner = self._build_edit_mode_banner()
+        self._edit_mode_banner.setVisible(False)
+        main_layout.addWidget(self._edit_mode_banner)
         self._success_timer = QTimer(self)
         self._success_timer.setSingleShot(True)
         self._success_timer.timeout.connect(lambda: self._success_banner.setVisible(False))
@@ -351,10 +369,13 @@ class OutputScreen(QWidget):
         # Hidden CalendarTableWidget — backward-compat for EP-65 tests
         self.calendar = CalendarTableWidget()
         self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
+        self._apply_edit_mode_ui()
         # exam_clicked intentionally NOT connected (would open dialog twice)
 
     def _show_sort_settings(self):
         """Open the Sorting Preferences dialog."""
+        if self._edit_mode:
+            return
         self._sort_dialog.exec_()
 
     def _build_conflict_banner(self) -> QFrame:
@@ -573,6 +594,8 @@ class OutputScreen(QWidget):
 
     def _on_semester_changed(self, semester: str) -> None:
         """Switch semester tab — restore the stored index for the new period."""
+        if self._edit_mode:
+            return
         self._current_semester = semester
         self._global_index = self._active_window_state().current()
         self._hide_conflict_banner()
@@ -585,6 +608,8 @@ class OutputScreen(QWidget):
 
     def _on_moed_changed(self, moed: str) -> None:
         """Switch moed, or switch to the read-only All Sessions overview."""
+        if self._edit_mode:
+            return
         self._current_moed = moed
         self._hide_conflict_banner()
         self._hide_sorting_update_banner()
@@ -799,6 +824,8 @@ class OutputScreen(QWidget):
         fetches that period's schedule directly via get_period_schedule().
         No Cartesian-product scanning or cross-period interference.
         """
+        if self._edit_mode:
+            return
         pid = self._active_period_id()
         state = self._active_window_state()
         state.move_to(index)
@@ -810,6 +837,9 @@ class OutputScreen(QWidget):
 
     def _on_refresh_pending_clicked(self) -> None:
         """Accept pending optimized results and refresh the current display."""
+        if self._edit_mode:
+            self._pending_refresh_while_editing = True
+            return
         state = self._active_window_state()
         state.accept_pending()
 
@@ -977,6 +1007,10 @@ class OutputScreen(QWidget):
         if period_id != self._active_period_id():
             return
 
+        if self._edit_mode:
+            self._pending_refresh_while_editing = True
+            return
+
         if self._calendar_displaying_data:
             state = self._active_window_state()
             state.mark_pending()
@@ -1004,7 +1038,9 @@ class OutputScreen(QWidget):
         the first schedule for the currently visible period.
         """
         self.semester_tabs.set_enabled_all(True)
-
+        if self._edit_mode:
+            self._pending_refresh_while_editing = True
+            return
         # Update total from the active period's exact count.
         pid = self._active_period_id()
         real_total = total if isinstance(total, int) and total > 0 else 0
@@ -1030,8 +1066,65 @@ class OutputScreen(QWidget):
 
     # ── Toolbar ───────────────────────────────────────────────────────────────
 
+    def is_editing(self) -> bool:
+        """Return True when manual edit mode is active."""
+        return self._edit_mode
+
+
+    def enter_edit_mode(self) -> None:
+        """Enter manual schedule edit mode."""
+        if self._edit_mode:
+            return
+        self._edit_mode = True
+        self._pending_refresh_while_editing = False
+        self._apply_edit_mode_ui()
+
+
+    def exit_edit_mode(self) -> None:
+        """Exit manual schedule edit mode and apply deferred refresh if needed."""
+        if not self._edit_mode:
+            return
+
+        self._edit_mode = False
+        self._apply_edit_mode_ui()
+
+        if self._pending_refresh_while_editing:
+            self._pending_refresh_while_editing = False
+            self._refresh_screen_display()
+
+
+    def _on_save_edit_clicked(self) -> None:
+        """Save edit-mode changes. Actual persistence will be implemented later."""
+        self.exit_edit_mode()
+
+
+    def _on_cancel_edit_clicked(self) -> None:
+        """Cancel edit-mode changes and return to normal view mode."""
+        self._pending_refresh_while_editing = False
+        self.exit_edit_mode()
+
+
+    def _apply_edit_mode_ui(self) -> None:
+        """Update buttons, navigation, and banners according to edit mode."""
+        editing = self._edit_mode
+
+        self.edit_btn.setVisible(not editing)
+        self.save_edit_btn.setVisible(editing)
+        self.cancel_edit_btn.setVisible(editing)
+        self._edit_mode_banner.setVisible(editing)
+
+        self.sort_settings_btn.setEnabled(not editing)
+        self.download_btn.setEnabled(not editing)
+        self.semester_tabs.set_enabled_all(not editing)
+
+        if hasattr(self.navigator, "set_navigation_enabled"):
+            self.navigator.set_navigation_enabled(not editing)
+
     def on_sort_changed(self, _sort_cols: list = None) -> None:
         """Reset all period navigation states to 0 when the sort order changes."""
+        if self._edit_mode:
+            self._pending_refresh_while_editing = True
+            return
         for state in self._window_states.values():
             state.clear()
         self._global_index = 0
@@ -1041,6 +1134,14 @@ class OutputScreen(QWidget):
         self._refresh_screen_display()
 
     def _on_back_clicked(self) -> None:
+        if self._edit_mode:
+            QMessageBox.warning(
+                self,
+                "Edit Mode Active",
+                "Please save or cancel editing before leaving the output screen.",
+            )
+            return
+
         if self._day_dialog is not None:
             self._day_dialog.close()
             self._day_dialog = None
@@ -1078,3 +1179,36 @@ class OutputScreen(QWidget):
             QMessageBox.critical(
                 self, "Export Failed", f"Could not export schedule:\n{exc}"
             )
+
+
+    def _build_edit_mode_banner(self) -> QFrame:
+        """Build a visible banner that indicates edit mode is active."""
+        banner = QFrame()
+        banner.setObjectName("editModeBanner")
+        banner.setStyleSheet("""
+            QFrame#editModeBanner {
+                background: #FFFBEB;
+                border: 1.5px solid #FBBF24;
+                border-radius: 10px;
+            }
+        """)
+
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(16, 12, 16, 12)
+
+        label = QLabel("Edit mode is active. Save or cancel your changes before navigating.")
+        label.setWordWrap(True)
+        label.setStyleSheet("color: #92400E; font-size: 14px; font-weight: 700;")
+        row.addWidget(label, stretch=1)
+
+        self.save_edit_btn = QPushButton("SAVE")
+        self.save_edit_btn.setObjectName("saveEditBtn")
+        self.save_edit_btn.clicked.connect(self._on_save_edit_clicked)
+        row.addWidget(self.save_edit_btn)
+
+        self.cancel_edit_btn = QPushButton("CANCEL")
+        self.cancel_edit_btn.setObjectName("cancelEditBtn")
+        self.cancel_edit_btn.clicked.connect(self._on_cancel_edit_clicked)
+        row.addWidget(self.cancel_edit_btn)
+
+        return banner

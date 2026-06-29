@@ -87,6 +87,8 @@ class AppService(IAppService):
         # Starts dirty so the very first Generate always runs. Set back to clean
         # after a successful generation; flipped to dirty by any input change.
         self._dirty: bool = True
+        
+        self._is_edit_mode = False
 
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 - File loading                                       #

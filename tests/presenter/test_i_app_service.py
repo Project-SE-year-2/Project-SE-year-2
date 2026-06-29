@@ -58,6 +58,8 @@ class _FullImpl(IAppService):
     def get_period_schedule(self, period_id, index): return []
     def export_by_period_indices(self, period_indices, path): pass
     def clear_results(self) -> None: pass
+    def is_edit_mode(self) -> bool: return False
+    def set_edit_mode(self, enabled: bool) -> None: pass
 
 
 # ------------------------------------------------------------------ #

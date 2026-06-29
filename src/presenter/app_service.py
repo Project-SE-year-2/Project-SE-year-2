@@ -185,9 +185,15 @@ class AppService(IAppService):
         self._sort_cols = list(sort_cols)
 
     def refresh_ranked_view(self) -> None:
-        """Called by the 'Refresh View' banner (Task 121) to accept newly written scores.
-        Since we now fetch dynamically on every navigation, this is mostly a no-op 
-        or signals the UI to redraw."""
+        """Called by the 'Refresh View' banner to accept newly written scores.
+        Closes and re-opens the RankingQueryEngine connection so the next fetch
+        reads the latest committed rows from scores.db instead of a cached view."""
+        if self._ranking_engine is not None:
+            try:
+                self._ranking_engine.close()
+            except Exception:
+                pass
+            self._ranking_engine = None
 
     def get_sort_order(self) -> list[str]:
         """Return the active sort column list."""
@@ -333,12 +339,13 @@ class AppService(IAppService):
             for req in course.requirements:
                 if req.program_id == program_id:
                     result.append({
-                        "number":     course.course_id,
-                        "name":       course.name,
-                        "year":       req.year,
-                        "semester":   req.semester.value,
-                        "type":       req.req_type.value,
-                        "evaluation": course.evaluation.value,
+                        "number":       course.course_id,
+                        "name":         course.name,
+                        "year":         req.year,
+                        "semester":     req.semester.value,
+                        "type":         req.req_type.value,
+                        "evaluation":   course.evaluation.value,
+                        "num_students": getattr(course, "num_students", 0),
                     })
         return result
 
@@ -492,22 +499,38 @@ class AppService(IAppService):
 
                 while True:
                     msg = self._engine_process.get_notification()
+                    msg_type = msg.get("type")
+                    event_type = msg.get("event")
 
-                    if msg["type"] == "error":
+                    # ScoresDatabase posts scoring events on this same queue.
+                    # They do not carry a "type" key, so handle them separately
+                    # instead of surfacing KeyError("type") in the UI.
+                    if msg_type is None:
+                        if event_type == "batch_written":
+                            pid = msg.get("period_id")
+                            if pid:
+                                self._current_indices.setdefault(pid, 0)
+                                yield pid, []
+                            continue
+                        if event_type == "engine_done":
+                            break
+                        continue
+
+                    if msg_type == "error":
                         raise RuntimeError(msg["message"])
 
-                    if msg["type"] == "all_done":
+                    if msg_type == "all_done":
                         break
 
-                    if msg["type"] == "period_infeasible":
+                    if msg_type == "period_infeasible":
                         pid = msg["period_id"]
                         self._infeasible_periods.add(pid)
                         reason = msg.get("reason", "האילוצים שנבחרו אינם מאפשרים שיבוץ לתקופה זו.")
                         yield pid, [("infeasible", reason)]
 
-                    if msg["type"] in ("period_done", "period_ready"):
+                    if msg_type in ("period_done", "period_ready"):
                         pid = msg["period_id"]
-                        if msg["type"] == "period_done":
+                        if msg_type == "period_done":
                             self._finished_periods.add(pid)
                         self._current_indices.setdefault(pid, 0)
                         yield pid, []

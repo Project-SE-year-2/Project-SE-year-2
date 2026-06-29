@@ -22,9 +22,10 @@ _COL_NAME     = 2
 _COL_YEAR     = 3
 _COL_SEMESTER = 4
 _COL_EXAM     = 5   # evaluation field
-_COL_TYPE     = 6   # badge, no header text
+_COL_STUDENTS = 6   # student count
+_COL_TYPE     = 7   # badge, no header text
 
-_HEADERS = ["#", "Course Code", "Course Name", "Year", "Semester", "Evaluation", ""]
+_HEADERS = ["#", "Course Code", "Course Name", "Year", "Semester", "Evaluation", "Student Num", ""]
 
 _TYPE_BADGE_OBJ = {
     "obligatory": "typeBadgeObligatory",
@@ -122,6 +123,7 @@ class CourseTableWidget(QWidget):
         hh.setSectionResizeMode(_COL_YEAR,     QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(_COL_SEMESTER, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(_COL_EXAM,     QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(_COL_STUDENTS, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(_COL_TYPE,     QHeaderView.Fixed)
         self._table.setColumnWidth(_COL_TYPE,  140)
 
@@ -264,6 +266,12 @@ class CourseTableWidget(QWidget):
             # Exam (evaluation field)
             self._table.setItem(i, _COL_EXAM,
                 _item(str(course.get("evaluation", "")), Qt.AlignCenter, "#111827"))
+
+            # Student count
+            num_students = course.get("num_students", 0)
+            students_text = str(num_students) if num_students else "—"
+            self._table.setItem(i, _COL_STUDENTS,
+                _item(students_text, Qt.AlignCenter, "#111827"))
 
             # Type badge widget
             type_str  = str(course.get("type", ""))

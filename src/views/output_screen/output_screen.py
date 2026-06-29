@@ -185,6 +185,17 @@ class OutputScreen(QWidget):
         except Exception:
             return 0
 
+    def _jump_to_period(self, period_id: str) -> None:
+        """Switch the active view to the given period and render it."""
+        prefix, _, moed = period_id.partition("_")
+        semester = self._PERIOD_PREFIX_TO_TAB.get(prefix.upper())
+        if not semester or not moed:
+            return
+        self._current_semester = semester
+        self._current_moed = moed
+        self.semester_tabs.set_selected(semester)
+        self.four_month.set_active_moed(moed)
+
     def _select_first_available_period(self) -> None:
         """Switch to the first period that already has generated schedules."""
         try:
@@ -355,6 +366,8 @@ class OutputScreen(QWidget):
 
     def _show_sort_settings(self):
         """Open the Sorting Preferences dialog."""
+        room_on = self.service.get_constraint_settings().room_scheduling_enabled
+        self.ranking_panel.set_room_scheduling_enabled(room_on)
         self._sort_dialog.exec_()
 
     def _build_conflict_banner(self) -> QFrame:
@@ -812,6 +825,10 @@ class OutputScreen(QWidget):
         """Accept pending optimized results and refresh the current display."""
         state = self._active_window_state()
         state.accept_pending()
+        # A manual refresh means the user wants to see the best/current top
+        # result from the updated data, so restart this period's navigation at 0.
+        state.clear()
+        self._global_index = 0
 
         self._hide_sorting_update_banner()
         # The view now reflects every schedule generated so far — move the
@@ -905,14 +922,10 @@ class OutputScreen(QWidget):
                     self.semester_tabs.set_enabled_all(True)
                     self._refresh_screen_display()
                     return
-                # Already showing data — decide whether to raise the banner.
+                # Already showing data — raise the banner only when a sort is
+                # active and a strictly better top-ranked schedule has arrived.
                 if self.service.get_sort_order():
-                    # A sort is active: notify only when a *better* top-ranked
-                    # schedule appears (EP-150), which is the meaningful event.
                     self._check_better_solution(pid)
-                elif self._ranked_baseline > 0 and count > self._ranked_baseline:
-                    # No sort: fall back to "more schedules available" (EP-149).
-                    self._show_sorting_update_banner()
         except Exception:
             pass
 
@@ -968,6 +981,10 @@ class OutputScreen(QWidget):
         Legacy mode: _results_by_period[period_id] is populated at this point,
                      so get_period_schedule() can serve it right away.
         """
+        # If the calendar is still empty, jump to whatever period just got data.
+        if not self._calendar_displaying_data:
+            self._jump_to_period(period_id)
+
         prefix = period_id.split("_")[0].upper()
         tab    = self._PERIOD_PREFIX_TO_TAB.get(prefix, "FALL")
         if tab != self._current_semester:
@@ -980,12 +997,8 @@ class OutputScreen(QWidget):
         if self._calendar_displaying_data:
             state = self._active_window_state()
             state.mark_pending()
-            
             if self.service.get_sort_order():
                 self._check_better_solution(period_id)
-            else:
-                self._show_sorting_update_banner()
-            
             return
 
         # Data just arrived for the currently-visible period — update count and render.

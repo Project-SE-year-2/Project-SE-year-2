@@ -65,7 +65,7 @@ class AppService(IAppService):
         self._results: list[ExamSchedule] = []
         self._last_metadata: dict = {}
         # EP-72 - per-period streaming cache
-        # keyed by period_id ("FALL_Aleph", ג€¦), values are raw ExamSchedule lists
+        # keyed by period_id ("FALL_Aleph", ...), values are raw ExamSchedule lists
         self._results_by_period: dict[str, list[ExamSchedule]] = {}
         # EP-82 - file-based per-period navigation
         self._results_writer = None
@@ -453,7 +453,7 @@ class AppService(IAppService):
         self._infeasible_periods.clear()
         self._generation_active = True
 
-        # ג”€ג”€ EP-83: Multiprocessing mode ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- EP-83: Multiprocessing mode -----------------------------------
         # Engine Process runs solve_to_disk() in a separate OS process.
         # Only lightweight period_id strings cross the process boundary.
         if self._engine_process is not None:
@@ -489,7 +489,7 @@ class AppService(IAppService):
                     if msg["type"] == "period_infeasible":
                         pid = msg["period_id"]
                         self._infeasible_periods.add(pid)
-                        reason = msg.get("reason", "׳”׳׳™׳׳•׳¦׳™׳ ׳©׳ ׳‘׳—׳¨׳• ׳׳™׳ ׳ ׳׳׳₪׳©׳¨׳™׳ ׳©׳™׳‘׳•׳¥ ׳׳×׳§׳•׳₪׳” ׳–׳•.")
+                        reason = msg.get("reason", "האילוצים שנבחרו אינם מאפשרים שיבוץ לתקופה זו.")
                         yield pid, [("infeasible", reason)]
 
                     if msg["type"] in ("period_done", "period_ready"):
@@ -498,12 +498,12 @@ class AppService(IAppService):
                             self._finished_periods.add(pid)
                         self._current_indices.setdefault(pid, 0)
                         yield pid, []
-                self._dirty = False   # run finished cleanly ג†’ results are current
+                self._dirty = False   # run finished cleanly -> results are current
             finally:
                 self._generation_active = False
             return
 
-        # ג”€ג”€ EP-82: File-based single-process mode ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- EP-82: File-based single-process mode -------------------------
         if self._results_writer is not None:
             try:
                 self._current_indices = {}
@@ -512,12 +512,12 @@ class AppService(IAppService):
                     engine.solve_to_disk(period, courses_dict, self._results_writer)
                     self._current_indices.setdefault(pid, 0)
                     yield pid, []
-                self._dirty = False   # run finished cleanly ג†’ results are current
+                self._dirty = False   # run finished cleanly -> results are current
             finally:
                 self._generation_active = False
             return
 
-        # ג”€ג”€ Legacy mode ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Legacy mode ---------------------------------------------------
         # In-memory collection + ScheduleCombiner (used by all existing tests)
         from src.algorithm.schedule_combiner import ScheduleCombiner
 
@@ -532,7 +532,7 @@ class AppService(IAppService):
             combined = ScheduleCombiner().combineSubResults(all_sub_results)
             combined.sort(key=lambda s: s.sort_key)
             self._results = combined
-            self._dirty = False   # run finished cleanly ג†’ results are current
+            self._dirty = False   # run finished cleanly -> results are current
         finally:
             self._generation_active = False
 
@@ -609,13 +609,13 @@ class AppService(IAppService):
         to return the schedule ranked at position `index` by the chosen metrics.
         Falls back to sequential disk or in-memory reading otherwise.
         """
-        # ג”€ג”€ Ranked mode (scores.db + active sort order) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Ranked mode (scores.db + active sort order) -----------------------
         if self._sort_cols:
             ranked = self._get_ranked_schedule(period_id, index)
             if ranked is not None:
                 return ranked
 
-        # ג”€ג”€ Disk mode ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Disk mode ---------------------------------------------------------
         disk_count = self._results_reader.get_count(period_id)
         if disk_count > 0:
             safe_index = min(max(0, index), disk_count - 1)
@@ -626,7 +626,7 @@ class AppService(IAppService):
                 print(f"AppService: disk read failed for {period_id}[{safe_index}]: {exc}")
                 return []
 
-        # ג”€ג”€ Legacy mode (in-memory per-period results) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Legacy mode (in-memory per-period results) ------------------------
         period_schedules = self._results_by_period.get(period_id)
         if period_schedules:
             safe_index = min(max(0, index), len(period_schedules) - 1)
@@ -730,7 +730,7 @@ class AppService(IAppService):
 
     def get_schedule(self, index: int) -> dict:
         if index < 0 or index >= len(self._results):
-            raise IndexError(f"Schedule index {index} is out of range (0ג€“{len(self._results) - 1}).")
+            raise IndexError(f"Schedule index {index} is out of range (0-{len(self._results) - 1}).")
 
         schedule: ExamSchedule = self._results[index]
         rows = self._format_schedule_rows(schedule)
@@ -791,7 +791,7 @@ class AppService(IAppService):
                 if placement.is_room_based:
                     row["time_slot"]     = placement.time_slot.value
                     row["rooms_display"] = [
-                        f"ג€¢ Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
+                        f"• Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
                         for r in placement.rooms
                     ]
                     row["num_students"]   = getattr(course, "num_students", 0)
@@ -817,7 +817,7 @@ class AppService(IAppService):
     # ------------------------------------------------------------------ #
 
     def navigate(self, period_id: str, direction: int) -> dict:
-        """Move the current schedule index for one period only (ֲ±1).
+        """Move the current schedule index for one period only (+/-1).
 
         Other periods are unaffected.  Raises ValueError for an unknown
         period_id and IndexError if the new index would go out of bounds.
@@ -835,7 +835,7 @@ class AppService(IAppService):
         if new_idx < 0 or new_idx >= count:
             raise IndexError(
                 f"Schedule index {new_idx} out of range for period "
-                f"'{period_id}' (0ג€“{count - 1})."
+                f"'{period_id}' (0-{count - 1})."
             )
 
         # Update the current index and fetch the new schedule from the disk

@@ -50,7 +50,7 @@ class InputScreen(QWidget):
         )
         root.setSpacing(0)
 
-        # ג”€ג”€ Create all child widgets ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Create all child widgets ---------------------------------------
         self.file_loader    = FileLoaderWidget(self.service)
         self.program_list   = ProgramListWidget(self.service)
         self.selected_panel = SelectedProgramsPanel(self.service)
@@ -59,14 +59,14 @@ class InputScreen(QWidget):
         self.period_list    = PeriodListWidget(self.service)
         self.period_editor  = PeriodEditorWidget(self.service)
 
-        # ג”€ג”€ Column 1: Data Input ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Column 1: Data Input -------------------------------------------
         col1 = self._make_section(
             number=1,
             title="Data Input",
             widgets=[self.file_loader],
         )
 
-        # ג”€ג”€ Tab page 0: Study Programs ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Tab page 0: Study Programs -------------------------------------
         # Left stack: program list + selected-chips panel
         # Right:      course table
         programs_body = QWidget()
@@ -88,7 +88,7 @@ class InputScreen(QWidget):
         self._left_stack.setVisible(False)
         self.selected_panel.setVisible(False)
 
-        # ג”€ג”€ Tab page 1: Exam Periods ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Tab page 1: Exam Periods ---------------------------------------
         # period_list on the LEFT, period_editor on the RIGHT (horizontal split)
         period_body = QWidget()
         period_body_layout = QHBoxLayout(period_body)
@@ -99,17 +99,17 @@ class InputScreen(QWidget):
         self.period_list.setVisible(False)
         self.period_editor.setVisible(False)
 
-        # ג”€ג”€ Right panel: tab card ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Right panel: tab card ------------------------------------------
         right_panel = self._build_tab_panel(programs_body, period_body)
 
-        # ג”€ג”€ Assemble columns ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Assemble columns -----------------------------------------------
         columns = QHBoxLayout()
         columns.setSpacing(th.SPACING_MEDIUM)
         columns.addWidget(col1,        stretch=1)
         columns.addWidget(right_panel, stretch=3)
         root.addLayout(columns, stretch=1)
 
-        # ג”€ג”€ Bottom generate bar ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Bottom generate bar --------------------------------------------
         bar = QWidget()
         bar.setObjectName("generateBar")
         bar.setFixedHeight(_GENERATE_BAR_HEIGHT)
@@ -143,14 +143,14 @@ class InputScreen(QWidget):
         root.addWidget(self.error_banner)
         root.addWidget(bar)
 
-        # ג”€ג”€ Signal connections ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Signal connections ---------------------------------------------
         self.file_loader.files_loaded.connect(self._on_files_loaded)
         self.program_list.programs_selected.connect(self._on_programs_selected)
         self.program_list.program_view_requested.connect(self.course_table.load_program)
         self.period_list.period_selected.connect(self._on_period_selected)
         self.selected_panel.program_removed.connect(self.program_list.remove_selection)
 
-    # ג”€ג”€ Tab panel ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+    # -- Tab panel -------------------------------------------------------------
 
     def _build_tab_panel(
         self, programs_body: QWidget, period_body: QWidget
@@ -164,7 +164,7 @@ class InputScreen(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ג”€ג”€ Tab bar ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Tab bar --------------------------------------------------------
         tab_bar_w = QWidget()
         tab_bar_w.setObjectName("tabBar")
         tab_bar_l = QHBoxLayout(tab_bar_w)
@@ -185,7 +185,7 @@ class InputScreen(QWidget):
         tab_bar_l.addWidget(self._tab_periods_btn)
         tab_bar_l.addStretch()
 
-        # ג”€ג”€ Content stack ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # -- Content stack --------------------------------------------------
         self._tab_stack = QStackedWidget()
         self._tab_stack.addWidget(self._tab_page(programs_body))  # index 0
         self._tab_stack.addWidget(self._tab_page(period_body))    # index 1
@@ -229,7 +229,7 @@ class InputScreen(QWidget):
             btn.style().polish(btn)
             btn.update()
 
-    # ג”€ג”€ Section card (col 1) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+    # -- Section card (col 1) --------------------------------------------------
 
     # Builds a numbered section card with a title and optional subtitle.
     def _make_section(self, number: int, title: str, widgets: list,
@@ -292,14 +292,14 @@ class InputScreen(QWidget):
 
         return card
 
-    # ג”€ג”€ Button state ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+    # -- Button state ----------------------------------------------------------
 
     # Syncs the Generate button's visibility and enabled state based on the current GenerateButtonState.
     def _sync_generate_button_state(self) -> None:
         self.generate_btn.setVisible(self._generate_state.should_show_button())
         self.generate_btn.setEnabled(self._generate_state.should_enable_button())
 
-    # ג”€ג”€ Event handlers (logic unchanged) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+    # -- Event handlers (logic unchanged) -------------------------------------
 
     def check_existing_results(self):
         has_results = self.service.get_schedule_count() > 0
@@ -385,7 +385,7 @@ class InputScreen(QWidget):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
         """
-        # Bug 3 (EP-149): nothing changed since the last run ג†’ don't recompute.
+        # Bug 3 (EP-149): nothing changed since the last run - don't recompute.
         # Behave like "View Calendar" and jump straight to the existing results.
         try:
             unchanged = (

@@ -80,6 +80,16 @@ class IAppService(ABC):
                         ids are supplied.
         """
 
+    @abstractmethod
+    def is_edit_mode(self) -> bool:
+        """Return True if the UI is currently in manual edit mode."""
+        pass
+
+    @abstractmethod
+    def set_edit_mode(self, active: bool) -> None:
+        """Set the manual edit mode state."""
+        pass
+
     # ------------------------------------------------------------------ #
     # Course drill-down                                                    #
     # ------------------------------------------------------------------ #

@@ -386,6 +386,23 @@ def test_period_infeasible_cancels_pending_output_switch(qtbot):
     assert not screen.error_banner.isHidden()
 
 
+# Tests that finished(count > 0) after an infeasibility does not switch to output.
+# One period succeeded (count > 0) but another was infeasible, so results are
+# incomplete and the user must not be taken to the output screen.
+def test_infeasible_then_finished_nonzero_does_not_switch_to_output(qtbot):
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    switch_calls = []
+    screen.switch_to_output.connect(lambda: switch_calls.append(1))
+
+    screen._on_period_infeasible("FALL_Aleph", "No valid placement.")
+    screen._on_generation_finished(3)
+    qtbot.wait(700)
+
+    assert switch_calls == []
+
+
 # Tests that an infeasible period also emits infeasibility_detected so the output
 # screen can show the reason even if the user was already navigated there.
 def test_period_infeasible_emits_infeasibility_detected_signal(qtbot):

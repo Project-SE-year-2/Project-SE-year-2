@@ -442,12 +442,14 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
+        if getattr(self, "_generation_has_error", False):
+            # A period was infeasible — don't switch to output with partial results.
+            return
         if count == 0:
-            if not getattr(self, "_generation_has_error", False):
-                self.error_banner.show_error(
-                    "No valid schedule was found. "
-                    "Try relaxing the constraints or expanding the exam period date range."
-                )
+            self.error_banner.show_error(
+                "No valid schedule was found. "
+                "Try relaxing the constraints or expanding the exam period date range."
+            )
             return
         # Parent the timer to self so it is destroyed with the widget and never
         # fires on a deleted object (guards against orphaned timers in tests).

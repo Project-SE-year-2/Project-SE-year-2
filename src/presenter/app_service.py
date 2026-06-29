@@ -817,13 +817,13 @@ class AppService(IAppService):
     # ------------------------------------------------------------------ #
 
     def navigate(self, period_id: str, direction: int) -> dict:
-        if self._edit_mode:
-        raise RuntimeError("Navigation is disabled during edit mode.")
         """Move the current schedule index for one period only (+/-1).
 
         Other periods are unaffected.  Raises ValueError for an unknown
         period_id and IndexError if the new index would go out of bounds.
         """
+        if self._edit_mode:
+            raise RuntimeError("Navigation is disabled during edit mode.")
         # Ensure the requested period is valid and exists in our navigation state
         if period_id not in self._current_indices:
             raise ValueError(f"Unknown period '{period_id}'.")

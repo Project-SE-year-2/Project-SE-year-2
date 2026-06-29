@@ -432,10 +432,11 @@ class InputScreen(QWidget):
         self._worker.start()
 
     def _on_view_calendar_clicked(self) -> None:
-        """Safely emit switch_to_output if the signal exists (prevents Qt event loop crashes in tests)."""
-        if hasattr(self, "switch_to_output"):
+        """Safely emit switch_to_output if the signal exists and has an emit method."""
+        sig = getattr(self, "switch_to_output", None)
+        if sig is not None and hasattr(sig, "emit"):
             try:
-                self.switch_to_output.emit()
+                sig.emit()
             except AttributeError:
                 pass
 

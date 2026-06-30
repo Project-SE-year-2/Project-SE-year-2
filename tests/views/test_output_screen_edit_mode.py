@@ -46,6 +46,12 @@ class _FakeService:
         settings.room_scheduling_enabled = False
         return settings
 
+    def validate_manual_move(self, period_id, exam_rows, moving_exam, target_date):
+        return []
+
+    def save_manual_edit(self, period_id, index, edited_rows):
+        pass
+
 
 @pytest.fixture
 def output_screen(qtbot):

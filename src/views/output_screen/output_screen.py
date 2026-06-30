@@ -147,7 +147,6 @@ class OutputScreen(QWidget):
 
         self._original_edit_rows: list[dict] | None = None
         self._editable_rows: list[dict] = []
-        self._saved_manual_rows_by_period: dict[tuple[str, int], list[dict]] = {}
         self._edit_period_start: _date | None = None
         self._edit_period_end: _date | None = None
 
@@ -664,11 +663,7 @@ class OutputScreen(QWidget):
             end_date:   _date | None = None
 
             try:
-                key = (pid, idx)
-                if key in self._saved_manual_rows_by_period:
-                    exams = deepcopy(self._saved_manual_rows_by_period[key])
-                else:
-                    exams = self.service.get_period_schedule(pid, idx) or []
+                exams = self.service.get_period_schedule(pid, idx) or []
             except Exception:
                 pass
 
@@ -717,10 +712,6 @@ class OutputScreen(QWidget):
         except Exception as exc:
             print(f"OutputScreen: get_period_schedule({pid}, {idx}) failed: {exc}")
             exams = []
-
-        key = (pid, idx)
-        if key in self._saved_manual_rows_by_period:
-            exams = deepcopy(self._saved_manual_rows_by_period[key])
 
         # ── Resolve period date range ─────────────────────────────────────────
         start_date: _date | None = None
@@ -796,14 +787,10 @@ class OutputScreen(QWidget):
         pid = self._active_period_id()
         idx = self._active_window_state().current()
 
-        key = (pid, idx)
-        if key in self._saved_manual_rows_by_period:
-            rows = deepcopy(self._saved_manual_rows_by_period[key])
-        else:
-            try:
-                rows = self.service.get_period_schedule(pid, idx) or []
-            except Exception:
-                rows = []
+        try:
+            rows = self.service.get_period_schedule(pid, idx) or []
+        except Exception:
+            rows = []
 
         start_date = None
         end_date = None
@@ -1207,17 +1194,63 @@ class OutputScreen(QWidget):
             self._refresh_screen_display()
 
 
+    @staticmethod
+    def _to_date(value) -> "_date":
+        if isinstance(value, _date):
+            return value
+        return _date.fromisoformat(str(value))
+
     def _on_save_edit_clicked(self) -> None:
-        """Save temporary edit-mode changes as the current visible schedule."""
+        """Validate and persist manual edit-mode changes."""
         pid = self._active_period_id()
 
-        idx = self._active_window_state().current()
-        key = (pid, idx)
+        # Normalise exam_date to date objects (drag-and-drop stores strings).
+        for row in self._editable_rows:
+            row["exam_date"] = self._to_date(row["exam_date"])
 
-        if self._editable_rows:
-            self._saved_manual_rows_by_period[key] = deepcopy(self._editable_rows)
+        moved = self._find_moved_exams()
+        if moved:
+            all_errors = []
+            for exam in moved:
+                errors = self.service.validate_manual_move(
+                    pid, self._editable_rows, exam, exam["exam_date"]
+                )
+                all_errors.extend(errors)
 
+            if all_errors:
+                reasons = "\n".join(f"• {e['reason']}" for e in all_errors)
+                QMessageBox.warning(
+                    self,
+                    "Cannot Save",
+                    f"The following issues prevent saving:\n\n{reasons}",
+                )
+                return
+
+        current_index = self._active_window_state().current()
+        try:
+            self.service.save_manual_edit(pid, current_index, self._editable_rows)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Save Failed",
+                f"Could not save the edited schedule:\n\n{exc}",
+            )
+            return
+        self._pending_refresh_while_editing = True
         self.exit_edit_mode()
+
+    def _find_moved_exams(self) -> list[dict]:
+        """Return rows from _editable_rows whose exam_date differs from the original."""
+        if not self._original_edit_rows:
+            return []
+        original_by_id = {
+            r["course_number"]: self._to_date(r["exam_date"])
+            for r in self._original_edit_rows
+        }
+        return [
+            row for row in self._editable_rows
+            if original_by_id.get(row["course_number"]) != self._to_date(row["exam_date"])
+        ]
 
 
     def _on_cancel_edit_clicked(self) -> None:

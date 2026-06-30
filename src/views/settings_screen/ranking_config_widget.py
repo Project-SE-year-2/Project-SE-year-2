@@ -334,6 +334,20 @@ class RankingConfigWidget(QWidget):
                 result.append(item.data(Qt.UserRole))
         return result
 
+    def set_room_scheduling_enabled(self, enabled: bool) -> None:
+        """Show or hide the avg_room_distance row based on whether room scheduling is on."""
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.data(Qt.UserRole) == "avg_room_distance":
+                item.setHidden(not enabled)
+                if not enabled:
+                    self._checked.discard("avg_room_distance")
+                    widget: _RowWidget = self._list.itemWidget(item)
+                    if widget is not None:
+                        widget.checkbox.setChecked(False)
+                break
+        self._refresh_badges()
+
     def set_sort_order(self, order: list[str], checked: set[str] | None = None) -> None:
         """Repopulate the list from an external key sequence.
 

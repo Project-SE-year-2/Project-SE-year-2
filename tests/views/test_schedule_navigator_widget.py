@@ -8,6 +8,25 @@ if app is None:
 
 from src.views.output_screen.schedule_navigator_widget import ScheduleNavigatorWidget
 
+def test_navigation_can_be_disabled_and_reenabled(qtbot):
+    """Navigator keeps its state but disables buttons while edit mode is active."""
+    navigator = ScheduleNavigatorWidget()
+    qtbot.addWidget(navigator)
+
+    navigator.set_data(current_index=1, total_count=3)
+
+    assert navigator.prev_btn.isEnabled() is True
+    assert navigator.next_btn.isEnabled() is True
+
+    navigator.set_navigation_enabled(False)
+
+    assert navigator.prev_btn.isEnabled() is False
+    assert navigator.next_btn.isEnabled() is False
+
+    navigator.set_navigation_enabled(True)
+
+    assert navigator.prev_btn.isEnabled() is True
+    assert navigator.next_btn.isEnabled() is True
 class TestScheduleNavigatorWidget(unittest.TestCase):
 
     def setUp(self):

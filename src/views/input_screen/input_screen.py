@@ -52,7 +52,7 @@ class InputScreen(QWidget):
         )
         root.setSpacing(0)
 
-        # ── Create all child widgets ───────────────────────────────────────
+        # -- Create all child widgets ---------------------------------------
         self.file_loader    = FileLoaderWidget(self.service)
         self.program_list   = ProgramListWidget(self.service)
         self.selected_panel = SelectedProgramsPanel(self.service)
@@ -61,14 +61,14 @@ class InputScreen(QWidget):
         self.period_list    = PeriodListWidget(self.service)
         self.period_editor  = PeriodEditorWidget(self.service)
 
-        # ── Column 1: Data Input ───────────────────────────────────────────
+        # -- Column 1: Data Input -------------------------------------------
         col1 = self._make_section(
             number=1,
             title="Data Input",
             widgets=[self.file_loader],
         )
 
-        # ── Tab page 0: Study Programs ─────────────────────────────────────
+        # -- Tab page 0: Study Programs -------------------------------------
         # Left stack: program list + selected-chips panel
         # Right:      course table
         programs_body = QWidget()
@@ -90,7 +90,7 @@ class InputScreen(QWidget):
         self._left_stack.setVisible(False)
         self.selected_panel.setVisible(False)
 
-        # ── Tab page 1: Exam Periods ───────────────────────────────────────
+        # -- Tab page 1: Exam Periods ---------------------------------------
         # period_list on the LEFT, period_editor on the RIGHT (horizontal split)
         period_body = QWidget()
         period_body_layout = QHBoxLayout(period_body)
@@ -101,17 +101,17 @@ class InputScreen(QWidget):
         self.period_list.setVisible(False)
         self.period_editor.setVisible(False)
 
-        # ── Right panel: tab card ──────────────────────────────────────────
+        # -- Right panel: tab card ------------------------------------------
         right_panel = self._build_tab_panel(programs_body, period_body)
 
-        # ── Assemble columns ───────────────────────────────────────────────
+        # -- Assemble columns -----------------------------------------------
         columns = QHBoxLayout()
         columns.setSpacing(th.SPACING_MEDIUM)
         columns.addWidget(col1,        stretch=1)
         columns.addWidget(right_panel, stretch=3)
         root.addLayout(columns, stretch=1)
 
-        # ── Bottom generate bar ────────────────────────────────────────────
+        # -- Bottom generate bar --------------------------------------------
         bar = QWidget()
         bar.setObjectName("generateBar")
         bar.setFixedHeight(_GENERATE_BAR_HEIGHT)
@@ -145,14 +145,14 @@ class InputScreen(QWidget):
         root.addWidget(self.error_banner)
         root.addWidget(bar)
 
-        # ── Signal connections ─────────────────────────────────────────────
+        # -- Signal connections ---------------------------------------------
         self.file_loader.files_loaded.connect(self._on_files_loaded)
         self.program_list.programs_selected.connect(self._on_programs_selected)
         self.program_list.program_view_requested.connect(self.course_table.load_program)
         self.period_list.period_selected.connect(self._on_period_selected)
         self.selected_panel.program_removed.connect(self.program_list.remove_selection)
 
-    # ── Tab panel ─────────────────────────────────────────────────────────────
+    # -- Tab panel -------------------------------------------------------------
 
     def _build_tab_panel(
         self, programs_body: QWidget, period_body: QWidget
@@ -166,7 +166,7 @@ class InputScreen(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Tab bar ────────────────────────────────────────────────────────
+        # -- Tab bar --------------------------------------------------------
         tab_bar_w = QWidget()
         tab_bar_w.setObjectName("tabBar")
         tab_bar_l = QHBoxLayout(tab_bar_w)
@@ -187,7 +187,7 @@ class InputScreen(QWidget):
         tab_bar_l.addWidget(self._tab_periods_btn)
         tab_bar_l.addStretch()
 
-        # ── Content stack ──────────────────────────────────────────────────
+        # -- Content stack --------------------------------------------------
         self._tab_stack = QStackedWidget()
         self._tab_stack.addWidget(self._tab_page(programs_body))  # index 0
         self._tab_stack.addWidget(self._tab_page(period_body))    # index 1
@@ -231,7 +231,7 @@ class InputScreen(QWidget):
             btn.style().polish(btn)
             btn.update()
 
-    # ── Section card (col 1) ──────────────────────────────────────────────────
+    # -- Section card (col 1) --------------------------------------------------
 
     # Builds a numbered section card with a title and optional subtitle.
     def _make_section(self, number: int, title: str, widgets: list,
@@ -294,14 +294,14 @@ class InputScreen(QWidget):
 
         return card
 
-    # ── Button state ──────────────────────────────────────────────────────────
+    # -- Button state ----------------------------------------------------------
 
     # Syncs the Generate button's visibility and enabled state based on the current GenerateButtonState.
     def _sync_generate_button_state(self) -> None:
         self.generate_btn.setVisible(self._generate_state.should_show_button())
         self.generate_btn.setEnabled(self._generate_state.should_enable_button())
 
-    # ── Event handlers (logic unchanged) ─────────────────────────────────────
+    # -- Event handlers (logic unchanged) -------------------------------------
 
     def check_existing_results(self):
         has_results = self.service.get_schedule_count() > 0
@@ -344,7 +344,7 @@ class InputScreen(QWidget):
         self._left_stack.setVisible(True)
 
         # In the tabbed layout the Exam Periods tab is always accessible, so
-        # refresh and show the period list immediately after file load — the
+        # refresh and show the period list immediately after file load - the
         # user should see all available periods without having to select a
         # program first.
         self.period_list.refresh()
@@ -370,7 +370,7 @@ class InputScreen(QWidget):
         else:
             self.selected_panel.clear()
             self.period_list.clear_selection()
-            # Keep period_list visible — it lives in its own tab and should
+            # Keep period_list visible - it lives in its own tab and should
             # always show available periods regardless of program selection.
             self.period_editor.clear()
             self.period_editor.setVisible(False)
@@ -389,7 +389,7 @@ class InputScreen(QWidget):
         """
         Instantiates the background thread worker, links streaming signals, and starts execution.
         """
-        # Bug 3 (EP-149): nothing changed since the last run → don't recompute.
+        # Bug 3 (EP-149): nothing changed since the last run - don't recompute.
         # Behave like "View Calendar" and jump straight to the existing results.
         try:
             unchanged = (
@@ -402,14 +402,12 @@ class InputScreen(QWidget):
             self.switch_to_output.emit()
             return
 
-        if getattr(self.service, '_engine_process', None) is not None:
-            self.service._engine_process.stop()
-            
-        import shutil
-        from pathlib import Path
-        results_dir = Path("data") / "results"
-        if results_dir.exists():
-            shutil.rmtree(results_dir, ignore_errors=True)
+        # A real regeneration is needed. Let the service perform the wipe of the
+        # previous run (batch files + scores.db) through its public API instead
+        # of reaching into private members or hardcoding the results path here.
+        # clear_results() stops any running engine, deletes the correct results
+        # root, closes the ranking DB connection and resets in-memory state.
+        self.service.clear_results()
 
         if hasattr(self, 'view_calendar_btn'):
             self.view_calendar_btn.setVisible(False)
@@ -486,6 +484,21 @@ class InputScreen(QWidget):
         self._sync_generate_button_state()
         # Forward the reason to the output screen; the switch timer will navigate there.
         self.infeasibility_detected.emit(reason)
+
+    def _format_period_label(self, period_id: str) -> str:
+        """Convert e.g. 'FALL_Aleph' → 'Fall – Aleph', 'SPRI_Bet' → 'Spring – Bet'."""
+        _PREFIX_MAP = {"FALL": "Fall", "SPRI": "Spring", "SUMM": "Summer"}
+        prefix, _, moed = period_id.partition("_")
+        season = _PREFIX_MAP.get(prefix.upper(), prefix)
+        return f"{season} – {moed}" if moed else period_id
+
+    def closeEvent(self, event):
+        """Stop all pending switch timers before destruction to prevent use-after-free."""
+        for attr in ("_switch_timer", "_finish_timer"):
+            t = getattr(self, attr, None)
+            if t is not None:
+                t.stop()
+        super().closeEvent(event)
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

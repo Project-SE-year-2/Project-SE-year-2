@@ -84,15 +84,14 @@ class MainWindow(QMainWindow):
         dialog.exec_()
 
     def _wipe_results(self):
-        """Cleanly stop the background engine and aggressively wipe the disk."""
-        if self.service._engine_process is not None:
-            self.service._engine_process.stop()
-            
-        import shutil
-        from pathlib import Path
-        results_dir = Path("data") / "results"
-        if results_dir.exists():
-            shutil.rmtree(results_dir, ignore_errors=True)
+        """Cleanly stop the background engine and wipe the previous run.
+
+        Delegates to the service's public clear_results(), which stops any
+        running engine, deletes the correct results root (batch files +
+        scores.db) and resets in-memory state - instead of hardcoding the
+        results path or touching private engine internals from the View.
+        """
+        self.service.clear_results()
 
     def _show_input_screen(self):
         """Switches the stacked widget to the Input Screen (Index 0)."""

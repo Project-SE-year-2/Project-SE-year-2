@@ -139,6 +139,18 @@ class IAppService(ABC):
     # ------------------------------------------------------------------ #
 
     @abstractmethod
+    def clear_results(self) -> None:
+        """Clear the previous run's results and reset the scores database.
+
+        Stops the running scheduling engine if active, deletes the computed
+        schedules directory, resets the scoring database connection, and 
+        wipes all in-memory schedule caches.
+        
+        This contract ensures that modifying or forcing a rebuild of inputs 
+        leaves the system in a clean state so the Output Screen never displays 
+        stale data.
+        """ 
+
     def generate(self) -> int:
         """Run the full blocking generation (backward-compatible).
 
@@ -338,6 +350,27 @@ class IAppService(ABC):
         Raises:
             ValueError: if no period has any schedule data.
             IOError:    if the file cannot be written.
+        """
+
+    @abstractmethod
+    def validate_manual_move(
+        self,
+        period_id: str,
+        exam_rows: list[dict],
+        moving_exam: dict,
+        target_date: date,
+    ) -> list[dict]:
+        """Validate whether moving `moving_exam` to `target_date` is legal.
+
+        Args:
+            period_id:    Backend period ID (e.g. "FALL_Aleph").
+            exam_rows:    All exam rows currently displayed for the period.
+            moving_exam:  The exam dict being moved.
+            target_date:  The proposed new date.
+
+        Returns:
+            List of error dicts, each with "rule" and "reason" keys.
+            An empty list means the move is valid.
         """
 
     @abstractmethod

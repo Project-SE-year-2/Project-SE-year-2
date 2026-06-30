@@ -1,6 +1,6 @@
-# Schedule Generator System – Version 2.0
+# Schedule Generator System – Version 3.0
 
-This repository contains the final implementation developed during Milestone 2.
+This repository contains the final implementation developed during Milestone 3.
 
 Documentation for Milestone 1 is available under:
 [docs/Milestone1/README_Milestone_1.md](docs/Milestone1/README_Milestone_1.md)
@@ -11,11 +11,12 @@ Schedule Generator System is a university exam scheduling system developed in Py
 
 The system generates valid exam schedules for selected study programs while respecting academic constraints, exam periods, unavailable dates, and course requirements.
 
-Version 2.0 significantly extends Version 1.0 by introducing:
+Version 3.0 significantly extends previous versions by introducing:
 - Full graphical user interface (GUI)
-- Custom Constraints and Sorting features (New!)
-- Editable exam periods & Banned days highlighting (New!)
-- Schedule regeneration (New!)
+- Advanced Filters and Sorting capabilities (New!)
+- Room Schedules generation (New!)
+- Interactive Schedule Editing & Regeneration (New!)
+- Editable exam periods & Banned days highlighting
 - MVP architecture
 - Persistent application state
 - Streaming schedule generation
@@ -33,7 +34,7 @@ The initial view allows you to load files, select study programs, and configure 
 
 ### 2. Constraints & Input Settings
 ![Input Settings](data/App%20Screenshots/input%20settings.png)
-Configure mandatory gaps, AI preferences, and other scheduling constraints directly from the settings panel.
+Configure mandatory gaps, filters, and other scheduling constraints directly from the settings panel.
 
 ### 3. Study Program Selection
 ![After Choosing a Program](data/App%20Screenshots/after%20choosing%20a%20program.png)
@@ -45,11 +46,11 @@ Edit exam periods before schedule generation. Change start/end dates, and mark u
 
 ### 5. Sorting & Ranking Settings
 ![Sorting Settings](data/App%20Screenshots/sorting%20settings.png)
-Customize how the generated schedules are ranked and sorted based on various weighting factors to prioritize the most optimal schedules.
+Customize how the generated schedules are ranked and sorted based on various weighting factors to prioritize the most optimal schedules, paired with our new advanced filtering options.
 
 ### 6. Results & Schedule Output
 ![Second Screen](data/App%20Screenshots/second%20screen.png)
-The output screen displays all generated schedules. Browse through options, regenerate specific parts, and export the final report.
+The output screen displays all generated schedules. Browse through options, interactively edit the schedule, regenerate specific parts, view room schedules, and export the final report.
 
 ---
 
@@ -92,10 +93,10 @@ Responsible for loading system data.
 
 #### Models Layer
 Contains domain entities.
-- Course, ExamPeriod, ExamSchedule, ProgramRequirement
+- Course, ExamPeriod, ExamSchedule, ProgramRequirement, Room
 
 ### Singleton Design
-Version 2.0 introduces a Singleton-based AppService to centralize application state, share the DataStore and EngineProcess, keep consistent data across screens, and simplify dependency injection. Only one AppService instance exists during runtime.
+The application utilizes a Singleton-based AppService to centralize application state, share the DataStore and EngineProcess, keep consistent data across screens, and simplify dependency injection. Only one AppService instance exists during runtime.
 
 ### Multiprocessing Architecture
 
@@ -115,9 +116,9 @@ Communication is via multiprocessing queues (`task_queue`, `notify_queue`).
 
 ### Streaming Schedule Generation
 
-**Problem in Version 1.0:** Algorithm returned results only after completing the entire search, leading to long waiting times and large memory consumption.
+**Problem in older versions:** Algorithm returned results only after completing the entire search, leading to long waiting times and large memory consumption.
 
-**Solution:** Version 2.0 introduces Generator-based schedule generation.
+**Solution:** Generator-based schedule generation.
 ```python
 solve_stream()
 _backtrack_stream()
@@ -192,4 +193,4 @@ pytest -v
 > The current version was primarily tested on standard desktop resolutions.
 > On some screen sizes or display scaling configurations, certain widgets may
 > appear partially hidden or inaccessible. This issue is planned to be resolved
-> in the next milestone.
+> in future updates.

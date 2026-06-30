@@ -355,51 +355,61 @@ class TestElectiveCollision:
 
 class TestRoomScheduling:
     """
-    room_scheduling check: same (room_id, time_slot) on target_date → collision.
-    Uses room_ids + time_slot fields on the exam dicts (added by AppService when
-    room scheduling is active).
+    room_scheduling check: same (building, room_id, time_slot) on target_date → collision.
+
+    room_ids in the dict are composite "building:room_id" strings, matching
+    RoomAndSlotConstraint which keys rooms by (building, room_id, date, slot).
+    Two rooms in different buildings with the same room number are distinct.
     """
 
-    def test_same_room_same_slot_on_target_date_is_blocked(self):
-        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["R1"])
-        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["R1"])
+    def test_same_building_same_room_same_slot_is_blocked(self):
+        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["B1:101"])
+        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["B1:101"])
         s = _settings(room_scheduling_enabled=True)
         errors = VALIDATOR.validate([moving, other], moving, date(2026, 1, 15), _period(), s)
         assert any(e.rule == "room_scheduling" for e in errors)
 
-    def test_same_room_different_slot_is_allowed(self):
-        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING",   room_ids=["R1"])
-        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="AFTERNOON", room_ids=["R1"])
+    def test_different_building_same_room_number_same_slot_is_allowed(self):
+        """B1/101 and B2/101 are different physical rooms — must not conflict."""
+        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["B1:101"])
+        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["B2:101"])
         s = _settings(room_scheduling_enabled=True)
         errors = VALIDATOR.validate([moving, other], moving, date(2026, 1, 15), _period(), s)
         assert not any(e.rule == "room_scheduling" for e in errors)
 
-    def test_different_room_same_slot_is_allowed(self):
-        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["R1"])
-        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["R2"])
+    def test_same_room_different_slot_is_allowed(self):
+        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING",   room_ids=["B1:101"])
+        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="AFTERNOON", room_ids=["B1:101"])
+        s = _settings(room_scheduling_enabled=True)
+        errors = VALIDATOR.validate([moving, other], moving, date(2026, 1, 15), _period(), s)
+        assert not any(e.rule == "room_scheduling" for e in errors)
+
+    def test_different_room_same_building_same_slot_is_allowed(self):
+        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["B1:101"])
+        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["B1:202"])
         s = _settings(room_scheduling_enabled=True)
         errors = VALIDATOR.validate([moving, other], moving, date(2026, 1, 15), _period(), s)
         assert not any(e.rule == "room_scheduling" for e in errors)
 
     def test_collision_on_different_date_is_ignored(self):
-        """An exam that shares room+slot but is NOT on target_date must not trigger an error."""
-        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["R1"])
-        other  = _exam("C2", "Physics", date(2026, 1, 20), time_slot="MORNING", room_ids=["R1"])
+        """An exam sharing room+slot NOT on target_date must not trigger an error."""
+        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["B1:101"])
+        other  = _exam("C2", "Physics", date(2026, 1, 20), time_slot="MORNING", room_ids=["B1:101"])
         s = _settings(room_scheduling_enabled=True)
         errors = VALIDATOR.validate([moving, other], moving, date(2026, 1, 15), _period(), s)
         assert not any(e.rule == "room_scheduling" for e in errors)
 
     def test_no_room_data_on_moving_exam_skips_check(self):
-        """If the moving exam has no time_slot/room_ids, skip the check (not a room-scheduled move)."""
+        """If the moving exam has no time_slot/room_ids, skip (not a room-scheduled move)."""
         moving = _exam("C1", "Math",    date(2026, 1, 1))
-        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["R1"])
+        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["B1:101"])
         s = _settings(room_scheduling_enabled=True)
         errors = VALIDATOR.validate([moving, other], moving, date(2026, 1, 15), _period(), s)
         assert not any(e.rule == "room_scheduling" for e in errors)
 
     def test_room_scheduling_disabled_skips_check(self):
-        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["R1"])
-        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["R1"])
+        moving = _exam("C1", "Math",    date(2026, 1, 1),  time_slot="MORNING", room_ids=["B1:101"])
+        other  = _exam("C2", "Physics", date(2026, 1, 15), time_slot="MORNING", room_ids=["B1:101"])
         s = _settings(room_scheduling_enabled=False)
         errors = VALIDATOR.validate([moving, other], moving, date(2026, 1, 15), _period(), s)
         assert not any(e.rule == "room_scheduling" for e in errors)

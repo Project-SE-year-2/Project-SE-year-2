@@ -55,7 +55,7 @@ The output screen displays all generated schedules. Browse through options, inte
 ---
 
 <details>
-<summary><b>For the Geeks: Technical Architecture & Flow Explanations</b></summary>
+<summary><b>🤓 For the Geeks: Technical Architecture & Flow Explanations</b></summary>
 
 ## System Architecture
 

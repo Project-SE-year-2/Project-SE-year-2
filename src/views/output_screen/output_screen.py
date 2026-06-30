@@ -147,7 +147,7 @@ class OutputScreen(QWidget):
 
         self._original_edit_rows: list[dict] | None = None
         self._editable_rows: list[dict] = []
-        self._saved_manual_rows_by_period: dict[str, list[dict]] = {}
+        self._saved_manual_rows_by_period: dict[tuple[str, int], list[dict]] = {}
         self._edit_period_start: _date | None = None
         self._edit_period_end: _date | None = None
 
@@ -664,7 +664,11 @@ class OutputScreen(QWidget):
             end_date:   _date | None = None
 
             try:
-                exams = self.service.get_period_schedule(pid, idx) or []
+                key = (pid, idx)
+                if key in self._saved_manual_rows_by_period:
+                    exams = deepcopy(self._saved_manual_rows_by_period[key])
+                else:
+                    exams = self.service.get_period_schedule(pid, idx) or []
             except Exception:
                 pass
 
@@ -714,8 +718,9 @@ class OutputScreen(QWidget):
             print(f"OutputScreen: get_period_schedule({pid}, {idx}) failed: {exc}")
             exams = []
 
-        if pid in self._saved_manual_rows_by_period:
-            exams = deepcopy(self._saved_manual_rows_by_period[pid])
+        key = (pid, idx)
+        if key in self._saved_manual_rows_by_period:
+            exams = deepcopy(self._saved_manual_rows_by_period[key])
 
         # ── Resolve period date range ─────────────────────────────────────────
         start_date: _date | None = None
@@ -791,8 +796,9 @@ class OutputScreen(QWidget):
         pid = self._active_period_id()
         idx = self._active_window_state().current()
 
-        if pid in self._saved_manual_rows_by_period:
-            rows = deepcopy(self._saved_manual_rows_by_period[pid])
+        key = (pid, idx)
+        if key in self._saved_manual_rows_by_period:
+            rows = deepcopy(self._saved_manual_rows_by_period[key])
         else:
             try:
                 rows = self.service.get_period_schedule(pid, idx) or []
@@ -1205,8 +1211,11 @@ class OutputScreen(QWidget):
         """Save temporary edit-mode changes as the current visible schedule."""
         pid = self._active_period_id()
 
+        idx = self._active_window_state().current()
+        key = (pid, idx)
+
         if self._editable_rows:
-            self._saved_manual_rows_by_period[pid] = deepcopy(self._editable_rows)
+            self._saved_manual_rows_by_period[key] = deepcopy(self._editable_rows)
 
         self.exit_edit_mode()
 

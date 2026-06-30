@@ -176,4 +176,4 @@ def test_save_persists_manual_rows_for_current_period(qtbot):
     screen._on_save_edit_clicked()
 
     assert screen.is_editing() is False
-    assert screen._saved_manual_rows_by_period["FALL_Aleph"][0]["exam_date"] == "2026-01-02"
+    assert screen._saved_manual_rows_by_period[("FALL_Aleph", 0)][0]["exam_date"] == "2026-01-02"

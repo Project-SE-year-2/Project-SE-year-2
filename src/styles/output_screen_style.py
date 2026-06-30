@@ -279,4 +279,38 @@ QPushButton#backToTopBtn {{
     font-weight: 600;
 }}
 QPushButton#backToTopBtn:hover {{ color: #1E293B; }}
+
+QPushButton#editBtn {{
+    background: #10B981;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-size: 20px;
+    font-weight: 700;
+}}
+QPushButton#editBtn:hover  {{ background: #059669; }}
+QPushButton#editBtn:pressed {{ background: #047857; }}
+
+QPushButton#saveEditBtn {{
+    background: #10B981;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: 700;
+}}
+QPushButton#saveEditBtn:hover  {{ background: #059669; }}
+
+QPushButton#cancelEditBtn {{
+    background: #EF4444;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 16px;
+    font-size: 14px;
+    font-weight: 700;
+}}
+QPushButton#cancelEditBtn:hover  {{ background: #DC2626; }}
 """

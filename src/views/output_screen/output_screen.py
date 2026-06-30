@@ -147,7 +147,7 @@ class OutputScreen(QWidget):
 
         self._original_edit_rows: list[dict] | None = None
         self._editable_rows: list[dict] = []
-        self._saved_manual_rows_by_period: dict[str, list[dict]] = {}
+        self._saved_manual_rows_by_period: dict[tuple[str, int], list[dict]] = {}
         self._edit_period_start: _date | None = None
         self._edit_period_end: _date | None = None
 
@@ -664,7 +664,11 @@ class OutputScreen(QWidget):
             end_date:   _date | None = None
 
             try:
-                exams = self.service.get_period_schedule(pid, idx) or []
+                key = (pid, idx)
+                if key in self._saved_manual_rows_by_period:
+                    exams = deepcopy(self._saved_manual_rows_by_period[key])
+                else:
+                    exams = self.service.get_period_schedule(pid, idx) or []
             except Exception:
                 pass
 
@@ -714,12 +718,14 @@ class OutputScreen(QWidget):
             print(f"OutputScreen: get_period_schedule({pid}, {idx}) failed: {exc}")
             exams = []
 
-        if pid in self._saved_manual_rows_by_period:
-            exams = deepcopy(self._saved_manual_rows_by_period[pid])
+        key = (pid, idx)
+        if key in self._saved_manual_rows_by_period:
+            exams = deepcopy(self._saved_manual_rows_by_period[key])
 
         # ── Resolve period date range ─────────────────────────────────────────
         start_date: _date | None = None
         end_date:   _date | None = None
+        forbidden:  list | None = None
         period_found = False
         try:
             for p in self.service.get_periods():
@@ -727,6 +733,7 @@ class OutputScreen(QWidget):
                     period_found = True
                     start_date = _to_date(p.get("start_date"))
                     end_date   = _to_date(p.get("end_date"))
+                    forbidden  = p.get("forbidden_days", [])
                     break
         except Exception:
             period_found = True   # service failed → assume period exists
@@ -749,6 +756,7 @@ class OutputScreen(QWidget):
                 self._ranked_baseline = self._active_period_count()
             self.four_month.update_schedule(
                 exams,
+                unavailable_dates=forbidden,
                 semester=sem,
                 start_date=start_date,
                 end_date=end_date,
@@ -788,8 +796,9 @@ class OutputScreen(QWidget):
         pid = self._active_period_id()
         idx = self._active_window_state().current()
 
-        if pid in self._saved_manual_rows_by_period:
-            rows = deepcopy(self._saved_manual_rows_by_period[pid])
+        key = (pid, idx)
+        if key in self._saved_manual_rows_by_period:
+            rows = deepcopy(self._saved_manual_rows_by_period[key])
         else:
             try:
                 rows = self.service.get_period_schedule(pid, idx) or []
@@ -1202,8 +1211,11 @@ class OutputScreen(QWidget):
         """Save temporary edit-mode changes as the current visible schedule."""
         pid = self._active_period_id()
 
+        idx = self._active_window_state().current()
+        key = (pid, idx)
+
         if self._editable_rows:
-            self._saved_manual_rows_by_period[pid] = deepcopy(self._editable_rows)
+            self._saved_manual_rows_by_period[key] = deepcopy(self._editable_rows)
 
         self.exit_edit_mode()
 

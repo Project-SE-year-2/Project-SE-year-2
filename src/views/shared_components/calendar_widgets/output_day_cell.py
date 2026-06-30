@@ -39,6 +39,8 @@ from src.styles.calendar_table_style import (
     CELL_BG,
     ELECT_TEXT,
     REQ_TEXT,
+    UNAVAIL_CIRCLE_BG,
+    UNAVAIL_CIRCLE_BORDER,
     UNAVAIL_CIRCLE_TEXT,
     UNAVAIL_OUT_TEXT,
 )
@@ -86,9 +88,15 @@ class OutputDayCell(QFrame):
             return DAY_COLOR_WEEKEND
         return DAY_COLOR_WEEKDAY
 
-    def _day_num_style(self, color: str) -> str:
+    def _day_num_style(self, color: str, is_unavail: bool = False) -> str:
         """Generate the stylesheet for the day number label with the given text colour."""
-        return f"font-size: 13px; font-weight: 700; color: {color}; background: transparent;"
+        if is_unavail:
+            return (
+                f"font-size: 13px; font-weight: 700; color: {color}; "
+                f"background: {UNAVAIL_CIRCLE_BG}; border: 1px solid {UNAVAIL_CIRCLE_BORDER}; "
+                f"border-radius: 12px;"
+            )
+        return f"font-size: 13px; font-weight: 700; color: {color}; background: transparent; border: none; border-radius: 0px;"
 
     def _badge_lbl_style(self, color: str) -> str:
         """Generate the stylesheet for the badge label with the given text colour."""
@@ -107,7 +115,8 @@ class OutputDayCell(QFrame):
 
         # Day number (top-left)
         self._day_num = QLabel(str(self._qdate.day()))
-        self._day_num.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self._day_num.setFixedSize(24, 24)
+        self._day_num.setAlignment(Qt.AlignCenter)
         self._day_num.setStyleSheet(self._day_num_style(self._default_day_color()))
         self._layout.addWidget(self._day_num)
 
@@ -239,7 +248,7 @@ class OutputDayCell(QFrame):
         self._drop_allowed = False
         self.setAcceptDrops(False)
 
-        self._day_num.setStyleSheet(self._day_num_style(UNAVAIL_CIRCLE_TEXT))
+        self._day_num.setStyleSheet(self._day_num_style(UNAVAIL_CIRCLE_TEXT, is_unavail=True))
         self._clear_badges()
 
         # Single rose pill

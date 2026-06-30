@@ -350,6 +350,14 @@ class OutputScreen(QWidget):
         self._edit_mode_banner = self._build_edit_mode_banner()
         self._edit_mode_banner.setVisible(False)
         main_layout.addWidget(self._edit_mode_banner)
+
+        # Inline error banner shown below the edit-mode banner when a move
+        # violates a constraint.  Replaces the blocking QMessageBox so the
+        # user can read the error while still seeing the calendar.
+        self._edit_error_banner = ErrorBanner()
+        self._edit_error_banner.hide()
+        main_layout.addWidget(self._edit_error_banner)
+
         self._success_timer = QTimer(self)
         self._success_timer.setSingleShot(True)
         self._success_timer.timeout.connect(lambda: self._success_banner.setVisible(False))
@@ -1141,8 +1149,25 @@ class OutputScreen(QWidget):
         self._pending_refresh_while_editing = False
         self._apply_edit_mode_ui()
 
+    @staticmethod
+    def _format_move_errors(course_name: str, errors: list[dict]) -> str:
+        """Format a list of validation error dicts into a human-readable string.
+
+        Each error dict has 'rule' (machine key) and 'reason' (human text).
+        The course name is prepended so the user knows which exam caused
+        the problem when multiple exams are moved at once.
+        """
+        lines = [f"• {course_name}: {e['reason']}" for e in errors]
+        return "\n".join(lines)
+
     def _on_exam_moved(self, exam: dict, source_date: str, target_date: str) -> None:
-        """Apply a temporary UI-only exam move while edit mode is active."""
+        """Validate and apply a temporary UI-only exam move in edit mode.
+
+        The move is validated immediately via validate_manual_move so the user
+        gets inline feedback instead of discovering the problem only at save
+        time.  An invalid drop is reverted and an error banner is shown; a
+        valid drop clears any previous error.
+        """
         if not self._edit_mode:
             return
 
@@ -1150,25 +1175,43 @@ class OutputScreen(QWidget):
         if not course_number or not source_date or not target_date:
             return
 
+        # Locate the row being moved.
         matching_row = None
-
         for row in self._editable_rows:
             if str(row.get("course_number", "")) != course_number:
                 continue
-
             if str(row.get("exam_date", "")) == source_date:
                 matching_row = row
                 break
-
             if matching_row is None:
                 matching_row = row
 
         if matching_row is None:
             return
 
-        matching_row["exam_date"] = target_date
+        # Tentatively apply the new date so validate_manual_move sees the
+        # full updated schedule (it checks gaps against all other rows).
+        original_date = matching_row["exam_date"]
+        matching_row["exam_date"] = self._to_date(target_date)
 
+        errors = self.service.validate_manual_move(
+            self._active_period_id(),
+            self._editable_rows,
+            matching_row,
+            self._to_date(target_date),
+        )
 
+        if errors:
+            # Revert the tentative change so the displayed schedule stays valid.
+            matching_row["exam_date"] = original_date
+            course_name = str(exam.get("course_name", course_number))
+            msg = self._format_move_errors(course_name, errors)
+            self._edit_error_banner.show_error(msg)
+            self._render_edit_rows()
+            return
+
+        # Move is valid — clear any previous error and re-render.
+        self._edit_error_banner.hide_error()
         self._render_edit_rows()
 
     def _render_edit_rows(self) -> None:
@@ -1182,10 +1225,15 @@ class OutputScreen(QWidget):
         )
 
     def exit_edit_mode(self) -> None:
-        """Exit manual schedule edit mode and apply deferred refresh if needed."""
+        """Exit manual schedule edit mode and apply deferred refresh if needed.
+
+        Always clears the inline error banner so stale validation messages do
+        not bleed into the next edit session.
+        """
         if not self._edit_mode:
             return
 
+        self._edit_error_banner.hide_error()
         self._edit_mode = False
         self._apply_edit_mode_ui()
 
@@ -1210,20 +1258,23 @@ class OutputScreen(QWidget):
 
         moved = self._find_moved_exams()
         if moved:
-            all_errors = []
+            # Validate every moved exam and collect all errors across the batch.
+            # Errors are attributed to a specific course so the user knows which
+            # exam caused each problem.
+            error_lines: list[str] = []
             for exam in moved:
                 errors = self.service.validate_manual_move(
                     pid, self._editable_rows, exam, exam["exam_date"]
                 )
-                all_errors.extend(errors)
+                if errors:
+                    course_name = str(exam.get("course_name", exam.get("course_number", "")))
+                    error_lines.append(self._format_move_errors(course_name, errors))
 
-            if all_errors:
-                reasons = "\n".join(f"• {e['reason']}" for e in all_errors)
-                QMessageBox.warning(
-                    self,
-                    "Cannot Save",
-                    f"The following issues prevent saving:\n\n{reasons}",
-                )
+            if error_lines:
+                # Show inline so the user can see the calendar and correct the
+                # move without closing a blocking dialog first.
+                self._edit_error_banner.show_error("\n".join(error_lines))
+                # Stay in edit mode — the user must fix the issue and retry.
                 return
 
         current_index = self._active_window_state().current()
@@ -1258,8 +1309,11 @@ class OutputScreen(QWidget):
 
         Pending refresh is intentionally discarded here: CANCEL means the user wants
         to keep the currently displayed schedule as-is and leave edit mode without
-        applying newly arrived optimizer results.
+        applying newly arrived optimizer results.  The error banner is also cleared
+        because the user is abandoning the invalid move, not fixing it.
         """
+        self._edit_error_banner.hide_error()
+
         if self._original_edit_rows is not None:
             self._editable_rows = deepcopy(self._original_edit_rows)
             self._render_edit_rows()

@@ -15,6 +15,7 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 from src.algorithm.period_results_writer import BATCH_SIZE
+from src.algorithm.manual_move_validator import ManualMoveValidator
 from src.presenter.app_service import AppService
 from src.presenter.data_store import DataStore
 from src.models.course import Course
@@ -896,3 +897,52 @@ def test_create_export_writer_is_case_insensitive_for_pdf(monkeypatch):
     writer = service._create_export_writer("REPORT.PDF")
 
     assert isinstance(writer, PdfScheduleReportWriter)
+
+
+# ------------------------------------------------------------------ #
+# validate_manual_move - integration: dict keys from get_period_schedule
+# ------------------------------------------------------------------ #
+
+def test_validate_manual_move_dict_keys_match_validator_contract(monkeypatch):
+    """
+    Integration test: pass real get_period_schedule() output into
+    ManualMoveValidator to confirm all required dict keys are present
+    and no KeyError is raised when the validator accesses them.
+    """
+    service = _make_service(monkeypatch)
+    service._selected_programs = ["83101"]
+
+    period = _make_period(Semester.FALL, Moed.Aleph)
+    course = _make_course("11111", "83101")
+    schedule = _make_schedule(period, course, date(2026, 2, 1))
+
+    pid = "FALL_Aleph"
+    service._datastore.set_periods([period])
+    service._results_by_period[pid] = [schedule]
+
+    rows = service.get_period_schedule(pid, 0)
+
+    assert len(rows) == 1, "Expected one exam row from get_period_schedule()"
+    moving = rows[0]
+
+    # Verify the keys the validator requires are all present
+    assert "course_number" in moving
+    assert "course_name"   in moving
+    assert "exam_date"     in moving
+    assert "type"          in moving
+    assert "programs"      in moving
+
+    # Pass through the validator - must not raise KeyError
+    target = date(2026, 2, 5)
+    period_dict = service.get_periods()[0]
+    errors = ManualMoveValidator().validate(
+        exam_rows=rows,
+        moving_exam=moving,
+        target_date=target,
+        period=period_dict,
+        settings=service.get_constraint_settings(),
+    )
+
+    # Target date is within the period and no collisions - should be valid
+    assert isinstance(errors, list)
+    assert all(hasattr(e, "rule") and hasattr(e, "reason") for e in errors)

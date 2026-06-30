@@ -147,7 +147,6 @@ class OutputScreen(QWidget):
 
         self._original_edit_rows: list[dict] | None = None
         self._editable_rows: list[dict] = []
-        self._saved_manual_rows_by_period: dict[str, list[dict]] = {}
         self._edit_period_start: _date | None = None
         self._edit_period_end: _date | None = None
 
@@ -1237,7 +1236,6 @@ class OutputScreen(QWidget):
                 f"Could not save the edited schedule:\n\n{exc}",
             )
             return
-        self._saved_manual_rows_by_period[pid] = deepcopy(self._editable_rows)
         self._pending_refresh_while_editing = True
         self.exit_edit_mode()
 

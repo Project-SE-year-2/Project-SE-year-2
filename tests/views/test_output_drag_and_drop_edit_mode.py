@@ -117,7 +117,6 @@ def test_output_screen_enter_edit_mode_captures_edit_snapshot(qtbot):
     assert screen.is_editing() is True
     assert screen._original_edit_rows is not None
     assert screen._editable_rows[0]["course_number"] == "85001"
-    assert screen._saved_manual_rows_by_period == {}
 
 
 def test_output_screen_exam_move_updates_temporary_rows(qtbot):
@@ -161,11 +160,11 @@ def test_cancel_restores_original_edit_rows(qtbot):
 
     assert screen.is_editing() is False
     assert screen._editable_rows[0]["exam_date"] == "2026-01-01"
-    assert screen._saved_manual_rows_by_period == {}
 
 def test_save_persists_manual_rows_for_current_period(qtbot):
-    """Save should keep manual edits as the new visible schedule baseline."""
-    screen = OutputScreen(_FakeService())
+    """Save should delegate persistence to service.save_manual_edit with the edited rows."""
+    fake_service = _FakeService()
+    screen = OutputScreen(fake_service)
     qtbot.addWidget(screen)
 
     screen.enter_edit_mode()
@@ -179,7 +178,13 @@ def test_save_persists_manual_rows_for_current_period(qtbot):
     with patch.object(screen, "_render_edit_rows"):
         screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
 
-    screen._on_save_edit_clicked()
+    with patch.object(fake_service, "save_manual_edit") as mock_save:
+        screen._on_save_edit_clicked()
 
     assert screen.is_editing() is False
-    assert screen._saved_manual_rows_by_period["FALL_Aleph"][0]["exam_date"] == date(2026, 1, 2)
+    mock_save.assert_called_once()
+    call_args = mock_save.call_args
+    assert call_args[0][0] == "FALL_Aleph"       # period_id
+    assert call_args[0][1] == 0                   # index
+    saved_rows = call_args[0][2]
+    assert saved_rows[0]["exam_date"] == date(2026, 1, 2)

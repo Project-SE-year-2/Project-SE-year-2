@@ -31,8 +31,8 @@ class InputScreen(QWidget):
     """
     switch_to_output = pyqtSignal()
     switch_to_settings = pyqtSignal()
-    # forwarded to output screen when engine detects infeasibility
-    infeasibility_detected = pyqtSignal(str)   
+    generation_started = pyqtSignal()
+    infeasibility_detected = pyqtSignal(str)   # forwarded to output screen on infeasibility
 
     # Initializes the screen, stores the service dependency, and builds the UI.
     def __init__(self, service, parent=None):
@@ -416,6 +416,7 @@ class InputScreen(QWidget):
 
         # Reset UI state for new generation attempt
         self.error_banner.hide_error()
+        self.generation_started.emit()
         self.spinner.start()
         self._generation_has_error = False
         # Cancel any pending switch-to-output timer from a previous run.
@@ -446,11 +447,11 @@ class InputScreen(QWidget):
             # A period was infeasible — don't switch to output with partial results.
             return
         if count == 0:
-            self.error_banner.show_error(
+            # No schedules found - forward the message to the output screen and navigate there.
+            self.infeasibility_detected.emit(
                 "No valid schedule was found. "
                 "Try relaxing the constraints or expanding the exam period date range."
             )
-            return
         # Parent the timer to self so it is destroyed with the widget and never
         # fires on a deleted object (guards against orphaned timers in tests).
         finish_timer = QTimer(self)
@@ -478,17 +479,12 @@ class InputScreen(QWidget):
 
     def _on_period_infeasible(self, period_id: str, reason: str):
         self._generation_has_error = True
-        # Cancel any pending switch-to-output scheduled by an earlier period_ready.
-        if hasattr(self, '_switch_timer') and self._switch_timer is not None:
-            self._switch_timer.stop()
         # Allow _on_generation_finished to run so it can detect count == 0.
         self._switched_to_output = False
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        self.error_banner.show_error(reason)
-        # Also forward to the output screen - the user may already be there if the
-        # engine process took longer than the 500ms switch timer to detect infeasibility.
+        # Forward the reason to the output screen; the switch timer will navigate there.
         self.infeasibility_detected.emit(reason)
 
     # Handles errors emitted from the background worker, updating the UI accordingly.

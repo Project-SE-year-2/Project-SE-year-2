@@ -78,6 +78,7 @@ from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutp
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
 from src.views.settings_screen.ranking_config_widget import RankingConfigDialog
 from src.views.shared_components.calendar_table_widget import CalendarTableWidget
+from src.views.shared_components.error_banner import ErrorBanner
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
 from src.views.output_screen.window_state import WindowState
 
@@ -339,6 +340,9 @@ class OutputScreen(QWidget):
 
         body_layout.addWidget(self.four_month, stretch=1)
         main_layout.addLayout(body_layout, stretch=1)
+
+        self._generation_error_banner = ErrorBanner()
+        main_layout.addWidget(self._generation_error_banner)
 
         self.navigator   = self.four_month.navigator
         self.navigator.navigate_to.connect(self._on_navigator_index_changed)
@@ -1025,7 +1029,7 @@ class OutputScreen(QWidget):
         self._refresh_screen_display()
 
     def _on_generation_error(self, message: str) -> None:
-        self.four_month.show_error(message)
+        self._generation_error_banner.show_error(message)
         self.semester_tabs.set_enabled_all(True)
 
     # ── Toolbar ───────────────────────────────────────────────────────────────

@@ -484,6 +484,38 @@ def test_generate_zero_when_engine_finds_nothing(monkeypatch):
     assert service.generate() == 0
 
 
+def test_generate_stream_ignores_score_events_without_type(monkeypatch):
+    service = _make_service(monkeypatch)
+    period = _make_period()
+    messages = iter([
+        {"event": "batch_written", "period_id": period.period_id, "count": 1},
+        {"type": "all_done"},
+    ])
+
+    class FakeEngineProcess:
+        def stop(self):
+            pass
+
+        def start(self, engine, scheduling_tasks, constraint_settings):
+            pass
+
+        def get_notification(self):
+            return next(messages)
+
+    class FakeWriter:
+        def clear_period(self, period_id):
+            pass
+
+    monkeypatch.setattr(service, "_prepare_engine", lambda: (MagicMock(), {period: {}}))
+    monkeypatch.setattr("src.algorithm.period_results_writer.PeriodResultsWriter", FakeWriter)
+    service._engine_process = FakeEngineProcess()
+
+    assert list(service.generate_stream()) == [
+        (period.period_id, []),
+        (period.period_id, []),
+    ]
+
+
 # ------------------------------------------------------------------ #
 # get_schedule()                                                       #
 # ------------------------------------------------------------------ #

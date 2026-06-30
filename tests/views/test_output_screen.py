@@ -571,9 +571,9 @@ class TestOutputScreen(unittest.TestCase):
             self.assertEqual(state.current(), 0)
 
 
-    def test_period_ready_shows_sorting_update_banner_when_schedule_already_displayed(self):
-        """Verify that new active-period data shows a refresh banner instead of auto-refreshing."""
-        self.mock_service.get_sort_order.return_value = None 
+    def test_period_ready_no_banner_without_sort_when_schedule_already_displayed(self):
+        """Verify that without a sort order, new data does NOT show the refresh banner."""
+        self.mock_service.get_sort_order.return_value = None
         self.mock_service.get_schedule_count.return_value = 5
         self.screen._current_semester = "FALL"
         self.screen._current_moed = "Aleph"
@@ -582,7 +582,7 @@ class TestOutputScreen(unittest.TestCase):
         self.screen._on_period_ready("FALL_Aleph")
 
         self.assertTrue(self.screen._active_window_state().has_pending_update)
-        self.assertFalse(self.screen._sorting_update_banner.isHidden())
+        self.assertTrue(self.screen._sorting_update_banner.isHidden())
 
     def test_period_ready_calls_check_better_solution_when_sort_active(self):
         """Verify that when a sort is active, we check for a better solution instead of blindly showing the banner."""
@@ -618,6 +618,24 @@ class TestOutputScreen(unittest.TestCase):
         with patch.object(self.screen, "_refresh_screen_display") as mock_refresh:
             self.screen._on_refresh_pending_clicked()
 
+        self.assertFalse(state.has_pending_update)
+        self.assertFalse(self.screen._sorting_update_banner.isVisible())
+        mock_refresh.assert_called_once()
+
+
+    def test_refresh_pending_resets_navigation_to_best_schedule(self):
+        """Refresh View should restart at index 0 so the updated best schedule is shown."""
+        state = self.screen._active_window_state()
+        state.move_to(4)
+        state.mark_pending()
+        self.screen._global_index = 4
+        self.screen._sorting_update_banner.setVisible(True)
+
+        with patch.object(self.screen, "_refresh_screen_display") as mock_refresh:
+            self.screen._on_refresh_pending_clicked()
+
+        self.assertEqual(state.current(), 0)
+        self.assertEqual(self.screen._global_index, 0)
         self.assertFalse(state.has_pending_update)
         self.assertFalse(self.screen._sorting_update_banner.isVisible())
         mock_refresh.assert_called_once()

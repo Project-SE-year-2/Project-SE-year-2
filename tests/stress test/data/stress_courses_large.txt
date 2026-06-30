@@ -1,0 +1,324 @@
+$$$$
+Linear Algebra
+85001
+Dr. A. Cohen
+num_students=120
+83101,1,FALL,Obligatory
+83102,1,FALL,Obligatory
+Exam
+$$$$
+Calculus 2
+85002
+Dr. B. Levi
+num_students=95
+83101,1,FALL,Obligatory
+83103,1,FALL,Obligatory
+Exam
+$$$$
+Introduction to CS
+85003
+Dr. C. Mizrahi
+num_students=200
+83101,1,FALL,Obligatory
+Exam
+$$$$
+Data Structures
+85004
+Dr. D. Ben-David
+num_students=160
+83101,1,FALL,Obligatory
+83102,1,FALL,Obligatory
+83103,1,FALL,Obligatory
+Exam
+$$$$
+Discrete Mathematics
+85005
+Dr. E. Shapiro
+num_students=85
+83101,1,FALL,Obligatory
+83104,1,FALL,Elective
+Exam
+$$$$
+Physics 2
+85006
+Dr. F. Klein
+num_students=110
+83102,1,FALL,Obligatory
+83103,1,FALL,Elective
+Exam
+$$$$
+Probability
+85007
+Dr. G. Stern
+num_students=75
+83102,1,FALL,Elective
+83104,1,FALL,Obligatory
+Exam
+$$$$
+Operating Systems
+85008
+Dr. H. Friedman
+num_students=130
+83101,1,FALL,Elective
+83102,1,FALL,Obligatory
+Exam
+$$$$
+Computer Architecture
+85009
+Dr. I. Goldberg
+num_students=55
+83103,1,FALL,Obligatory
+83104,1,FALL,Obligatory
+Exam
+$$$$
+Algorithms
+85010
+Dr. J. Peretz
+num_students=145
+83101,1,FALL,Obligatory
+83102,1,FALL,Obligatory
+83103,1,FALL,Obligatory
+83104,1,FALL,Obligatory
+Exam
+$$$$
+Database Systems
+85011
+Dr. K. Har-Even
+num_students=90
+83101,2,SPRI,Obligatory
+83102,2,SPRI,Obligatory
+Exam
+$$$$
+Software Engineering
+85012
+Dr. L. Oz
+num_students=70
+83101,2,SPRI,Obligatory
+83103,2,SPRI,Elective
+Exam
+$$$$
+Computer Networks
+85013
+Dr. M. Dayan
+num_students=115
+83102,2,SPRI,Obligatory
+83104,2,SPRI,Obligatory
+Exam
+$$$$
+Machine Learning
+85014
+Dr. N. Avraham
+num_students=180
+83101,2,SPRI,Elective
+83102,2,SPRI,Elective
+83103,2,SPRI,Obligatory
+Exam
+$$$$
+Compiler Design
+85015
+Dr. O. Greenberg
+num_students=60
+83103,2,SPRI,Obligatory
+83104,2,SPRI,Elective
+Exam
+$$$$
+Theory of Computation
+85016
+Dr. P. Katz
+num_students=100
+83101,2,SPRI,Obligatory
+83102,2,SPRI,Obligatory
+Exam
+$$$$
+Distributed Systems
+85017
+Dr. Q. Birnbaum
+num_students=80
+83102,2,SPRI,Elective
+83103,2,SPRI,Elective
+Exam
+$$$$
+Computer Vision
+85018
+Dr. R. Segal
+num_students=65
+83103,2,SPRI,Obligatory
+83104,2,SPRI,Obligatory
+Exam
+$$$$
+Natural Language Processing
+85019
+Dr. S. Hoffman
+num_students=140
+83101,2,SPRI,Elective
+83104,2,SPRI,Elective
+Exam
+$$$$
+Cryptography
+85020
+Dr. T. Manor
+num_students=50
+83102,2,SPRI,Obligatory
+83103,2,SPRI,Obligatory
+83104,2,SPRI,Elective
+Exam
+$$$$
+Signal Processing
+85021
+Dr. U. Ben-Ami
+num_students=95
+83101,3,SUMM,Obligatory
+83102,3,SUMM,Elective
+Exam
+$$$$
+Digital Logic
+85022
+Dr. V. Carmel
+num_students=70
+83102,3,SUMM,Obligatory
+83103,3,SUMM,Obligatory
+Exam
+$$$$
+Embedded Systems
+85023
+Dr. W. Dor
+num_students=45
+83103,3,SUMM,Obligatory
+83104,3,SUMM,Elective
+Exam
+$$$$
+Parallel Computing
+85024
+Dr. X. Elon
+num_students=130
+83101,3,SUMM,Elective
+83104,3,SUMM,Obligatory
+Exam
+$$$$
+Cloud Computing
+85025
+Dr. Y. Feld
+num_students=110
+83101,3,SUMM,Obligatory
+83102,3,SUMM,Obligatory
+83103,3,SUMM,Elective
+Exam
+$$$$
+Numerical Methods
+85026
+Dr. Z. Gal
+num_students=85
+83102,3,SUMM,Elective
+83103,3,SUMM,Obligatory
+Exam
+$$$$
+Computer Graphics
+85027
+Dr. A. Haran
+num_students=60
+83103,3,SUMM,Elective
+83104,3,SUMM,Obligatory
+Exam
+$$$$
+Robotics
+85028
+Dr. B. Ilan
+num_students=40
+83104,3,SUMM,Elective
+Exam
+$$$$
+Bioinformatics
+85029
+Dr. C. Jacobs
+num_students=75
+83101,3,SUMM,Elective
+83104,3,SUMM,Obligatory
+Exam
+$$$$
+Quantum Computing
+85030
+Dr. D. Keren
+num_students=35
+83102,3,SUMM,Obligatory
+83104,3,SUMM,Elective
+Exam
+$$$$
+Advanced Algorithms
+85031
+Dr. E. Liran
+num_students=150
+83101,1,FALL,Elective
+83103,1,FALL,Obligatory
+Exam
+$$$$
+Graph Theory
+85032
+Dr. F. Maoz
+num_students=55
+83102,1,FALL,Elective
+83104,1,FALL,Obligatory
+Exam
+$$$$
+Information Theory
+85033
+Dr. G. Naor
+num_students=80
+83101,2,SPRI,Elective
+83103,2,SPRI,Elective
+Exam
+$$$$
+Security Engineering
+85034
+Dr. H. Ofir
+num_students=100
+83102,2,SPRI,Elective
+83104,2,SPRI,Obligatory
+Exam
+$$$$
+Human Computer Interaction
+85035
+Dr. I. Paz
+num_students=120
+83101,2,SPRI,Elective
+83102,2,SPRI,Obligatory
+Exam
+$$$$
+Advanced OS
+85036
+Dr. J. Ran
+num_students=65
+83103,1,FALL,Elective
+83104,1,FALL,Obligatory
+Exam
+$$$$
+Functional Programming
+85037
+Dr. K. Saar
+num_students=45
+83101,1,FALL,Elective
+83102,1,FALL,Elective
+Exam
+$$$$
+Logic Programming
+85038
+Dr. L. Tal
+num_students=90
+83103,2,SPRI,Elective
+83104,2,SPRI,Obligatory
+Exam
+$$$$
+Software Testing
+85039
+Dr. M. Uri
+num_students=135
+83101,2,SPRI,Obligatory
+83103,2,SPRI,Obligatory
+Exam
+$$$$
+Advanced Networks
+85040
+Dr. N. Vered
+num_students=70
+83102,3,SUMM,Obligatory
+83104,3,SUMM,Obligatory
+Exam

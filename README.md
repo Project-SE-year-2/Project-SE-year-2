@@ -15,7 +15,7 @@ Version 2.0 significantly extends Version 1.0 by introducing:
 - Full graphical user interface (GUI)
 - Custom Constraints and Sorting features (New!)
 - Editable exam periods & Banned days highlighting (New!)
-- Schedule regeneration & AI Chat Assistant (New!)
+- Schedule regeneration (New!)
 - MVP architecture
 - Persistent application state
 - Streaming schedule generation
@@ -49,7 +49,7 @@ Customize how the generated schedules are ranked and sorted based on various wei
 
 ### 6. Results & Schedule Output
 ![Second Screen](data/App%20Screenshots/second%20screen.png)
-The output screen displays all generated schedules. Browse through options, regenerate specific parts, interact with the AI Chat assistant, and export the final report.
+The output screen displays all generated schedules. Browse through options, regenerate specific parts, and export the final report.
 
 ---
 

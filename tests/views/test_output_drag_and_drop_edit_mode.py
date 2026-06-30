@@ -111,7 +111,7 @@ def test_output_screen_enter_edit_mode_captures_edit_snapshot(qtbot):
     assert screen.is_editing() is True
     assert screen._original_edit_rows is not None
     assert screen._editable_rows[0]["course_number"] == "85001"
-    assert screen._pending_manual_moves == []
+    assert screen._saved_manual_rows_by_period == {}
 
 
 def test_output_screen_exam_move_updates_temporary_rows(qtbot):
@@ -131,10 +131,6 @@ def test_output_screen_exam_move_updates_temporary_rows(qtbot):
         screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
 
     assert screen._editable_rows[0]["exam_date"] == "2026-01-02"
-    assert len(screen._pending_manual_moves) == 1
-    assert screen._pending_manual_moves[0].course_number == "85001"
-    assert screen._pending_manual_moves[0].source_date == "2026-01-01"
-    assert screen._pending_manual_moves[0].target_date == "2026-01-02"
     render.assert_called_once()
 
 
@@ -159,4 +155,25 @@ def test_cancel_restores_original_edit_rows(qtbot):
 
     assert screen.is_editing() is False
     assert screen._editable_rows[0]["exam_date"] == "2026-01-01"
-    assert screen._pending_manual_moves == []
+    assert screen._saved_manual_rows_by_period == {}
+
+def test_save_persists_manual_rows_for_current_period(qtbot):
+    """Save should keep manual edits as the new visible schedule baseline."""
+    screen = OutputScreen(_FakeService())
+    qtbot.addWidget(screen)
+
+    screen.enter_edit_mode()
+
+    exam = {
+        "course_number": "85001",
+        "course_name": "Linear Algebra",
+        "exam_date": "2026-01-01",
+    }
+
+    with patch.object(screen, "_render_edit_rows"):
+        screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
+
+    screen._on_save_edit_clicked()
+
+    assert screen.is_editing() is False
+    assert screen._saved_manual_rows_by_period["FALL_Aleph"][0]["exam_date"] == "2026-01-02"

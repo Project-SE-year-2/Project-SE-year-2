@@ -82,7 +82,6 @@ from src.views.settings_screen.ranking_config_widget import RankingConfigDialog
 from src.views.shared_components.calendar_table_widget import CalendarTableWidget
 from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
 from src.views.output_screen.window_state import WindowState
-from src.views.output_screen.manual_move import PendingManualMove
 
 
 # ── Semester-name → backend period-id prefix mapping ─────────────────────────
@@ -147,7 +146,6 @@ class OutputScreen(QWidget):
 
         self._original_edit_rows: list[dict] | None = None
         self._editable_rows: list[dict] = []
-        self._pending_manual_moves: list[PendingManualMove] = []
         self._saved_manual_rows_by_period: dict[str, list[dict]] = {}
         self._edit_period_start: _date | None = None
         self._edit_period_end: _date | None = None
@@ -692,6 +690,10 @@ class OutputScreen(QWidget):
         per-period cache (legacy mode).  No Cartesian-product mixing occurs.
         """
         # Guard: if "All Sessions" is active, delegate to the dedicated method.
+        if self._edit_mode:
+            self._pending_refresh_while_editing = True
+            return
+
         if self._current_moed == "All":
             self._refresh_all_sessions_display()
             return
@@ -707,6 +709,9 @@ class OutputScreen(QWidget):
         except Exception as exc:
             print(f"OutputScreen: get_period_schedule({pid}, {idx}) failed: {exc}")
             exams = []
+
+        if pid in self._saved_manual_rows_by_period:
+            exams = deepcopy(self._saved_manual_rows_by_period[pid])
 
         # ── Resolve period date range ─────────────────────────────────────────
         start_date: _date | None = None
@@ -1129,7 +1134,6 @@ class OutputScreen(QWidget):
 
         self._original_edit_rows = deepcopy(rows)
         self._editable_rows = deepcopy(rows)
-        self._pending_manual_moves = []
         self._edit_period_start = start_date
         self._edit_period_end = end_date
 
@@ -1162,17 +1166,8 @@ class OutputScreen(QWidget):
         if matching_row is None:
             return
 
-        actual_source_date = str(matching_row.get("exam_date", ""))
-
         matching_row["exam_date"] = target_date
 
-        self._pending_manual_moves.append(
-            PendingManualMove(
-                course_number=course_number,
-                source_date=actual_source_date,
-                target_date=target_date,
-            )
-        )
 
         self._render_edit_rows()
 
@@ -1206,7 +1201,6 @@ class OutputScreen(QWidget):
         if self._editable_rows:
             self._saved_manual_rows_by_period[pid] = deepcopy(self._editable_rows)
 
-        self._pending_manual_moves = []
         self.exit_edit_mode()
 
 
@@ -1221,7 +1215,6 @@ class OutputScreen(QWidget):
             self._editable_rows = deepcopy(self._original_edit_rows)
             self._render_edit_rows()
 
-        self._pending_manual_moves = []
         self._pending_refresh_while_editing = False
         self.exit_edit_mode()
 

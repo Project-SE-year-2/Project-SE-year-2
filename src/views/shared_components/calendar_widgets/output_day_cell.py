@@ -200,8 +200,6 @@ class OutputDayCell(QFrame):
         If len(exams) > MAX_VISIBLE_BADGES, a '+N' label is appended.
         Clicking the cell emits the first exam's data.
         """
-        self._drop_allowed = not self._is_other
-        self.setAcceptDrops(self._edit_mode and self._drop_allowed)
         if not exams:
             return
 
@@ -386,8 +384,10 @@ class OutputDayCell(QFrame):
                     parent = child.parent()
                     self._drag_exam = getattr(parent, "_exam_data", None)
 
-                self._drag_start_pos = event.pos()
-                return
+                if self._drag_exam is not None:
+                    self._drag_start_pos = event.pos()
+                    super().mousePressEvent(event)
+                    return
 
             anchor = self.mapToGlobal(QPoint(0, self.height()))
             self.exam_clicked.emit(self._all_exams, anchor)

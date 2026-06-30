@@ -135,7 +135,8 @@ def test_output_screen_exam_move_updates_temporary_rows(qtbot):
     with patch.object(screen, "_render_edit_rows") as render:
         screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
 
-    assert screen._editable_rows[0]["exam_date"] == "2026-01-02"
+    # _on_exam_moved now converts the target string to a date object.
+    assert screen._editable_rows[0]["exam_date"] == date(2026, 1, 2)
     render.assert_called_once()
 
 
@@ -153,13 +154,16 @@ def test_cancel_restores_original_edit_rows(qtbot):
     }
 
     screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
-    assert screen._editable_rows[0]["exam_date"] == "2026-01-02"
+    # After a valid move the date is stored as a date object.
+    assert screen._editable_rows[0]["exam_date"] == date(2026, 1, 2)
 
     with patch.object(screen, "_render_edit_rows"):
         screen._on_cancel_edit_clicked()
 
     assert screen.is_editing() is False
-    assert screen._editable_rows[0]["exam_date"] == "2026-01-01"
+    # Cancel restores the original snapshot (may be a string if service returned one).
+    original = screen._editable_rows[0]["exam_date"]
+    assert str(original) == "2026-01-01"
 
 def test_save_persists_manual_rows_for_current_period(qtbot):
     """Save should delegate persistence to service.save_manual_edit with the edited rows."""
@@ -190,8 +194,12 @@ def test_save_persists_manual_rows_for_current_period(qtbot):
     assert saved_rows[0]["exam_date"] == date(2026, 1, 2)
 
 
-def test_invalid_move_does_not_call_save_manual_edit(qtbot):
-    """If validation returns errors, save_manual_edit must never be called."""
+def test_invalid_move_reverts_and_shows_inline_error(qtbot):
+    """An invalid drop must be reverted immediately and show the inline error banner.
+
+    Validation now runs on drop (not only on save), so the editable rows stay
+    unchanged and the error is surfaced inline — no QMessageBox is shown.
+    """
     class _RejectingService(_FakeService):
         def validate_manual_move(self, period_id, exam_rows, moving_exam, target_date):
             return [{"rule": "conflict", "reason": "Exam conflict detected"}]
@@ -208,14 +216,17 @@ def test_invalid_move_does_not_call_save_manual_edit(qtbot):
         "exam_date": "2026-01-01",
     }
 
-    with patch.object(screen, "_render_edit_rows"):
-        screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
+    screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
 
-    with patch.object(fake_service, "save_manual_edit") as mock_save:
-        with patch("src.views.output_screen.output_screen.QMessageBox.warning"):
-            screen._on_save_edit_clicked()
+    # Drop was invalid → date must be reverted to its original value.
+    assert str(screen._editable_rows[0]["exam_date"]) == "2026-01-01"
 
-    mock_save.assert_not_called()
+    # Inline error banner must carry an error message (not a blocking dialog).
+    # We check the label text directly since the screen may not be visible in tests.
+    assert screen._edit_error_banner.message_label.text() != ""
+    assert "Linear Algebra" in screen._edit_error_banner.message_label.text()
+
+    # User stays in edit mode so they can correct the move.
     assert screen.is_editing() is True
 
 

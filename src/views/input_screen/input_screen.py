@@ -447,12 +447,10 @@ class InputScreen(QWidget):
                 "No valid schedule was found. "
                 "Try relaxing the constraints or expanding the exam period date range."
             )
-        # Parent the timer to self so it is destroyed with the widget and never
-        # fires on a deleted object (guards against orphaned timers in tests).
-        finish_timer = QTimer(self)
-        finish_timer.setSingleShot(True)
-        finish_timer.timeout.connect(self.switch_to_output.emit)
-        finish_timer.start(500)
+        self._finish_timer = QTimer(self)
+        self._finish_timer.setSingleShot(True)
+        self._finish_timer.timeout.connect(self.switch_to_output.emit)
+        self._finish_timer.start(500)
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):

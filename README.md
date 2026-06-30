@@ -3,8 +3,7 @@
 This repository contains the final implementation developed during Milestone 2.
 
 Documentation for Milestone 1 is available under:
-
-docs/Milestone1/README_Milestone_1.md
+[docs/Milestone1/README_Milestone_1.md](docs/Milestone1/README_Milestone_1.md)
 
 ## Overview
 
@@ -13,119 +12,51 @@ Schedule Generator System is a university exam scheduling system developed in Py
 The system generates valid exam schedules for selected study programs while respecting academic constraints, exam periods, unavailable dates, and course requirements.
 
 Version 2.0 significantly extends Version 1.0 by introducing:
-
 - Full graphical user interface (GUI)
+- Custom Constraints and Sorting features (New!)
+- Editable exam periods & Banned days highlighting (New!)
+- Schedule regeneration & AI Chat Assistant (New!)
 - MVP architecture
 - Persistent application state
-- Editable exam periods
 - Streaming schedule generation
 - Disk-based schedule storage
 - Multiprocessing support
 - Interactive schedule navigation and export
 
-
-## System Overview
-
-![Output Screen](output_screen.png)
 ---
 
-# Main Features
+## Visual Walkthrough & Features
 
-## Data Loading
+### 1. Main Application Screen
+![Entering Screen](data/App%20Screenshots/entering%20screen.png)
+The initial view allows you to load files, select study programs, and configure the basic details before running the generator.
 
-![Data loading](data_loading.png)
+### 2. Constraints & Input Settings
+![Input Settings](data/App%20Screenshots/input%20settings.png)
+Configure mandatory gaps, AI preferences, and other scheduling constraints directly from the settings panel.
 
-The system allows loading:
+### 3. Study Program Selection
+![After Choosing a Program](data/App%20Screenshots/after%20choosing%20a%20program.png)
+Search and select up to 5 study programs. You can view all courses belonging to a selected program and remove them if needed.
 
-- Courses file
-- Exam periods file
+### 4. Editing Exam Periods
+![Editing Periods](data/App%20Screenshots/editing%20periods.png)
+Edit exam periods before schedule generation. Change start/end dates, and mark unavailable (banned) days which are clearly highlighted in the calendar.
 
-Supported formats:
+### 5. Sorting & Ranking Settings
+![Sorting Settings](data/App%20Screenshots/sorting%20settings.png)
+Customize how the generated schedules are ranked and sorted based on various weighting factors to prioritize the most optimal schedules.
 
-- TXT
-- CSV
-
-Users can:
-
-- Replace existing data
-- Append additional data
-- Reload files without restarting the application
-
----
-
-## Study Program Selection
-
-![Program selection](program_selection.png)
-
-Users may:
-
-- Search study programs
-- View available programs
-- Select up to 5 programs
-- Remove selected programs
-- View all courses belonging to a selected program
+### 6. Results & Schedule Output
+![Second Screen](data/App%20Screenshots/second%20screen.png)
+The output screen displays all generated schedules. Browse through options, regenerate specific parts, interact with the AI Chat assistant, and export the final report.
 
 ---
 
-## Exam Period Editor
+<details>
+<summary><b>For the Geeks: Technical Architecture & Flow Explanations</b></summary>
 
-![Period editor](period_editor.png)
-
-Users may edit exam periods before schedule generation.
-
-Supported operations:
-
-- Change start date
-- Change end date
-- Mark unavailable days
-- Remove unavailable days
-- Save changes
-
-Validation ensures that edited periods remain consistent.
-
----
-
-## Schedule Generation
-
-The system generates all valid schedules that satisfy:
-
-- Academic constraints
-- Program requirements
-- Course conflicts
-- Exam period limitations
-- User-defined unavailable days
-
-Generation is performed in the background while keeping the GUI responsive.
-
----
-
-## Schedule Navigation
-
-Users can:
-
-- Browse generated schedules
-- Move forward/backward between schedules
-- Navigate independently per exam period
-- Switch between semesters
-- Switch between Moed A / B / C schedules
-
----
-
-## Schedule Export
-
-Users can export the currently selected schedules into a report file.
-
-The export process:
-
-1. Reads the selected schedule from each period.
-2. Merges all selected schedules.
-3. Generates a final report.
-
----
-
-# Architecture
-
-![MultiProcessArchitectureDiagram](image-4.png)
+## System Architecture
 
 The project follows the MVP (Model–View–Presenter) architectural pattern.
 
@@ -139,112 +70,38 @@ Algorithm
 Models
 ```
 
-Dependencies flow in one direction only.
+Dependencies flow in one direction only. No View component directly accesses algorithmic classes.
 
-No View component directly accesses algorithmic classes.
+### Layer Structure
 
----
-
-# Layer Structure
-
-## View Layer
-
+#### View Layer
 Responsible for all GUI functionality.
+- MainWindow, InputScreen, OutputScreen, Widgets, Dialogs
 
-Main components:
-
-- MainWindow
-- InputScreen
-- OutputScreen
-- Widgets
-- Dialogs
-
----
-
-## Presenter Layer
-
+#### Presenter Layer
 Acts as the mediator between GUI and business logic.
+- AppService, DataStore, EngineProcess, EngineListener, ResultsReader
 
-Main components:
-
-- AppService
-- DataStore
-- EngineProcess
-- EngineListener
-- ResultsReader
-
----
-
-## Algorithm Layer
-
+#### Algorithm Layer
 Contains the scheduling engine.
+- SchedulingEngine, BacktrackingSolver, ConstraintValidator, ForwardChecker, ConstraintIndex
 
-Main components:
-
-- SchedulingEngine
-- BacktrackingSolver
-- ConstraintValidator
-- ForwardChecker
-- ConstraintIndex
-
----
-
-## Parsers Layer
-
+#### Parsers Layer
 Responsible for loading system data.
+- CourseParser, ExamPeriodFileParser, ProgramParser, ProgramsNameParser
 
-Main components:
-
-- CourseParser
-- ExamPeriodFileParser
-- ProgramParser
-- ProgramsNameParser
-
----
-
-## Models Layer
-
+#### Models Layer
 Contains domain entities.
+- Course, ExamPeriod, ExamSchedule, ProgramRequirement
 
-Main components:
+### Singleton Design
+Version 2.0 introduces a Singleton-based AppService to centralize application state, share the DataStore and EngineProcess, keep consistent data across screens, and simplify dependency injection. Only one AppService instance exists during runtime.
 
-- Course
-- ExamPeriod
-- ExamSchedule
-- ProgramRequirement
+### Multiprocessing Architecture
 
----
+**Motivation:** Python's Global Interpreter Lock (GIL) limits true CPU parallelism for threads. Running the engine inside the GUI process could freeze the interface.
 
-# Singleton Design
-
-Version 2.0 introduces a Singleton-based AppService.
-
-Reasons:
-
-- Centralized application state
-- Shared DataStore
-- Shared EngineProcess
-- Consistent data across screens
-- Simplified dependency injection
-
-Only one AppService instance exists during application runtime.
-
----
-
-# Multiprocessing Architecture
-
-## Motivation
-
-Python's Global Interpreter Lock (GIL) limits true CPU parallelism for threads.
-
-Running the scheduling engine inside the GUI process could freeze the interface while generating schedules.
-
----
-
-## Solution
-
-The scheduling engine runs inside a separate operating-system process.
-
+**Solution:** The scheduling engine runs inside a separate OS process.
 ```text
 GUI Process
     │
@@ -254,332 +111,73 @@ Scheduling Process
     │
     └── notify_queue
 ```
+Communication is via multiprocessing queues (`task_queue`, `notify_queue`).
 
-Communication is performed through multiprocessing queues.
+### Streaming Schedule Generation
 
+**Problem in Version 1.0:** Algorithm returned results only after completing the entire search, leading to long waiting times and large memory consumption.
 
-### task_queue
-
-Used to send generation requests from the GUI to the scheduling engine.
-
-### notify_queue
-
-Used to send status updates and completion notifications back to the GUI.
-
-The scheduling process remains alive throughout the application's lifecycle and can handle multiple generation requests without being recreated.
-
-Benefits:
-
-- Responsive GUI
-- Better CPU utilization
-- Process isolation
-- Safe background computation
-- Reusable scheduling process
-
----
-
-# Streaming Schedule Generation
-
-## Problem in Version 1.0
-
-The algorithm returned results only after completing the entire search.
-
-Consequences:
-
-- Long waiting times
-- Large memory consumption
-
----
-
-## Solution
-
-Version 2.0 introduces Generator-based schedule generation.
-
-Main methods:
-
+**Solution:** Version 2.0 introduces Generator-based schedule generation.
 ```python
 solve_stream()
 _backtrack_stream()
 ```
+Schedules are yielded one-by-one (`yield schedule`), resulting in immediate availability, reduced memory consumption, and the ability to stop at any time.
 
-Schedules are yielded one-by-one:
+### Disk-Based Storage
 
-```python
-yield schedule
-```
+**Problem:** Keeping thousands of schedules in RAM is impractical.
 
-Benefits:
+**Solution:** Schedules are written directly to disk.
+- **PeriodResultsWriter:** Stores schedules in batches (`batch_0000.pkl`, `batch_0001.pkl`...) and maintains a `manifest.json`.
+- **Manifest File:** Stores metadata (total schedules, batch indexing) allowing efficient location without scanning every file.
+- **ResultsReader:** Loads only required schedules when needed, ensuring constant memory usage and fast retrieval.
 
-- Immediate result availability
-- Reduced memory consumption
-- Ability to stop generation at any time
+### UML Diagrams
 
----
-
-# Disk-Based Storage
-
-## Problem
-
-Keeping all schedules in RAM becomes impractical when thousands of schedules are generated.
-
----
-
-## Solution
-
-Schedules are written directly to disk.
-
-Components:
-
-### PeriodResultsWriter
-
-Stores schedules in batches.
-
-Files:
-
-```text
-batch_0000.pkl
-batch_0001.pkl
-...
-```
-
-Maintains:
-
-```text
-manifest.json
-```
-
-### Manifest File
-
-Each period directory contains a manifest.json file.
-
-The manifest stores metadata about the generated schedules, including:
-
-- Total number of schedules
-- Number of batch files
-- Batch indexing information
-
-This allows the application to locate schedules efficiently without scanning every batch file on disk.
-
----
-
-### ResultsReader
-
-Loads only the required schedule when needed.
-
-Benefits:
-
-- Constant memory usage
-- Fast retrieval
-- Scalability
-
----
-
-# GUI Screens
-
-## Input Screen
-
-The input screen allows:
-
-- Loading files
-- Selecting study programs
-- Viewing program courses
-- Editing exam periods
-- Starting schedule generation
-
-Main widgets:
-
-- FileLoaderWidget
-- ProgramListWidget
-- SelectedProgramsPanel
-- CourseTableWidget
-- PeriodListWidget
-- PeriodEditorWidget
-
----
-
-## Output Screen
-
-The output screen allows:
-
-- Viewing generated schedules
-- Navigating schedules
-- Viewing exam details
-- Downloading schedules
-
-Main widgets:
-
-- ScheduleNavigatorWidget
-- SemesterTabsWidget
-- MoedCalendarOutputWidget
-- DayDetailDialog
-
----
-
-# Data Persistence
-
-Application state is stored using:
-
-```text
-DataStore
-```
-
-Stored information:
-
-- Loaded courses
-- Exam periods
-- Program names
-- Selected programs
-
-The state survives screen transitions.
-
----
-
-# UML Diagrams
-
-The project includes UML diagrams under:
-
-```text
-docs/UML/
-```
-
-The original diagrams from Version 1.0 were preserved and updated where necessary.
-
-In addition, Version 2.0 introduces new UML diagrams documenting the new architecture and GUI components.
-
-## Version 1.0 Diagrams
-
-- AlgorithmDiagram
-- AppControllerDiagram
-- ParsersDiagram
-
-## Version 2.0 Diagrams
-
-- AlgorithmDiagramV2
-- ParsersDiagramV2
-- InputScreenDiagram
-- OutputScreenDiagram
-- PresenterLayerClassDiagram
-- ViewLayerClassDiagram
-- MultiProcessArchitectureDiagram
-
-
-## Available Formats
-
-For each diagram the repository contains:
-
-- PNG exports
-- Mermaid (.mmd) source files
-- Markdown documentation (.md)
+The project includes UML diagrams under: `docs/UML/`
 
 These diagrams document:
-
 - System architecture
 - MVP layer separation
-- Input screen structure
-- Output screen structure
+- Input/Output screen structure
 - Multiprocessing communication model
 - Presenter layer responsibilities
 - View layer organization
-- Parsing subsystem
-- Scheduling subsystem
-
-
-# Documentation
-
-The project documentation can be found under:
-
-docs/
-
-Contents include:
-
-- UML diagrams
-- Architecture documentation
-- Mermaid source files
-- Design documentation for Version 2.0
-
-The documentation was expanded significantly in Version 2.0 to reflect the new GUI architecture, multiprocessing infrastructure, and presenter layer design.
-
----
-
-# Project Structure
-
-```text
-Project-SE-year-2
-│
-├── data
-├── docs
-├── icon
-├── src
-│   ├── algorithm
-│   ├── models
-│   ├── output
-│   ├── parsers
-│   ├── presenter
-│   ├── styles
-│   └── views
-│
-├── tests
-├── README.md
-├── requirements.txt
-├── Dockerfile
-└── docker-compose.yml
-```
+- Parsing/Scheduling subsystems
+</details>
 
 ---
 
 # Installation
 
 ## Requirements
-
 - Python 3.10+
 - pip
 
----
-
 ## Install Dependencies
-
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
 # Running the Application
-
 From the project root:
-
 ```bash
 python -m src.main
 ```
-
 The application will launch the graphical user interface.
 
----
-
 # Running Tests
-
 Run all tests:
-
 ```bash
 pytest
 ```
-
 Verbose mode:
-
 ```bash
 pytest -v
 ```
 
-Specific file:
-
-```bash
-pytest tests/test_file_name.py
-```
-
----
-
 # Technologies Used
-
 - Python
 - PyQt5
 - Multiprocessing
@@ -588,42 +186,10 @@ pytest tests/test_file_name.py
 - JSON
 - Pytest
 
----
-
-# Version Comparison
-
-## Version 1.0
-
-- Command-line oriented workflow
-- In-memory result storage
-- Sequential generation
-- No GUI
-- No persistence
-
----
-
-## Version 2.0
-
-- Full GUI
-- MVP architecture
-- Singleton AppService
-- Multiprocessing engine
-- Generator streaming
-- Disk-based storage
-- Editable exam periods
-- Schedule navigation
-- Schedule export
-- Persistent application state
-
----
-
-## Known Limitations
-
+# Known Limitations
 > ⚠️ UI Scaling Limitation
 >
 > The current version was primarily tested on standard desktop resolutions.
 > On some screen sizes or display scaling configurations, certain widgets may
 > appear partially hidden or inaccessible. This issue is planned to be resolved
 > in the next milestone.
-
----

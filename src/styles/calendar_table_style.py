@@ -14,7 +14,7 @@ CARD_BORDER_RADIUS = 8           # px, used in style strings
 
 # ── OUTPUT day-number colours ─────────────────────────────────────────────────
 DAY_COLOR_WEEKDAY = "#1E293B"    # Mon–Fri
-DAY_COLOR_WEEKEND = "#E11D48"    # Sat / Sun
+DAY_COLOR_WEEKEND = "#1E293B"    # Sat / Sun (made same as weekday to avoid confusion)
 DAY_COLOR_OTHER   = "#CBD5E1"    # days that belong to adjacent months
 
 # ── Day-name header row (row 0 of the month grid) ────────────────────────────

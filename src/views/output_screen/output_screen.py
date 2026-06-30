@@ -720,6 +720,7 @@ class OutputScreen(QWidget):
         # ── Resolve period date range ─────────────────────────────────────────
         start_date: _date | None = None
         end_date:   _date | None = None
+        forbidden:  list | None = None
         period_found = False
         try:
             for p in self.service.get_periods():
@@ -727,6 +728,7 @@ class OutputScreen(QWidget):
                     period_found = True
                     start_date = _to_date(p.get("start_date"))
                     end_date   = _to_date(p.get("end_date"))
+                    forbidden  = p.get("forbidden_days", [])
                     break
         except Exception:
             period_found = True   # service failed → assume period exists
@@ -749,6 +751,7 @@ class OutputScreen(QWidget):
                 self._ranked_baseline = self._active_period_count()
             self.four_month.update_schedule(
                 exams,
+                unavailable_dates=forbidden,
                 semester=sem,
                 start_date=start_date,
                 end_date=end_date,

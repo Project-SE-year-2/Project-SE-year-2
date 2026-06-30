@@ -94,6 +94,12 @@ class AppService(IAppService):
         # after a successful generation; flipped to dirty by any input change.
         self._dirty: bool = True
 
+        # EP-162/EP-169 - Manual schedule editing state.
+        # When the user enters edit mode on a specific period+index, a deep copy
+        # of the ExamSchedule is stored here as the "working draft". All moves
+        # are applied to the draft; save_edit() commits it, cancel_edit() discards it.
+        self._edit_state: dict | None = None
+
     # ------------------------------------------------------------------ #
     # EP-39 / TASK4 - File loading                                       #
     # ------------------------------------------------------------------ #
@@ -534,7 +540,7 @@ class AppService(IAppService):
                     if msg_type == "period_infeasible":
                         pid = msg["period_id"]
                         self._infeasible_periods.add(pid)
-                        reason = msg.get("reason", "האילוצים שנבחרו אינם מאפשרים שיבוץ לתקופה זו.")
+                        reason = msg.get("reason", "׳”׳׳™׳׳•׳¦׳™׳ ׳©׳ ׳‘׳—׳¨׳• ׳׳™׳ ׳ ׳׳׳₪׳©׳¨׳™׳ ׳©׳™׳‘׳•׳¥ ׳׳×׳§׳•׳₪׳” ׳–׳•.")
                         yield pid, [("infeasible", reason)]
 
                     if msg_type in ("period_done", "period_ready"):
@@ -843,7 +849,7 @@ class AppService(IAppService):
                     row["time_slot"]     = placement.time_slot.value
                     row["room_ids"]      = [f"{r.building}:{r.room_id}" for r in placement.rooms]
                     row["rooms_display"] = [
-                        f"• Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
+                        f"ג€¢ Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
                         for r in placement.rooms
                     ]
                     row["num_students"]   = getattr(course, "num_students", 0)
@@ -1224,6 +1230,206 @@ class AppService(IAppService):
             programs=self._selected_programs,
             output_path=path,
         )
+
+    # ------------------------------------------------------------------ #
+    # EP-162/EP-169 - Manual schedule editing                              #
+    # ------------------------------------------------------------------ #
+
+    def enter_edit_mode(self, period_id: str, schedule_index: int) -> list[dict]:
+        """Begin editing a specific schedule.
+
+        Creates a deep copy of the ExamSchedule at the given index for the
+        given period, stores it as the working draft, and returns formatted
+        rows so the UI can render the editable calendar.
+
+        Raises ValueError if already in edit mode or if the schedule cannot
+        be found.
+        """
+        if self._edit_state is not None:
+            raise ValueError("Already in edit mode. Cancel or save first.")
+
+        # Retrieve the original ExamSchedule from disk or in-memory cache.
+        schedule = self._get_schedule_object(period_id, schedule_index)
+        if schedule is None:
+            raise ValueError(
+                f"No schedule found for period '{period_id}' at index {schedule_index}."
+            )
+
+        self._edit_state = {
+            "period_id": period_id,
+            "schedule_index": schedule_index,
+            "original": schedule,
+            "draft": schedule.copy(),
+        }
+        return self._format_schedule_rows(self._edit_state["draft"])
+
+    def exit_edit_mode(self) -> None:
+        """Leave edit mode, discarding any unsaved changes."""
+        self._edit_state = None
+
+    def cancel_edit(self) -> None:
+        """Alias for exit_edit_mode - discard the draft and return to view mode."""
+        self.exit_edit_mode()
+
+    def is_in_edit_mode(self) -> bool:
+        """True when a schedule draft is open for editing."""
+        return self._edit_state is not None
+
+    def get_edit_schedule(self) -> list[dict]:
+        """Return the formatted rows of the current editing draft.
+
+        Raises ValueError if not in edit mode.
+        """
+        if self._edit_state is None:
+            raise ValueError("Not in edit mode.")
+        return self._format_schedule_rows(self._edit_state["draft"])
+
+    def validate_move(self, course_id: str, new_date) -> tuple[bool, str]:
+        """Check whether moving a course to new_date is allowed.
+
+        Returns (True, "") on success, or (False, reason) on failure.
+        Checks performed:
+          1. Edit mode is active.
+          2. The course exists in the draft schedule.
+          3. new_date is within the period's date range.
+          4. new_date is not a forbidden day.
+          5. Moving does not create a same-day collision between obligatory
+             courses that share a program.
+        """
+        if self._edit_state is None:
+            return False, "Not in edit mode."
+
+        draft = self._edit_state["draft"]
+        period_id = self._edit_state["period_id"]
+
+        # Find the course object in the draft.
+        target_course = None
+        for course in draft.placements:
+            if course.course_id == course_id:
+                target_course = course
+                break
+        if target_course is None:
+            return False, f"Course '{course_id}' not found in the schedule."
+
+        # Validate against the period's available dates.
+        period = self._datastore.get_period_by_id(period_id)
+        if period is not None:
+            available = period.getAvailableDates()
+            if available and new_date not in available:
+                if new_date in period.forbidden_days:
+                    return False, "Cannot move to a forbidden date."
+                if new_date < period.start_date or new_date > period.end_date:
+                    return False, "Date is outside the exam period range."
+                return False, "Date is not available for scheduling."
+
+        # Check for same-day obligatory collisions.
+        target_programs = {
+            req.program_id
+            for req in target_course.requirements
+            if req.is_obligatory()
+        }
+        for course, placement in draft.placements.items():
+            if course is target_course:
+                continue
+            if placement.date != new_date:
+                continue
+            other_programs = {
+                req.program_id
+                for req in course.requirements
+                if req.is_obligatory()
+            }
+            if target_programs & other_programs:
+                return False, (
+                    f"Moving '{course_id}' to {new_date} would create a "
+                    f"same-day collision with obligatory course '{course.course_id}'."
+                )
+
+        return True, ""
+
+    def move_exam(self, course_id: str, new_date) -> dict:
+        """Move a course to a new date in the editing draft.
+
+        Validates the move first. On success returns {"ok": True, "rows": [...]}.
+        On failure returns {"ok": False, "reason": "..."}.
+        The original schedule is never modified by this method.
+        """
+        valid, reason = self.validate_move(course_id, new_date)
+        if not valid:
+            return {"ok": False, "reason": reason}
+
+        draft = self._edit_state["draft"]
+
+        # Find the course and reassign it.
+        for course in list(draft.placements):
+            if course.course_id == course_id:
+                old_placement = draft.placements[course]
+                # Preserve room data if present, only change the date.
+                from src.models.exam_placement import ExamPlacement
+                if old_placement.is_room_based:
+                    new_placement = ExamPlacement(
+                        date=new_date,
+                        time_slot=old_placement.time_slot,
+                        rooms=old_placement.rooms,
+                    )
+                else:
+                    new_placement = ExamPlacement.date_only(new_date)
+                draft.unassign(course)
+                draft.assign(course, new_placement)
+                break
+
+        return {"ok": True, "rows": self._format_schedule_rows(draft)}
+
+    def save_edit(self) -> bool:
+        """Commit the edited draft, replacing the original schedule.
+
+        The draft overwrites the in-memory result at the original index.
+        Returns True on success, False if not in edit mode.
+        """
+        if self._edit_state is None:
+            return False
+
+        period_id = self._edit_state["period_id"]
+        index = self._edit_state["schedule_index"]
+        draft = self._edit_state["draft"]
+
+        # Write back to in-memory per-period cache if it exists.
+        if period_id in self._results_by_period:
+            period_scheds = self._results_by_period[period_id]
+            if 0 <= index < len(period_scheds):
+                period_scheds[index] = draft
+
+        # Also update the legacy combined results if present.
+        if self._results and 0 <= index < len(self._results):
+            self._results[index] = draft
+
+        self._edit_state = None
+        return True
+
+    def _get_schedule_object(self, period_id: str, index: int):
+        """Retrieve the raw ExamSchedule object for a given period + index.
+
+        Tries disk first, then in-memory cache, then legacy results.
+        Returns None if nothing is found.
+        """
+        # Disk mode
+        try:
+            disk_count = self._results_reader.get_count(period_id)
+            if disk_count > 0 and 0 <= index < disk_count:
+                return self._results_reader.get_schedule_at(period_id, index)
+        except Exception:
+            pass
+
+        # In-memory per-period cache
+        if period_id in self._results_by_period:
+            period_scheds = self._results_by_period[period_id]
+            if 0 <= index < len(period_scheds):
+                return period_scheds[index]
+
+        # Legacy combined results (index is global)
+        if self._results and 0 <= index < len(self._results):
+            return self._results[index]
+
+        return None
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #

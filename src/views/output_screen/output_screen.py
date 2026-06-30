@@ -148,6 +148,7 @@ class OutputScreen(QWidget):
         self._original_edit_rows: list[dict] | None = None
         self._editable_rows: list[dict] = []
         self._pending_manual_moves: list[PendingManualMove] = []
+        self._saved_manual_rows_by_period: dict[str, list[dict]] = {}
         self._edit_period_start: _date | None = None
         self._edit_period_end: _date | None = None
 
@@ -778,10 +779,13 @@ class OutputScreen(QWidget):
         pid = self._active_period_id()
         idx = self._active_window_state().current()
 
-        try:
-            rows = self.service.get_period_schedule(pid, idx) or []
-        except Exception:
-            rows = []
+        if pid in self._saved_manual_rows_by_period:
+            rows = deepcopy(self._saved_manual_rows_by_period[pid])
+        else:
+            try:
+                rows = self.service.get_period_schedule(pid, idx) or []
+            except Exception:
+                rows = []
 
         start_date = None
         end_date = None
@@ -1196,7 +1200,13 @@ class OutputScreen(QWidget):
 
 
     def _on_save_edit_clicked(self) -> None:
-        """Save edit-mode changes. Actual persistence will be implemented later."""
+        """Save temporary edit-mode changes as the current visible schedule."""
+        pid = self._active_period_id()
+
+        if self._editable_rows:
+            self._saved_manual_rows_by_period[pid] = deepcopy(self._editable_rows)
+
+        self._pending_manual_moves = []
         self.exit_edit_mode()
 
 

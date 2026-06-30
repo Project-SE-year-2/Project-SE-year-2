@@ -31,8 +31,8 @@ class InputScreen(QWidget):
     """
     switch_to_output = pyqtSignal()
     switch_to_settings = pyqtSignal()
-    # forwarded to output screen when engine detects infeasibility
-    infeasibility_detected = pyqtSignal(str)   
+    generation_started = pyqtSignal()
+    infeasibility_detected = pyqtSignal(str)   # forwarded to output screen on infeasibility
 
     # Initializes the screen, stores the service dependency, and builds the UI.
     def __init__(self, service, parent=None):
@@ -414,6 +414,7 @@ class InputScreen(QWidget):
 
         # Reset UI state for new generation attempt
         self.error_banner.hide_error()
+        self.generation_started.emit()
         self.spinner.start()
         self._generation_has_error = False
         # Cancel any pending switch-to-output timer from a previous run.
@@ -440,19 +441,18 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        if getattr(self, "_generation_has_error", False):
-            # A period was infeasible — don't switch to output with partial results.
-            return
-        if count == 0:
-            self.error_banner.show_error(
+        if count == 0 and not getattr(self, "_generation_has_error", False):
+            # No schedules found - forward the message to the output screen and navigate there.
+            self.infeasibility_detected.emit(
                 "No valid schedule was found. "
                 "Try relaxing the constraints or expanding the exam period date range."
             )
-            return
-        self._finish_timer = QTimer(self)
-        self._finish_timer.setSingleShot(True)
-        self._finish_timer.timeout.connect(self.switch_to_output.emit)
-        self._finish_timer.start(500)
+        # Parent the timer to self so it is destroyed with the widget and never
+        # fires on a deleted object (guards against orphaned timers in tests).
+        finish_timer = QTimer(self)
+        finish_timer.setSingleShot(True)
+        finish_timer.timeout.connect(self.switch_to_output.emit)
+        finish_timer.start(500)
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
@@ -474,19 +474,11 @@ class InputScreen(QWidget):
 
     def _on_period_infeasible(self, period_id: str, reason: str):
         self._generation_has_error = True
-        # Cancel any pending switch-to-output scheduled by an earlier period_ready.
-        if hasattr(self, '_switch_timer') and self._switch_timer is not None:
-            self._switch_timer.stop()
-        # Allow _on_generation_finished to run so it can detect count == 0.
-        self._switched_to_output = False
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
         period_label = self._format_period_label(period_id)
-        self.error_banner.show_error(f"[{period_label}] {reason}")
-        # Also forward to the output screen - the user may already be there if the
-        # engine process took longer than the 500ms switch timer to detect infeasibility.
-        self.infeasibility_detected.emit(reason)
+        self.infeasibility_detected.emit(f"[{period_label}] {reason}")
 
     def _format_period_label(self, period_id: str) -> str:
         """Convert e.g. 'FALL_Aleph' → 'Fall – Aleph', 'SPRI_Bet' → 'Spring – Bet'."""

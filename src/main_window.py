@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
         # Wire navigation signals
         self.input_screen.switch_to_output.connect(self._show_output_screen)
         self.input_screen.switch_to_settings.connect(self._show_settings_dialog)
+        self.input_screen.generation_started.connect(self.output_screen._generation_error_banner.hide_error)
         self.input_screen.infeasibility_detected.connect(self.output_screen._on_generation_error)
         self.output_screen.switch_to_input.connect(self._show_input_screen)
         # Route output-screen sort changes to AppService and reset output position.

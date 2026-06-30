@@ -304,14 +304,6 @@ class OutputScreen(QWidget):
         self.edit_btn.setObjectName("editBtn")
         self.edit_btn.clicked.connect(self.enter_edit_mode)
 
-        self.save_edit_btn = QPushButton("SAVE")
-        self.save_edit_btn.setObjectName("saveEditBtn")
-        self.save_edit_btn.clicked.connect(self._on_save_edit_clicked)
-
-        self.cancel_edit_btn = QPushButton("CANCEL")
-        self.cancel_edit_btn.setObjectName("cancelEditBtn")
-        self.cancel_edit_btn.clicked.connect(self._on_cancel_edit_clicked)
-
         toolbar.addWidget(self.back_btn)
         toolbar.addStretch()
         toolbar.addWidget(self.sort_settings_btn)
@@ -930,6 +922,9 @@ class OutputScreen(QWidget):
             if isinstance(count, int) and count > 0:
                 self._global_total = max(self._global_total, count)
                 if not self._calendar_displaying_data:
+                    if self._edit_mode:
+                        self._pending_refresh_while_editing = True
+                        return
                     # Calendar is showing empty/loading but data is available —
                     # re-render immediately so the first schedule appears.
                     self.semester_tabs.set_enabled_all(True)
@@ -1037,10 +1032,10 @@ class OutputScreen(QWidget):
         Re-enables tabs, updates the total, resets indices to 0, and renders
         the first schedule for the currently visible period.
         """
-        self.semester_tabs.set_enabled_all(True)
         if self._edit_mode:
             self._pending_refresh_while_editing = True
             return
+        self.semester_tabs.set_enabled_all(True)
         # Update total from the active period's exact count.
         pid = self._active_period_id()
         real_total = total if isinstance(total, int) and total > 0 else 0
@@ -1062,6 +1057,9 @@ class OutputScreen(QWidget):
 
     def _on_generation_error(self, message: str) -> None:
         self.four_month.show_error(message)
+        if self._edit_mode:
+            self._pending_refresh_while_editing = True
+            return
         self.semester_tabs.set_enabled_all(True)
 
     # ── Toolbar ───────────────────────────────────────────────────────────────
@@ -1099,7 +1097,12 @@ class OutputScreen(QWidget):
 
 
     def _on_cancel_edit_clicked(self) -> None:
-        """Cancel edit-mode changes and return to normal view mode."""
+        """Cancel edit-mode changes and return to normal view mode.
+
+        Pending refresh is intentionally discarded here: CANCEL means the user wants
+        to keep the currently displayed schedule as-is and leave edit mode without
+        applying newly arrived optimizer results.
+        """
         self._pending_refresh_while_editing = False
         self.exit_edit_mode()
 
@@ -1134,6 +1137,10 @@ class OutputScreen(QWidget):
         self._refresh_screen_display()
 
     def _on_back_clicked(self) -> None:
+        if self._day_dialog is not None:
+            self._day_dialog.close()
+            self._day_dialog = None
+
         if self._edit_mode:
             QMessageBox.warning(
                 self,
@@ -1142,9 +1149,6 @@ class OutputScreen(QWidget):
             )
             return
 
-        if self._day_dialog is not None:
-            self._day_dialog.close()
-            self._day_dialog = None
         self.switch_to_input.emit()
 
     def _on_download_clicked(self) -> None:

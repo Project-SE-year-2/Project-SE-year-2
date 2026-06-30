@@ -56,6 +56,8 @@ from __future__ import annotations
 
 from datetime import date as _date
 
+from copy import deepcopy
+
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
     QFileDialog,
@@ -142,6 +144,12 @@ class OutputScreen(QWidget):
         self._calendar_displaying_data: bool = False
         self._edit_mode: bool = False
         self._pending_refresh_while_editing: bool = False
+
+        self._original_edit_rows: list[dict] | None = None
+        self._editable_rows: list[dict] = []
+        self._saved_manual_rows_by_period: dict[str, list[dict]] = {}
+        self._edit_period_start: _date | None = None
+        self._edit_period_end: _date | None = None
 
         # EP-149 bug 1: number of schedules the current view reflects. When the
         # active period's count grows past this, the poll timer pops the refresh
@@ -354,6 +362,7 @@ class OutputScreen(QWidget):
         # MoedCalendarOutputWidget
         self.four_month = MoedCalendarOutputWidget()
         self.four_month.exam_day_clicked.connect(self._on_exam_day_clicked)
+        self.four_month.exam_moved.connect(self._on_exam_moved)
         self.four_month.moed_changed.connect(self._on_moed_changed)
 
         self._sort_dialog = RankingConfigDialog(self)
@@ -685,6 +694,10 @@ class OutputScreen(QWidget):
         per-period cache (legacy mode).  No Cartesian-product mixing occurs.
         """
         # Guard: if "All Sessions" is active, delegate to the dedicated method.
+        if self._edit_mode:
+            self._pending_refresh_while_editing = True
+            return
+
         if self._current_moed == "All":
             self._refresh_all_sessions_display()
             return
@@ -700,6 +713,9 @@ class OutputScreen(QWidget):
         except Exception as exc:
             print(f"OutputScreen: get_period_schedule({pid}, {idx}) failed: {exc}")
             exams = []
+
+        if pid in self._saved_manual_rows_by_period:
+            exams = deepcopy(self._saved_manual_rows_by_period[pid])
 
         # ── Resolve period date range ─────────────────────────────────────────
         start_date: _date | None = None
@@ -766,6 +782,33 @@ class OutputScreen(QWidget):
                     self._empty_timer.start()
 
         self._update_navigator()
+
+    def _current_visible_rows_snapshot(self) -> tuple[list[dict], _date | None, _date | None]:
+        """Return the currently displayed schedule rows and active period range."""
+        pid = self._active_period_id()
+        idx = self._active_window_state().current()
+
+        if pid in self._saved_manual_rows_by_period:
+            rows = deepcopy(self._saved_manual_rows_by_period[pid])
+        else:
+            try:
+                rows = self.service.get_period_schedule(pid, idx) or []
+            except Exception:
+                rows = []
+
+        start_date = None
+        end_date = None
+
+        try:
+            for p in self.service.get_periods():
+                if p.get("id") == pid:
+                    start_date = _to_date(p.get("start_date"))
+                    end_date = _to_date(p.get("end_date"))
+                    break
+        except Exception:
+            pass
+
+        return rows, start_date, end_date
 
     def _on_loading_timeout(self) -> None:
         """Called 2 s after generation started — show the loading state if still no data."""
@@ -1090,10 +1133,57 @@ class OutputScreen(QWidget):
         """Enter manual schedule edit mode."""
         if self._edit_mode:
             return
+        
+        rows, start_date, end_date = self._current_visible_rows_snapshot()
+
+        self._original_edit_rows = deepcopy(rows)
+        self._editable_rows = deepcopy(rows)
+        self._edit_period_start = start_date
+        self._edit_period_end = end_date
+
         self._edit_mode = True
         self._pending_refresh_while_editing = False
         self._apply_edit_mode_ui()
 
+    def _on_exam_moved(self, exam: dict, source_date: str, target_date: str) -> None:
+        """Apply a temporary UI-only exam move while edit mode is active."""
+        if not self._edit_mode:
+            return
+
+        course_number = str(exam.get("course_number", ""))
+        if not course_number or not source_date or not target_date:
+            return
+
+        matching_row = None
+
+        for row in self._editable_rows:
+            if str(row.get("course_number", "")) != course_number:
+                continue
+
+            if str(row.get("exam_date", "")) == source_date:
+                matching_row = row
+                break
+
+            if matching_row is None:
+                matching_row = row
+
+        if matching_row is None:
+            return
+
+        matching_row["exam_date"] = target_date
+
+
+        self._render_edit_rows()
+
+    def _render_edit_rows(self) -> None:
+        """Render the temporary editable schedule rows without jumping to month 1."""
+        self.four_month.update_schedule(
+            self._editable_rows,
+            semester=self._current_semester,
+            start_date=self._edit_period_start,
+            end_date=self._edit_period_end,
+            preserve_month_index=True,
+        )
 
     def exit_edit_mode(self) -> None:
         """Exit manual schedule edit mode and apply deferred refresh if needed."""
@@ -1109,7 +1199,12 @@ class OutputScreen(QWidget):
 
 
     def _on_save_edit_clicked(self) -> None:
-        """Save edit-mode changes. Actual persistence will be implemented later."""
+        """Save temporary edit-mode changes as the current visible schedule."""
+        pid = self._active_period_id()
+
+        if self._editable_rows:
+            self._saved_manual_rows_by_period[pid] = deepcopy(self._editable_rows)
+
         self.exit_edit_mode()
 
 
@@ -1120,6 +1215,10 @@ class OutputScreen(QWidget):
         to keep the currently displayed schedule as-is and leave edit mode without
         applying newly arrived optimizer results.
         """
+        if self._original_edit_rows is not None:
+            self._editable_rows = deepcopy(self._original_edit_rows)
+            self._render_edit_rows()
+
         self._pending_refresh_while_editing = False
         self.exit_edit_mode()
 
@@ -1137,6 +1236,9 @@ class OutputScreen(QWidget):
 
         if hasattr(self.navigator, "set_navigation_enabled"):
             self.navigator.set_navigation_enabled(not editing)
+
+        if hasattr(self.four_month, "set_edit_mode"):
+            self.four_month.set_edit_mode(editing)
 
     def on_sort_changed(self, _sort_cols: list = None) -> None:
         """Reset all period navigation states to 0 when the sort order changes."""

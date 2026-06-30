@@ -29,11 +29,20 @@ class MonthGrid(QWidget):
 
     input_day_toggled   = pyqtSignal(object)          # QDate
     output_exam_clicked = pyqtSignal(object, object)  # list[dict], QPoint
+    exam_moved = pyqtSignal(object, str, str)
 
     def __init__(self, mode: CalendarMode, parent=None):
         super().__init__(parent)
         self._mode = mode
+        self._edit_mode = False
         self._setup_ui()
+
+    def set_edit_mode(self, enabled: bool) -> None:
+        """Enable or disable drag/drop on all output day cells."""
+        self._edit_mode = enabled
+
+        for cell in self.findChildren(OutputDayCell):
+            cell.set_edit_mode(enabled)
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +128,8 @@ class MonthGrid(QWidget):
             cell = OutputDayCell(qdate, is_other_month=is_other,
                                  is_weekend=is_weekend)
             cell.exam_clicked.connect(self.output_exam_clicked)
+            cell.set_edit_mode(self._edit_mode)
+            cell.exam_moved.connect(self.exam_moved.emit)
 
             if is_other:
                 pass  # already rendered as faded by OutputDayCell default

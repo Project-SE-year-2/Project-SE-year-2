@@ -9,6 +9,7 @@ Rules enforced here:
 """
 
 import os
+from copy import deepcopy
 from pathlib import Path
 from datetime import date
 
@@ -967,20 +968,21 @@ class AppService(IAppService):
     def save_manual_edit(self, period_id: str, index: int, edited_rows: list[dict]) -> None:
         """Persist a manually edited schedule at the given index.
 
-        1. Updates the in-memory override so the UI reflects the edit immediately.
-        2. Overwrites the batch pkl file on disk (if results are disk-based).
-        3. Re-scores the edited schedule and updates scores.db.
+        1. Overwrites the batch pkl file on disk (if results are disk-based).
+        2. Re-scores the edited schedule and updates scores.db.
+        3. Updates the in-memory override only after disk operations succeed.
         4. Closes the ranking engine so the next read opens a fresh connection.
         """
-        self._manual_edits.setdefault(period_id, {})[index] = list(edited_rows)
-
         disk_count = self._results_reader.get_count(period_id)
         if disk_count > 0:
             physical_index = self._resolve_physical_index(period_id, index)
-            if physical_index < disk_count:
-                schedule = self._dict_rows_to_schedule(period_id, edited_rows)
-                self._overwrite_batch_slot(period_id, physical_index, schedule)
-                self._update_score_in_db(period_id, physical_index, schedule)
+            if physical_index >= disk_count:
+                raise IndexError("Manual edit index is out of range.")
+            schedule = self._dict_rows_to_schedule(period_id, edited_rows)
+            self._overwrite_batch_slot(period_id, physical_index, schedule)
+            self._update_score_in_db(period_id, physical_index, schedule)
+
+        self._manual_edits.setdefault(period_id, {})[index] = deepcopy(edited_rows)
 
         if self._ranking_engine is not None:
             try:
@@ -993,22 +995,30 @@ class AppService(IAppService):
         """Map a ranked display index to the physical linear index in batch storage.
 
         When ranking is inactive the display index equals the physical index.
-        When ranking is active the engine resolves which (batch_number, index_in_batch)
-        sits at the requested rank, and we convert that back to a linear index.
+        When ranking is active the engine must resolve the rank — if it is
+        unavailable or returns no rows we raise rather than silently writing
+        to the wrong physical slot.
         """
-        if self._sort_cols:
-            engine = self._get_ranking_engine()
-            if engine is not None:
-                try:
-                    rows = engine.fetch_window(
-                        period_id, self._sort_cols, limit=1, offset=display_index
-                    )
-                    if rows:
-                        batch_number, index_in_batch = rows[0][:2]
-                        return batch_number * BATCH_SIZE + index_in_batch
-                except Exception:
-                    pass
-        return display_index
+        if not self._sort_cols:
+            return display_index
+
+        engine = self._get_ranking_engine()
+        if engine is None:
+            raise RuntimeError(
+                "Cannot save manual edit: ranking is active but the ranking "
+                "database is unavailable."
+            )
+
+        rows = engine.fetch_window(
+            period_id, self._sort_cols, limit=1, offset=display_index
+        )
+        if not rows:
+            raise RuntimeError(
+                "Cannot save manual edit: failed to resolve the ranked schedule index."
+            )
+
+        batch_number, index_in_batch = rows[0][:2]
+        return batch_number * BATCH_SIZE + index_in_batch
 
     def _dict_rows_to_schedule(self, period_id: str, rows: list[dict]) -> ExamSchedule:
         """Reconstruct an ExamSchedule from formatted row dicts.

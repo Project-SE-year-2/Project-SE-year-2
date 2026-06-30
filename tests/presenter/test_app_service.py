@@ -1183,3 +1183,74 @@ def test_save_manual_edit_uses_physical_index_when_ranking_active(monkeypatch, t
     assert list(batch[0].assignments.values()) == [date(2026, 2, 1)]
     # Physical slot 1 (Feb 2 → Feb 9) must be overwritten.
     assert list(batch[1].assignments.values()) == [date(2026, 2, 9)]
+
+
+def test_resolve_physical_index_raises_when_ranking_engine_unavailable(monkeypatch, tmp_path):
+    """If ranking is active but the engine is unavailable, raise RuntimeError."""
+    service = _make_service(monkeypatch)
+    pid = "FALL_Aleph"
+    period = _make_period()
+    course = _make_course("11111")
+    schedule = _make_schedule(period, course, date(2026, 2, 1))
+
+    results_root = tmp_path / "results" / pid
+    results_root.mkdir(parents=True)
+    with open(results_root / "batch_0000.pkl", "wb") as f:
+        pickle.dump([schedule], f)
+    (results_root / "manifest.json").write_text(json.dumps({"count": 1}))
+
+    service._results_reader = ResultsReader(root_path=tmp_path / "results")
+    service._datastore.set_periods([period])
+    service._datastore.set_courses([course])
+    service._sort_cols = ["min_days_required"]
+    # No scores.db → engine returns None
+
+    with pytest.raises(RuntimeError, match="ranking database is unavailable"):
+        service.save_manual_edit(pid, 0, [{"course_number": "11111", "exam_date": date(2026, 2, 5)}])
+
+    # In-memory cache must not be updated after a failed save.
+    assert pid not in service._manual_edits
+
+
+def test_resolve_physical_index_raises_when_engine_returns_no_rows(monkeypatch, tmp_path):
+    """If the ranking engine returns no rows for the requested rank, raise RuntimeError."""
+    service = _make_service(monkeypatch)
+    pid = "FALL_Aleph"
+    period = _make_period()
+    course = _make_course("11111")
+    schedule = _make_schedule(period, course, date(2026, 2, 1))
+
+    results_root = tmp_path / "results" / pid
+    results_root.mkdir(parents=True)
+    with open(results_root / "batch_0000.pkl", "wb") as f:
+        pickle.dump([schedule], f)
+    (results_root / "manifest.json").write_text(json.dumps({"count": 1}))
+
+    # scores.db must exist so _get_ranking_engine doesn't short-circuit to None.
+    scores_path = tmp_path / "results" / "scores.db"
+    with sqlite3.connect(str(scores_path)) as conn:
+        conn.execute("""
+            CREATE TABLE scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                period_id TEXT, batch_number INTEGER, index_in_batch INTEGER,
+                min_days_required REAL, avg_days_all REAL,
+                elective_conflicts INTEGER, span_required INTEGER,
+                max_exams_per_day INTEGER, avg_room_distance REAL DEFAULT 0
+            )
+        """)
+        conn.commit()
+
+    service._results_reader = ResultsReader(root_path=tmp_path / "results")
+    service._datastore.set_periods([period])
+    service._datastore.set_courses([course])
+
+    fake_engine = MagicMock()
+    fake_engine.fetch_window.return_value = []
+    service._ranking_engine = fake_engine
+    service._sort_cols = ["min_days_required"]
+
+    with pytest.raises(RuntimeError, match="failed to resolve the ranked schedule index"):
+        service.save_manual_edit(pid, 0, [{"course_number": "11111", "exam_date": date(2026, 2, 5)}])
+
+    # In-memory cache must not be updated after a failed save.
+    assert pid not in service._manual_edits

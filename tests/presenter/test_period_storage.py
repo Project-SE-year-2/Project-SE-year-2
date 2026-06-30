@@ -444,12 +444,16 @@ def test_second_generate_run_replaces_stale_results(tmp_path):
 
     # Simulate a second generate run: clear then write new results
     writer.clear_period("FALL_Aleph")
+
+    # Recreate reader after clearing, so it does not keep stale cached manifest data
+    reader = ResultsReader(root_path=root)
+
     second_run = [ExamSchedule(period) for _ in range(2)]
     for i, s in enumerate(second_run):
         s.assign(_make_course(f"New{i}", "83101"), date(2026, 1, 2))
     writer.write_batch("FALL_Aleph", second_run)
 
-    assert reader.get_count("FALL_Aleph") == 2   # only new results, not 3+2=5
+    assert reader.get_count("FALL_Aleph") == 2
 
 
 

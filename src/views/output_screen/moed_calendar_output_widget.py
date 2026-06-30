@@ -152,6 +152,7 @@ class MoedCalendarOutputWidget(QWidget):
 
     exam_day_clicked = pyqtSignal(object, object)   # list[dict], QPoint
     moed_changed     = pyqtSignal(str)              # "Aleph" | "Bet" | "Gimel"
+    exam_moved = pyqtSignal(object, str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -162,9 +163,17 @@ class MoedCalendarOutputWidget(QWidget):
         self._current_moed: str = "Aleph"
         self._current_month_idx: int = 0
         self._multi_month_mode: bool = False
+        self._edit_mode: bool = False
         self._period_start: _date | None = None
         self._period_end:   _date | None = None
         self._setup_ui()
+
+    def set_edit_mode(self, enabled: bool) -> None:
+        """Enable or disable drag/drop for all rendered month grids."""
+        self._edit_mode = enabled
+        for grid in self._month_grids:
+            if hasattr(grid, "set_edit_mode"):
+                grid.set_edit_mode(enabled)
 
     # ──────────────────────────────────────────────────────────────────────────
     # UI construction
@@ -501,6 +510,12 @@ class MoedCalendarOutputWidget(QWidget):
 
             mg = MonthGrid(CalendarMode.OUTPUT)
             mg.output_exam_clicked.connect(self._on_cell_clicked)
+            if hasattr(mg, "exam_moved"):
+                mg.exam_moved.connect(self.exam_moved.emit)
+
+            if hasattr(mg, "set_edit_mode"):
+                mg.set_edit_mode(self._edit_mode)
+                
             mg.populate_output(year, month, self._exams_by_date, self._unavail_dates,
                                period_start=pstart, period_end=pend)
             self._month_grids.append(mg)
@@ -883,6 +898,7 @@ class MoedCalendarOutputWidget(QWidget):
         semester: str = "",
         start_date: _date | None = None,
         end_date:   _date | None = None,
+        preserve_month_index: bool = False,
     ) -> None:
         """Rebuild the calendar from exam rows.
 
@@ -915,7 +931,13 @@ class MoedCalendarOutputWidget(QWidget):
             self._months = self._compute_months_from_exams(semester)
 
         # Reset to the first month whenever new schedule data is loaded
-        self._current_month_idx = 0
+        if preserve_month_index:
+            self._current_month_idx = max(
+                0,
+                min(self._current_month_idx, len(self._months) - 1),
+            )
+        else:
+            self._current_month_idx = 0
 
         # Determine semester name + year for the header
         sem, year = _detect_semester_and_year(self._exams_by_date)

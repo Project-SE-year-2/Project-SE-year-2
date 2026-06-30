@@ -449,12 +449,10 @@ class InputScreen(QWidget):
                 "Try relaxing the constraints or expanding the exam period date range."
             )
             return
-        # Parent the timer to self so it is destroyed with the widget and never
-        # fires on a deleted object (guards against orphaned timers in tests).
-        finish_timer = QTimer(self)
-        finish_timer.setSingleShot(True)
-        finish_timer.timeout.connect(self.switch_to_output.emit)
-        finish_timer.start(500)
+        self._finish_timer = QTimer(self)
+        self._finish_timer.setSingleShot(True)
+        self._finish_timer.timeout.connect(self.switch_to_output.emit)
+        self._finish_timer.start(500)
 
     # Receives period-ready events from the worker while streaming generation runs.
     def _on_period_ready(self, period_id):
@@ -484,10 +482,26 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        self.error_banner.show_error(reason)
+        period_label = self._format_period_label(period_id)
+        self.error_banner.show_error(f"[{period_label}] {reason}")
         # Also forward to the output screen - the user may already be there if the
         # engine process took longer than the 500ms switch timer to detect infeasibility.
         self.infeasibility_detected.emit(reason)
+
+    def _format_period_label(self, period_id: str) -> str:
+        """Convert e.g. 'FALL_Aleph' → 'Fall – Aleph', 'SPRI_Bet' → 'Spring – Bet'."""
+        _PREFIX_MAP = {"FALL": "Fall", "SPRI": "Spring", "SUMM": "Summer"}
+        prefix, _, moed = period_id.partition("_")
+        season = _PREFIX_MAP.get(prefix.upper(), prefix)
+        return f"{season} – {moed}" if moed else period_id
+
+    def closeEvent(self, event):
+        """Stop all pending switch timers before destruction to prevent use-after-free."""
+        for attr in ("_switch_timer", "_finish_timer"):
+            t = getattr(self, attr, None)
+            if t is not None:
+                t.stop()
+        super().closeEvent(event)
 
     # Handles errors emitted from the background worker, updating the UI accordingly.
     def _on_error(self, message):

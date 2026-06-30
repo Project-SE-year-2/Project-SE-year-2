@@ -1,0 +1,44 @@
+# Large stress-test room file — 30 rooms across 5 buildings.
+# Capacities range from 25 to 300 seats to force varied allocation strategies:
+#   - Small rooms → sliding-window within a building
+#   - Courses with 250+ students → greedy multi-room fallback
+#
+# Format: room_id,building,capacity
+
+# ── Building A (tiny, 25–50) ─────────────────────────────
+A01,A,25
+A02,A,30
+A03,A,35
+A04,A,40
+A05,A,50
+A06,A,45
+
+# ── Building B (small-medium, 60–100) ────────────────────
+B01,B,60
+B02,B,70
+B03,B,75
+B04,B,80
+B05,B,90
+B06,B,100
+
+# ── Building C (medium, 110–160) ─────────────────────────
+C01,C,110
+C02,C,120
+C03,C,130
+C04,C,140
+C05,C,150
+C06,C,160
+
+# ── Building D (large, 180–240) ──────────────────────────
+D01,D,180
+D02,D,200
+D03,D,210
+D04,D,220
+D05,D,240
+
+# ── Building E (auditorium, 260–300) ─────────────────────
+E01,E,260
+E02,E,275
+E03,E,280
+E04,E,290
+E05,E,300

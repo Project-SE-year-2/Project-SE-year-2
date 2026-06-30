@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QSizePolicy,
     QVBoxLayout,
+    QApplication,
 )
 
 from src.styles.calendar_table_style import (
@@ -68,6 +69,8 @@ class OutputDayCell(QFrame):
         self._all_exams: list[dict] = []
         self._edit_mode = False
         self._exam_data: dict | None = None   # primary exam (first in list)
+        self._drag_start_pos = None
+        self._drag_exam: dict | None = None
         self._unavailable = False
         self._drop_allowed = not is_other_month
         self._setup_ui()
@@ -152,7 +155,7 @@ class OutputDayCell(QFrame):
         badge_text = f"{course_num} {course_name}".strip()
 
         pill = QFrame()
-        pill.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        pill._exam_data = exam
         pill.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         pill.setStyleSheet(BADGE_ELECTIVE_STYLE if is_elective else BADGE_REQUIRED_STYLE)
 
@@ -162,7 +165,7 @@ class OutputDayCell(QFrame):
 
         text_color = ELECT_TEXT if is_elective else REQ_TEXT
         lbl = QLabel(badge_text)
-        lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        lbl._exam_data = exam
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setWordWrap(True)
         lbl.setStyleSheet(self._badge_lbl_style(text_color))
@@ -286,11 +289,19 @@ class OutputDayCell(QFrame):
     # ── Events ────────────────────────────────────────────────────────────────
 
     def mouseMoveEvent(self, event) -> None:
-        """Start dragging the first exam in this cell when edit mode is active."""
-        if not self._edit_mode or not self._all_exams:
+        """Start dragging the selected exam pill after the standard drag threshold."""
+        if not self._edit_mode or self._drag_exam is None:
             return super().mouseMoveEvent(event)
 
-        exam = self._all_exams[0]
+        if self._drag_start_pos is None:
+            return super().mouseMoveEvent(event)
+
+        if (
+            event.pos() - self._drag_start_pos
+        ).manhattanLength() < QApplication.startDragDistance():
+            return
+
+        exam = self._drag_exam
         source_date = str(exam.get("exam_date", ""))
 
         if not source_date:
@@ -311,10 +322,16 @@ class OutputDayCell(QFrame):
         drag.setMimeData(mime)
         drag.exec_(Qt.MoveAction)
 
+        self._drag_start_pos = None
+        self._drag_exam = None
+
 
     def dragEnterEvent(self, event) -> None:
-        
-        if (self._edit_mode and self._drop_allowed and event.mimeData().hasFormat("application/x-exam-move")):
+        if (
+            self._edit_mode
+            and self._drop_allowed
+            and event.mimeData().hasFormat("application/x-exam-move")
+        ):
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -331,7 +348,7 @@ class OutputDayCell(QFrame):
             event.ignore()
 
     def dropEvent(self, event) -> None:
-        if not self._edit_mode:
+        if not self._edit_mode or not self._drop_allowed:
             event.ignore()
             return
 
@@ -359,11 +376,20 @@ class OutputDayCell(QFrame):
         event.acceptProposedAction()
 
     def mousePressEvent(self, event) -> None:
-        """Emit exam_clicked with (all_exams, anchor_point) if left-clicked and has exams."""
-        if self._edit_mode:
-            return super().mousePressEvent(event)
-
+        """Store drag source in edit mode, otherwise open the details popup."""
         if event.button() == Qt.LeftButton and self._all_exams:
+            if self._edit_mode:
+                child = self.childAt(event.pos())
+                self._drag_exam = getattr(child, "_exam_data", None)
+
+                if self._drag_exam is None and child is not None:
+                    parent = child.parent()
+                    self._drag_exam = getattr(parent, "_exam_data", None)
+
+                self._drag_start_pos = event.pos()
+                return
+
             anchor = self.mapToGlobal(QPoint(0, self.height()))
             self.exam_clicked.emit(self._all_exams, anchor)
+
         super().mousePressEvent(event)

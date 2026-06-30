@@ -353,6 +353,27 @@ class IAppService(ABC):
         """
 
     @abstractmethod
+    def validate_manual_move(
+        self,
+        period_id: str,
+        exam_rows: list[dict],
+        moving_exam: dict,
+        target_date: date,
+    ) -> list[dict]:
+        """Validate whether moving `moving_exam` to `target_date` is legal.
+
+        Args:
+            period_id:    Backend period ID (e.g. "FALL_Aleph").
+            exam_rows:    All exam rows currently displayed for the period.
+            moving_exam:  The exam dict being moved.
+            target_date:  The proposed new date.
+
+        Returns:
+            List of error dicts, each with "rule" and "reason" keys.
+            An empty list means the move is valid.
+        """
+
+    @abstractmethod
     def get_current_combination(self) -> list[dict]:
         """Return the currently selected schedule combination across all periods.
 

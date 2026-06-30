@@ -1125,8 +1125,6 @@ class OutputScreen(QWidget):
         editing = self._edit_mode
 
         self.edit_btn.setVisible(not editing)
-        self.save_edit_btn.setVisible(editing)
-        self.cancel_edit_btn.setVisible(editing)
         self._edit_mode_banner.setVisible(editing)
 
         self.sort_settings_btn.setEnabled(not editing)

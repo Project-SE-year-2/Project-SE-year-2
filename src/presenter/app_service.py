@@ -27,7 +27,6 @@ from src.algorithm.scheduling_engine import SchedulingEngine
 from src.output.schedule_report_writer import ScheduleReportWriter
 from src.models.exam_schedule import ExamSchedule
 from src.models.exam_placement import ExamPlacement
-from src.models.room import Room
 from src.models.enums import TimeSlot
 from src.models.constraint_settings import ConstraintSettings
 from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
@@ -976,10 +975,12 @@ class AppService(IAppService):
         self._manual_edits.setdefault(period_id, {})[index] = list(edited_rows)
 
         disk_count = self._results_reader.get_count(period_id)
-        if disk_count > 0 and index < disk_count:
-            schedule = self._dict_rows_to_schedule(period_id, edited_rows)
-            self._overwrite_batch_slot(period_id, index, schedule)
-            self._update_score_in_db(period_id, index, schedule)
+        if disk_count > 0:
+            physical_index = self._resolve_physical_index(period_id, index)
+            if physical_index < disk_count:
+                schedule = self._dict_rows_to_schedule(period_id, edited_rows)
+                self._overwrite_batch_slot(period_id, physical_index, schedule)
+                self._update_score_in_db(period_id, physical_index, schedule)
 
         if self._ranking_engine is not None:
             try:
@@ -987,6 +988,27 @@ class AppService(IAppService):
             except Exception:
                 pass
             self._ranking_engine = None
+
+    def _resolve_physical_index(self, period_id: str, display_index: int) -> int:
+        """Map a ranked display index to the physical linear index in batch storage.
+
+        When ranking is inactive the display index equals the physical index.
+        When ranking is active the engine resolves which (batch_number, index_in_batch)
+        sits at the requested rank, and we convert that back to a linear index.
+        """
+        if self._sort_cols:
+            engine = self._get_ranking_engine()
+            if engine is not None:
+                try:
+                    rows = engine.fetch_window(
+                        period_id, self._sort_cols, limit=1, offset=display_index
+                    )
+                    if rows:
+                        batch_number, index_in_batch = rows[0][:2]
+                        return batch_number * BATCH_SIZE + index_in_batch
+                except Exception:
+                    pass
+        return display_index
 
     def _dict_rows_to_schedule(self, period_id: str, rows: list[dict]) -> ExamSchedule:
         """Reconstruct an ExamSchedule from formatted row dicts.

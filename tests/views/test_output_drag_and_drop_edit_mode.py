@@ -188,3 +188,51 @@ def test_save_persists_manual_rows_for_current_period(qtbot):
     assert call_args[0][1] == 0                   # index
     saved_rows = call_args[0][2]
     assert saved_rows[0]["exam_date"] == date(2026, 1, 2)
+
+
+def test_invalid_move_does_not_call_save_manual_edit(qtbot):
+    """If validation returns errors, save_manual_edit must never be called."""
+    class _RejectingService(_FakeService):
+        def validate_manual_move(self, period_id, exam_rows, moving_exam, target_date):
+            return [{"rule": "conflict", "reason": "Exam conflict detected"}]
+
+    fake_service = _RejectingService()
+    screen = OutputScreen(fake_service)
+    qtbot.addWidget(screen)
+
+    screen.enter_edit_mode()
+
+    exam = {
+        "course_number": "85001",
+        "course_name": "Linear Algebra",
+        "exam_date": "2026-01-01",
+    }
+
+    with patch.object(screen, "_render_edit_rows"):
+        screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
+
+    with patch.object(fake_service, "save_manual_edit") as mock_save:
+        with patch("src.views.output_screen.output_screen.QMessageBox.warning"):
+            screen._on_save_edit_clicked()
+
+    mock_save.assert_not_called()
+    assert screen.is_editing() is True
+
+
+def test_save_failure_leaves_screen_in_edit_mode(qtbot):
+    """If save_manual_edit raises, the screen must stay in edit mode."""
+    fake_service = _FakeService()
+    screen = OutputScreen(fake_service)
+    qtbot.addWidget(screen)
+
+    screen.enter_edit_mode()
+
+    with patch.object(
+        fake_service,
+        "save_manual_edit",
+        side_effect=OSError("disk full"),
+    ):
+        with patch("src.views.output_screen.output_screen.QMessageBox.critical"):
+            screen._on_save_edit_clicked()
+
+    assert screen.is_editing() is True

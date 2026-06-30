@@ -1243,10 +1243,13 @@ class OutputScreen(QWidget):
         """Return rows from _editable_rows whose exam_date differs from the original."""
         if not self._original_edit_rows:
             return []
-        original_by_id = {r["course_number"]: r for r in self._original_edit_rows}
+        original_by_id = {
+            r["course_number"]: self._to_date(r["exam_date"])
+            for r in self._original_edit_rows
+        }
         return [
             row for row in self._editable_rows
-            if original_by_id.get(row["course_number"], {}).get("exam_date") != row["exam_date"]
+            if original_by_id.get(row["course_number"]) != self._to_date(row["exam_date"])
         ]
 
 

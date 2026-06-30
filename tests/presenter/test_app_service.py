@@ -1127,3 +1127,59 @@ def test_clear_results_removes_manual_edits(monkeypatch):
     service.clear_results()
 
     assert service._manual_edits == {}
+
+
+def test_save_manual_edit_uses_physical_index_when_ranking_active(monkeypatch, tmp_path):
+    """When ranking is active, save_manual_edit must overwrite the physical slot,
+    not the display (rank) position."""
+    service = _make_service(monkeypatch)
+    pid = "FALL_Aleph"
+    period = _make_period()
+    course = _make_course("11111")
+
+    # Two schedules on disk: physical slot 0 (Feb 1) and slot 1 (Feb 2).
+    sched_0 = _make_schedule(period, course, date(2026, 2, 1))
+    sched_1 = _make_schedule(period, course, date(2026, 2, 2))
+
+    results_root = tmp_path / "results" / pid
+    results_root.mkdir(parents=True)
+    batch_path = results_root / "batch_0000.pkl"
+    with open(batch_path, "wb") as f:
+        pickle.dump([sched_0, sched_1], f)
+    (results_root / "manifest.json").write_text(json.dumps({"count": 2}))
+
+    scores_path = tmp_path / "results" / "scores.db"
+    with sqlite3.connect(str(scores_path)) as conn:
+        conn.execute("""
+            CREATE TABLE scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                period_id TEXT, batch_number INTEGER, index_in_batch INTEGER,
+                min_days_required REAL, avg_days_all REAL,
+                elective_conflicts INTEGER, span_required INTEGER,
+                max_exams_per_day INTEGER, avg_room_distance REAL DEFAULT 0
+            )
+        """)
+        conn.execute("INSERT INTO scores VALUES (NULL,?,?,?,?,?,?,?,?,?)", (pid, 0, 0, 1.0, 2.0, 0, 10, 3, 0.0))
+        conn.execute("INSERT INTO scores VALUES (NULL,?,?,?,?,?,?,?,?,?)", (pid, 0, 1, 1.0, 2.0, 0, 10, 3, 0.0))
+        conn.commit()
+
+    service._results_reader = ResultsReader(root_path=tmp_path / "results")
+    service._datastore.set_periods([period])
+    service._datastore.set_courses([course])
+
+    # Ranking engine says: rank 0 → physical slot 1 (the schedule at batch 0, index 1).
+    fake_engine = MagicMock()
+    fake_engine.fetch_window.return_value = [(0, 1, 1.0, 2.0, 0, 10, 3, 0.0)]
+    service._ranking_engine = fake_engine
+    service._sort_cols = ["min_days_required"]
+
+    edited_rows = [{"course_number": "11111", "exam_date": date(2026, 2, 9)}]
+    service.save_manual_edit(pid, 0, edited_rows)
+
+    with open(batch_path, "rb") as f:
+        batch = pickle.load(f)
+
+    # Physical slot 0 (Feb 1) must be untouched.
+    assert list(batch[0].assignments.values()) == [date(2026, 2, 1)]
+    # Physical slot 1 (Feb 2 → Feb 9) must be overwritten.
+    assert list(batch[1].assignments.values()) == [date(2026, 2, 9)]

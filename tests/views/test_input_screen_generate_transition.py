@@ -314,7 +314,7 @@ def test_files_loaded_clears_error_banner(qtbot):
     assert screen.error_banner.isHidden()
 
 
-# Tests that an infeasible period forwards the reason to the output screen via signal.
+# Tests that an infeasible period forwards the labelled reason to the output screen via signal.
 def test_period_infeasible_emits_reason_to_output_screen(qtbot):
     screen = InputScreen(MockAppService())
     qtbot.addWidget(screen)
@@ -324,7 +324,7 @@ def test_period_infeasible_emits_reason_to_output_screen(qtbot):
 
     screen._on_period_infeasible("FALL_Aleph", "Cohort has 5 exams but only 3 days available.")
 
-    assert detected == ["Cohort has 5 exams but only 3 days available."]
+    assert detected == ["[Fall – Aleph] Cohort has 5 exams but only 3 days available."]
 
 
 # Tests that finishing generation with 0 schedules emits the error to the output screen.
@@ -350,8 +350,8 @@ def test_generation_finished_zero_count_switches_to_output(qtbot):
         screen._on_generation_finished(0)
 
 
-# Tests that a period_infeasible followed by finished(0) emits the specific reason
-# to the output screen and does not show the generic "no valid schedule" message.
+# Tests that a period_infeasible followed by finished(0) emits only the specific reason
+# (with period label) and does not also emit the generic "no valid schedule" message.
 def test_infeasible_then_finished_zero_emits_specific_reason(qtbot):
     screen = InputScreen(MockAppService())
     qtbot.addWidget(screen)
@@ -362,7 +362,7 @@ def test_infeasible_then_finished_zero_emits_specific_reason(qtbot):
     screen._on_period_infeasible("FALL_Aleph", "Specific constraint reason.")
     screen._on_generation_finished(0)
 
-    assert detected == ["Specific constraint reason."]
+    assert detected == ["[Fall – Aleph] Specific constraint reason."]
 
 
 # Tests that an infeasibility arriving after period_ready still allows the switch
@@ -376,25 +376,18 @@ def test_period_infeasible_after_period_ready_still_switches_to_output(qtbot):
         screen._on_period_infeasible("FALL_Aleph", "No room available.")
 
 
-# Tests that finished(count > 0) after an infeasibility does not switch to output.
-# One period succeeded (count > 0) but another was infeasible, so results are
-# incomplete and the user must not be taken to the output screen.
-def test_infeasible_then_finished_nonzero_does_not_switch_to_output(qtbot):
+# Tests that finished(count > 0) after an infeasibility still switches to the output
+# screen so the user can see the error banner that lives there.
+def test_infeasible_then_finished_nonzero_switches_to_output(qtbot):
     screen = InputScreen(MockAppService())
     qtbot.addWidget(screen)
 
-    switch_calls = []
-    screen.switch_to_output.connect(lambda: switch_calls.append(1))
-
-    screen._on_period_infeasible("FALL_Aleph", "No valid placement.")
-    screen._on_generation_finished(3)
-    qtbot.wait(700)
-
-    assert switch_calls == []
+    with qtbot.waitSignal(screen.switch_to_output, timeout=1000):
+        screen._on_period_infeasible("FALL_Aleph", "No valid placement.")
+        screen._on_generation_finished(3)
 
 
-# Tests that an infeasible period also emits infeasibility_detected so the output
-# screen can show the reason even if the user was already navigated there.
+# Tests that an infeasible period emits infeasibility_detected with the period label prefix.
 def test_period_infeasible_emits_infeasibility_detected_signal(qtbot):
     screen = InputScreen(MockAppService())
     qtbot.addWidget(screen)
@@ -404,7 +397,18 @@ def test_period_infeasible_emits_infeasibility_detected_signal(qtbot):
 
     screen._on_period_infeasible("FALL_Aleph", "Cohort has 5 exams but only 3 days available.")
 
-    assert detected == ["Cohort has 5 exams but only 3 days available."]
+    assert detected == ["[Fall – Aleph] Cohort has 5 exams but only 3 days available."]
+
+
+# Tests that infeasibility on the very first period (no period_ready ever fired)
+# still navigates to the output screen via _on_generation_finished.
+def test_first_period_infeasible_without_period_ready_navigates_to_output(qtbot):
+    screen = InputScreen(MockAppService())
+    qtbot.addWidget(screen)
+
+    with qtbot.waitSignal(screen.switch_to_output, timeout=1000):
+        screen._on_period_infeasible("FALL_Aleph", "No placement possible.")
+        screen._on_generation_finished(0)
 
 
 # Tests that loading new files resets the entire screen state.

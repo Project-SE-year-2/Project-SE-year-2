@@ -441,10 +441,7 @@ class InputScreen(QWidget):
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        if getattr(self, "_generation_has_error", False):
-            # A period was infeasible — don't switch to output with partial results.
-            return
-        if count == 0:
+        if count == 0 and not getattr(self, "_generation_has_error", False):
             # No schedules found - forward the message to the output screen and navigate there.
             self.infeasibility_detected.emit(
                 "No valid schedule was found. "
@@ -477,13 +474,11 @@ class InputScreen(QWidget):
 
     def _on_period_infeasible(self, period_id: str, reason: str):
         self._generation_has_error = True
-        # Allow _on_generation_finished to run so it can detect count == 0.
-        self._switched_to_output = False
         self.spinner.stop()
         self._generate_state.finish_generation()
         self._sync_generate_button_state()
-        # Forward the reason to the output screen; the switch timer will navigate there.
-        self.infeasibility_detected.emit(reason)
+        period_label = self._format_period_label(period_id)
+        self.infeasibility_detected.emit(f"[{period_label}] {reason}")
 
     def _format_period_label(self, period_id: str) -> str:
         """Convert e.g. 'FALL_Aleph' → 'Fall – Aleph', 'SPRI_Bet' → 'Spring – Bet'."""

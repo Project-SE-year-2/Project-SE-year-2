@@ -10,6 +10,10 @@ Strategy:
     in the tests that need them.
 """
 
+import json
+import pickle
+import sqlite3
+
 import pytest
 from datetime import date
 from unittest.mock import MagicMock, patch
@@ -18,11 +22,14 @@ from src.algorithm.period_results_writer import BATCH_SIZE
 from src.algorithm.manual_move_validator import ManualMoveValidator
 from src.presenter.app_service import AppService
 from src.presenter.data_store import DataStore
+from src.presenter.results_reader import ResultsReader
 from src.models.course import Course
 from src.models.exam_period import ExamPeriod
+from src.models.exam_placement import ExamPlacement
 from src.models.exam_schedule import ExamSchedule
 from src.models.program_requirement import ProgramRequirement
-from src.models.enums import Evaluation, Semester, Moed, ReqType
+from src.models.enums import Evaluation, Semester, Moed, ReqType, TimeSlot
+from src.models.room import Room
 from src.output.schedule_report_writer import ScheduleReportWriter
 from src.output.pdf_schedule_report_writer import PdfScheduleReportWriter
 
@@ -792,9 +799,6 @@ def test_get_period_schedule_falls_back_when_no_sort_active(monkeypatch):
 def test_format_schedule_rows_room_based(monkeypatch):
     """_format_schedule_rows must produce rooms_display strings and capacity keys
     when the placement carries time-slot and room data."""
-    from src.models.exam_placement import ExamPlacement
-    from src.models.room import Room
-    from src.models.enums import TimeSlot
 
     service = _make_service(monkeypatch)
     service._selected_programs = {"83101"}
@@ -853,8 +857,6 @@ def test_clear_rooms_after_failed_load_removes_stored_rooms(monkeypatch):
     Covers the reviewer's requirement: a failed room-file parse must invalidate
     any previously loaded rooms so the engine cannot silently use stale data.
     """
-    from src.models.room import Room
-
     service = _make_service(monkeypatch)
 
     # Prime DataStore with a valid room set (simulates a successful prior load).
@@ -946,3 +948,182 @@ def test_validate_manual_move_dict_keys_match_validator_contract(monkeypatch):
     # Target date is within the period and no collisions - should be valid
     assert isinstance(errors, list)
     assert all(hasattr(e, "rule") and hasattr(e, "reason") for e in errors)
+
+
+# ------------------------------------------------------------------ #
+# save_manual_edit                                                   #
+# ------------------------------------------------------------------ #
+
+def test_save_manual_edit_overrides_get_period_schedule(monkeypatch):
+    """After save_manual_edit, get_period_schedule returns the saved rows at the same index."""
+    service = _make_service(monkeypatch)
+    pid = "FALL_Aleph"
+    period = _make_period()
+    course = _make_course("11111")
+    schedule = _make_schedule(period, course, date(2026, 2, 1))
+    service._datastore.set_periods([period])
+    service._results_by_period[pid] = [schedule]
+    service._current_indices[pid] = 0
+
+    original = service.get_period_schedule(pid, 0)
+    assert len(original) == 1
+
+    edited = [dict(original[0], exam_date=date(2026, 2, 5))]
+    service.save_manual_edit(pid, 0, edited)
+
+    result = service.get_period_schedule(pid, 0)
+    assert result == edited
+
+
+def test_save_manual_edit_does_not_affect_other_indices(monkeypatch):
+    """Saving an edit at index 0 must not affect index 1."""
+    service = _make_service(monkeypatch)
+    pid = "FALL_Aleph"
+    period = _make_period()
+    course = _make_course("11111")
+    schedules = [
+        _make_schedule(period, course, date(2026, 2, 1)),
+        _make_schedule(period, course, date(2026, 2, 2)),
+    ]
+    service._results_by_period[pid] = schedules
+
+    service.save_manual_edit(pid, 0, [{"course_number": "edited"}])
+
+    result_idx1 = service.get_period_schedule(pid, 1)
+    assert result_idx1 != [{"course_number": "edited"}]
+
+
+def test_save_manual_edit_stores_a_copy(monkeypatch):
+    """Mutating the list after save must not affect get_period_schedule."""
+    service = _make_service(monkeypatch)
+    pid = "FALL_Aleph"
+    rows = [{"course_number": "111", "exam_date": date(2026, 2, 1)}]
+    service.save_manual_edit(pid, 0, rows)
+
+    rows.append({"course_number": "999"})
+    result = service.get_period_schedule(pid, 0)
+    assert len(result) == 1
+
+
+def test_save_manual_edit_closes_ranking_engine(monkeypatch):
+    """Saving an edit must close and null the ranking engine."""
+    service = _make_service(monkeypatch)
+    mock_engine = MagicMock()
+    service._ranking_engine = mock_engine
+
+    service.save_manual_edit("FALL_Aleph", 0, [])
+
+    mock_engine.close.assert_called_once()
+    assert service._ranking_engine is None
+
+
+def test_save_manual_edit_writes_to_disk_and_updates_scores(monkeypatch, tmp_path):
+    """When disk results exist, save_manual_edit overwrites the batch file and updates scores.db."""
+    service = _make_service(monkeypatch)
+    pid = "FALL_Aleph"
+    period = _make_period()
+    course = _make_course("11111")
+    schedule = _make_schedule(period, course, date(2026, 2, 1))
+
+    # Set up a fake results directory with one batch file and manifest
+    results_root = tmp_path / "results" / pid
+    results_root.mkdir(parents=True)
+    batch_path = results_root / "batch_0000.pkl"
+    with open(batch_path, "wb") as f:
+        pickle.dump([schedule], f)
+    manifest = results_root / "manifest.json"
+    manifest.write_text(json.dumps({"count": 1}))
+
+    # Set up a fake scores.db with one row for this schedule
+    scores_path = tmp_path / "results" / "scores.db"
+    with sqlite3.connect(str(scores_path)) as conn:
+        conn.execute("""
+            CREATE TABLE scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                period_id TEXT, batch_number INTEGER, index_in_batch INTEGER,
+                min_days_required REAL, avg_days_all REAL,
+                elective_conflicts INTEGER, span_required INTEGER,
+                max_exams_per_day INTEGER, avg_room_distance REAL DEFAULT 0
+            )
+        """)
+        conn.execute(
+            "INSERT INTO scores VALUES (NULL,?,?,?,?,?,?,?,?,?)",
+            (pid, 0, 0, 1.0, 2.0, 0, 10, 3, 0.0),
+        )
+        conn.commit()
+
+    # Point service to the tmp results directory
+    service._results_reader = ResultsReader(root_path=tmp_path / "results")
+    service._datastore.set_periods([period])
+    service._datastore.set_courses([course])
+
+    edited_rows = [{"course_number": "11111", "exam_date": date(2026, 2, 5)}]
+    service.save_manual_edit(pid, 0, edited_rows)
+
+    # Batch file should be updated on disk: new date must be stored
+    with open(batch_path, "rb") as f:
+        batch = pickle.load(f)
+    stored_schedule = batch[0]
+    stored_dates = list(stored_schedule.assignments.values())
+    assert stored_dates == [date(2026, 2, 5)]
+
+    # scores.db row should be updated (not duplicated)
+    with sqlite3.connect(str(scores_path)) as conn:
+        rows = conn.execute("SELECT * FROM scores WHERE period_id=?", (pid,)).fetchall()
+    assert len(rows) == 1
+
+
+def test_save_manual_edit_preserves_room_data_on_disk(monkeypatch, tmp_path):
+    """Room placements (time_slot + room_ids) must survive the disk write-back."""
+    service = _make_service(monkeypatch)
+    pid = "FALL_Aleph"
+    period = _make_period()
+    course = _make_course("11111")
+    room = Room(room_id="101", building="B1", capacity=50)
+
+    placement = ExamPlacement.with_rooms(date(2026, 2, 1), TimeSlot.MORNING, (room,))
+    schedule = ExamSchedule(period)
+    schedule.assign(course, placement)
+
+    results_root = tmp_path / "results" / pid
+    results_root.mkdir(parents=True)
+    batch_path = results_root / "batch_0000.pkl"
+    with open(batch_path, "wb") as f:
+        pickle.dump([schedule], f)
+    (results_root / "manifest.json").write_text(json.dumps({"count": 1}))
+
+    service._results_reader = ResultsReader(root_path=tmp_path / "results")
+    service._datastore.set_periods([period])
+    service._datastore.set_courses([course])
+    service._datastore.set_rooms([room])
+
+    # Move exam to a new date while keeping the same room/slot
+    edited_rows = [{
+        "course_number": "11111",
+        "exam_date": date(2026, 2, 5),
+        "time_slot": "MORNING",
+        "room_ids": ["B1:101"],
+    }]
+    service.save_manual_edit(pid, 0, edited_rows)
+
+    with open(batch_path, "rb") as f:
+        batch = pickle.load(f)
+    stored = batch[0]
+    placements = list(stored.placements.values())
+    assert len(placements) == 1
+    p = placements[0]
+    assert p.date == date(2026, 2, 5)
+    assert p.time_slot == TimeSlot.MORNING
+    assert len(p.rooms) == 1
+    assert p.rooms[0].room_id == "101"
+    assert p.rooms[0].building == "B1"
+
+
+def test_clear_results_removes_manual_edits(monkeypatch):
+    """clear_results must discard any saved manual edits."""
+    service = _make_service(monkeypatch)
+    service._manual_edits["FALL_Aleph"] = {0: [{"course_number": "111"}]}
+
+    service.clear_results()
+
+    assert service._manual_edits == {}

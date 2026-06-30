@@ -59,6 +59,7 @@ class _FullImpl(IAppService):
     def export_by_period_indices(self, period_indices, path): pass
     def clear_results(self) -> None: pass
     def validate_manual_move(self, period_id, exam_rows, moving_exam, target_date): return []
+    def save_manual_edit(self, period_id, index, edited_rows): pass
 
 
 # ------------------------------------------------------------------ #
@@ -120,6 +121,7 @@ def test_all_abstract_methods_are_callable_on_full_implementation():
     service.export_by_period_indices({"FALL_Aleph": 0}, "out.txt")
     service.get_current_combination()
     service.validate_manual_move("FALL_Aleph", [], {}, date(2026, 1, 1))
+    service.save_manual_edit("FALL_Aleph", 0, [])
 
 
 def test_iappservice_is_abstract():

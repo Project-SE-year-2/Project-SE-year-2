@@ -55,6 +55,12 @@ class _FakeService:
     def get_available_programs(self):
         return []
 
+    def validate_manual_move(self, period_id, exam_rows, moving_exam, target_date):
+        return []
+
+    def save_manual_edit(self, period_id, index, edited_rows):
+        pass
+
 
 def test_month_grid_propagates_edit_mode_to_output_cells(qtbot):
     """MonthGrid should enable drag/drop on all output day cells in edit mode."""
@@ -176,4 +182,4 @@ def test_save_persists_manual_rows_for_current_period(qtbot):
     screen._on_save_edit_clicked()
 
     assert screen.is_editing() is False
-    assert screen._saved_manual_rows_by_period[("FALL_Aleph", 0)][0]["exam_date"] == "2026-01-02"
+    assert screen._saved_manual_rows_by_period["FALL_Aleph"][0]["exam_date"] == date(2026, 1, 2)

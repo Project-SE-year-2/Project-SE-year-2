@@ -374,6 +374,16 @@ class IAppService(ABC):
         """
 
     @abstractmethod
+    def save_manual_edit(self, period_id: str, index: int, edited_rows: list[dict]) -> None:
+        """Persist a manually edited schedule at the given index for period_id.
+
+        Args:
+            period_id:    Backend period ID (e.g. "FALL_Aleph").
+            index:        The schedule index that was displayed when the user saved.
+            edited_rows:  The complete list of exam-row dicts after manual edits.
+        """
+
+    @abstractmethod
     def get_current_combination(self) -> list[dict]:
         """Return the currently selected schedule combination across all periods.
 

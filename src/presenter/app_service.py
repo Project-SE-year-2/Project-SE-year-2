@@ -26,6 +26,9 @@ from src.algorithm.constraint_validator import ConstraintValidator
 from src.algorithm.scheduling_engine import SchedulingEngine
 from src.output.schedule_report_writer import ScheduleReportWriter
 from src.models.exam_schedule import ExamSchedule
+from src.models.exam_placement import ExamPlacement
+from src.models.room import Room
+from src.models.enums import TimeSlot
 from src.models.constraint_settings import ConstraintSettings
 from src.parsers.constraint_settings_loader import ConstraintSettingsLoader
 from src.parsers.room_file_parser import RoomFileParser
@@ -81,6 +84,7 @@ class AppService(IAppService):
         self._ranking_engine: RankingQueryEngine | None = None
         self._constraint_settings = ConstraintSettings()
         self._constraint_index: "ConstraintIndex | None" = None
+        self._manual_edits: dict[str, dict[int, list[dict]]] = {}
 
         self._finished_periods: set[str] = set()
         self._infeasible_periods: set[str] = set()
@@ -302,6 +306,7 @@ class AppService(IAppService):
         self._finished_periods = set()
         self._infeasible_periods = set()
         self._constraint_index = None
+        self._manual_edits = {}
 
 
     def load_constraint_settings_from_file(self, path: str) -> None:
@@ -649,6 +654,12 @@ class AppService(IAppService):
         to return the schedule ranked at position `index` by the chosen metrics.
         Falls back to sequential disk or in-memory reading otherwise.
         """
+        # -- Manual edit override (takes priority for the saved index only) ------
+        if period_id in self._manual_edits:
+            edited = self._manual_edits[period_id].get(index)
+            if edited is not None:
+                return list(edited)
+
         # -- Ranked mode (scores.db + active sort order) -----------------------
         if self._sort_cols:
             ranked = self._get_ranked_schedule(period_id, index)
@@ -953,6 +964,112 @@ class AppService(IAppService):
             constraint_index=self._constraint_index,
         )
         return [{"rule": e.rule, "reason": e.reason} for e in errors]
+
+    def save_manual_edit(self, period_id: str, index: int, edited_rows: list[dict]) -> None:
+        """Persist a manually edited schedule at the given index.
+
+        1. Updates the in-memory override so the UI reflects the edit immediately.
+        2. Overwrites the batch pkl file on disk (if results are disk-based).
+        3. Re-scores the edited schedule and updates scores.db.
+        4. Closes the ranking engine so the next read opens a fresh connection.
+        """
+        self._manual_edits.setdefault(period_id, {})[index] = list(edited_rows)
+
+        disk_count = self._results_reader.get_count(period_id)
+        if disk_count > 0 and index < disk_count:
+            schedule = self._dict_rows_to_schedule(period_id, edited_rows)
+            self._overwrite_batch_slot(period_id, index, schedule)
+            self._update_score_in_db(period_id, index, schedule)
+
+        if self._ranking_engine is not None:
+            try:
+                self._ranking_engine.close()
+            except Exception:
+                pass
+            self._ranking_engine = None
+
+    def _dict_rows_to_schedule(self, period_id: str, rows: list[dict]) -> ExamSchedule:
+        """Reconstruct an ExamSchedule from formatted row dicts.
+
+        Preserves room-scheduling data (time_slot + room_ids) when present so
+        that disk write-back does not silently drop room assignments.
+        room_ids are expected in "building:room_id" composite-key format.
+        """
+        period = self._datastore.get_period_by_id(period_id)
+        schedule = ExamSchedule(period)
+        courses_by_id = {c.course_id: c for c in self._datastore.get_all_courses()}
+        rooms_by_key = {
+            f"{r.building}:{r.room_id}": r for r in self._datastore.get_rooms()
+        }
+        for row in rows:
+            course = courses_by_id.get(row["course_number"])
+            if course is None:
+                continue
+            exam_date = row["exam_date"]
+            if isinstance(exam_date, str):
+                exam_date = date.fromisoformat(exam_date)
+
+            slot_str = row.get("time_slot")
+            room_keys = row.get("room_ids", [])
+            if slot_str and room_keys:
+                try:
+                    slot = TimeSlot(slot_str)
+                    room_objs = tuple(
+                        rooms_by_key[k] for k in room_keys if k in rooms_by_key
+                    )
+                    if room_objs:
+                        placement = ExamPlacement.with_rooms(exam_date, slot, room_objs)
+                        schedule.assign(course, placement)
+                        continue
+                except (ValueError, KeyError):
+                    pass
+            schedule.assign(course, exam_date)
+        return schedule
+
+    def _overwrite_batch_slot(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
+        """Replace one slot in the on-disk batch file with the edited schedule."""
+        import pickle
+        batch_num = index // BATCH_SIZE
+        slot = index % BATCH_SIZE
+        batch_path = self._results_reader._batch_path(period_id, batch_num)
+        if not batch_path.exists():
+            return
+        with open(batch_path, "rb") as f:
+            batch = pickle.load(f)
+        if slot < len(batch):
+            batch[slot] = schedule
+        temp = batch_path.with_suffix(".part")
+        with open(temp, "wb") as f:
+            pickle.dump(batch, f)
+        temp.replace(batch_path)
+        self._results_reader._batch_cache.pop((period_id, batch_num), None)
+
+    def _update_score_in_db(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
+        """Re-score the edited schedule and update its row in scores.db."""
+        import sqlite3
+        from src.algorithm.scoring.schedule_scorer import ScheduleScorer
+        db_path = self._scores_db_path()
+        if not db_path.exists():
+            return
+        metrics = ScheduleScorer.default().compute_scores(schedule)
+        batch_num = index // BATCH_SIZE
+        slot = index % BATCH_SIZE
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.execute(
+                """
+                UPDATE scores
+                   SET min_days_required=?, avg_days_all=?, elective_conflicts=?,
+                       span_required=?, max_exams_per_day=?, avg_room_distance=?
+                 WHERE period_id=? AND batch_number=? AND index_in_batch=?
+                """,
+                (
+                    metrics.min_days_required, metrics.avg_days_all,
+                    metrics.elective_conflicts, metrics.span_required,
+                    metrics.max_exams_per_day, metrics.avg_room_distance,
+                    period_id, batch_num, slot,
+                ),
+            )
+            conn.commit()
 
     def get_current_combination(self) -> list[dict]:
         """Return the currently selected schedule combination across all periods.

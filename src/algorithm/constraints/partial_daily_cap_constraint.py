@@ -22,7 +22,7 @@ class PartialDailyCapConstraint(IPartialConstraint):
         """Return False if any assigned date already contains more than K exams."""
         counts_by_date: dict[date, int] = {}
 
-        for exam_date in schedule.assignments.values():
+        for exam_date in schedule.iter_assignment_dates():
             counts_by_date[exam_date] = counts_by_date.get(exam_date, 0) + 1
 
         return all(count <= self._k for count in counts_by_date.values())

@@ -799,12 +799,12 @@ class OutputScreen(QWidget):
                 if not self._loading_timer.isActive():
                     self._loading_timer.start()
             else:
-                # Defer the empty state by 2 s so a schedule that arrives
-                # shortly after the first poll replaces the blank screen
-                # instead of flashing the "no schedules" message first.
+                # The period is not generating and no schedules exist, so show
+                # the empty state immediately instead of making the user wait.
+                self._loading_timer.stop()
+                self._empty_timer.stop()
                 self._empty_semester = sem
-                if not self._empty_timer.isActive():
-                    self._empty_timer.start()
+                self.four_month.show_empty(sem)
 
         self._update_navigator()
 

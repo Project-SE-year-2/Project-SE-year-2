@@ -77,6 +77,7 @@ class OutputDayCell(QFrame):
         self._unavailable = False
         self._edit_mode   = False
         self._drag_start_pos: QPoint | None = None
+        self._drag_exam: dict | None = None   # exam under the cursor when drag started
         # Drops are only accepted on in-range, non-other-month, non-unavailable days.
         self._drop_allowed = not is_other_month
         self._setup_ui()
@@ -299,10 +300,21 @@ class OutputDayCell(QFrame):
 
     # ── Events ────────────────────────────────────────────────────────────────
 
+    def _exam_at_pos(self, pos) -> dict:
+        """Return the exam dict for the pill widget under pos, falling back to the first exam."""
+        widget = self.childAt(pos)
+        while widget is not None and widget is not self:
+            exam = getattr(widget, "_exam_data", None)
+            if exam is not None:
+                return exam
+            widget = widget.parent()
+        return self._all_exams[0]
+
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton:
             if self._edit_mode and self._all_exams:
                 self._drag_start_pos = event.pos()
+                self._drag_exam = self._exam_at_pos(event.pos())
             elif self._all_exams:
                 anchor = self.mapToGlobal(QPoint(0, self.height()))
                 self.exam_clicked.emit(self._all_exams, anchor)
@@ -332,7 +344,7 @@ class OutputDayCell(QFrame):
         super().mouseReleaseEvent(event)
 
     def _start_drag(self) -> None:
-        exam = self._all_exams[0]
+        exam = self._drag_exam if self._drag_exam is not None else self._all_exams[0]
         source_date = str(exam.get("exam_date", self._qdate.toString(Qt.ISODate)))
 
         payload = {k: str(v) if not isinstance(v, (str, int, float, bool, list)) else v
@@ -348,6 +360,7 @@ class OutputDayCell(QFrame):
         drag.setMimeData(mime)
         drag.exec_(Qt.MoveAction)
         self._drag_start_pos = None
+        self._drag_exam = None
 
     # ── Drop target ───────────────────────────────────────────────────────────
 

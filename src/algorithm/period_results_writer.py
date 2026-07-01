@@ -39,12 +39,17 @@ class PeriodResultsWriter:
 
     @staticmethod
     def _safe_replace(src: Path, dst: Path, retries: int = 30, delay: float = 0.05) -> None:
-        """Rename src -> dst, retrying on WinError 5 (Access is denied)."""
+        """Rename src -> dst, retrying on transient Windows errors.
+
+        WinError 5  (PermissionError)  — file locked by AV/indexer, retry.
+        WinError 2  (FileNotFoundError) — AV may have quarantined the .part
+                                          file; wait briefly and retry.
+        """
         for attempt in range(retries):
             try:
                 os.replace(src, dst)
                 return
-            except PermissionError:
+            except (PermissionError, FileNotFoundError):
                 if attempt == retries - 1:
                     raise
                 time.sleep(min(delay * (attempt + 1), 0.5))

@@ -124,6 +124,8 @@ def test_all_abstract_methods_are_callable_on_full_implementation():
     service.get_current_combination()
     service.validate_manual_move("FALL_Aleph", [], {}, date(2026, 1, 1))
     service.save_manual_edit("FALL_Aleph", 0, [])
+    service.get_room_availability("FALL_Aleph", 0, date(2026, 1, 1), "MORNING", "12345")
+    service.save_exam_edit("FALL_Aleph", 0, "12345", date(2026, 1, 1), None, [])
 
 
 def test_iappservice_is_abstract():

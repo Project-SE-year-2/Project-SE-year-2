@@ -1051,8 +1051,8 @@ class AppService(IAppService):
             if physical_index < disk_count:
                 return self._results_reader.get_schedule_at(period_id, physical_index)
             return None
-        # Fall back to in-memory results
-        schedules = self._results.get(period_id, [])
+        # Fall back to in-memory results (keyed by period_id)
+        schedules = self._results_by_period.get(period_id, [])
         if 0 <= index < len(schedules):
             return schedules[index]
         return None
@@ -1145,9 +1145,17 @@ class AppService(IAppService):
         # Apply the change to the in-memory schedule object
         schedule.assign(target_course, new_placement)
 
-        # Persist to disk
+        # Persist to disk and keep the ranking database consistent
         if disk_count > 0 and physical_index < disk_count:
             self._overwrite_batch_slot(period_id, physical_index, schedule)
+            self._update_score_in_db(period_id, physical_index, schedule)
+
+        if self._ranking_engine is not None:
+            try:
+                self._ranking_engine.close()
+            except Exception:
+                pass
+            self._ranking_engine = None
 
     def _overwrite_batch_slot(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
         """Replace one slot in the on-disk batch file with the updated schedule."""
@@ -1373,24 +1381,6 @@ class AppService(IAppService):
                     pass
             schedule.assign(course, exam_date)
         return schedule
-
-    def _overwrite_batch_slot(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
-        """Replace one slot in the on-disk batch file with the edited schedule."""
-        import pickle
-        batch_num = index // BATCH_SIZE
-        slot = index % BATCH_SIZE
-        batch_path = self._results_reader._batch_path(period_id, batch_num)
-        if not batch_path.exists():
-            return
-        with open(batch_path, "rb") as f:
-            batch = pickle.load(f)
-        if slot < len(batch):
-            batch[slot] = schedule
-        temp = batch_path.with_suffix(".part")
-        with open(temp, "wb") as f:
-            pickle.dump(batch, f)
-        temp.replace(batch_path)
-        self._results_reader._batch_cache.pop((period_id, batch_num), None)
 
     def _update_score_in_db(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
         """Re-score the edited schedule and update its row in scores.db."""

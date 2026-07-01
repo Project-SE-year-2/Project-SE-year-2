@@ -1308,3 +1308,21 @@ def test_rank_of_last_saved_edit_queries_find_rank_when_sort_active(monkeypatch,
     service._last_saved_physical = ("FALL_Aleph", 1)
 
     assert service.rank_of_last_saved_edit("FALL_Aleph") == 0
+
+
+def test_rank_of_last_saved_edit_falls_back_to_physical_index_when_rank_lookup_fails(monkeypatch, tmp_path):
+    service = _make_service(monkeypatch)
+
+    results_root = tmp_path / "results"
+    results_root.mkdir(parents=True)
+    (results_root / "scores.db").touch()
+
+    service._results_reader = ResultsReader(root_path=results_root)
+    service._sort_cols = ["span_required"]
+    service._last_saved_physical = ("FALL_Aleph", 7)
+
+    fake_engine = MagicMock()
+    fake_engine.find_rank.return_value = None
+    service._ranking_engine = fake_engine
+
+    assert service.rank_of_last_saved_edit("FALL_Aleph") == 7

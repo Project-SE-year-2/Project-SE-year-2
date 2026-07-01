@@ -1414,8 +1414,9 @@ class AppService(IAppService):
     def rank_of_last_saved_edit(self, period_id: str) -> int:
         """Return the current display rank of the schedule most recently saved by save_exam_edit.
 
-        Falls back to 0 if the physical index cannot be resolved (no sort active,
-        ranking engine unavailable, or no edit has been saved yet).
+        Falls back to the physical index if the ranking engine cannot resolve a
+        rank for the saved schedule (for example when the score row is missing or
+        the ranking view is temporarily stale).
         """
         stored = getattr(self, "_last_saved_physical", None)
         if stored is None or stored[0] != period_id:
@@ -1428,7 +1429,8 @@ class AppService(IAppService):
             return physical_index
         batch_num = physical_index // BATCH_SIZE
         slot      = physical_index % BATCH_SIZE
-        return engine.find_rank(period_id, self._sort_cols, batch_num, slot)
+        rank = engine.find_rank(period_id, self._sort_cols, batch_num, slot)
+        return physical_index if rank is None else rank
 
     def get_current_combination(self) -> list[dict]:
         """Return the currently selected schedule combination across all periods.

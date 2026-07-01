@@ -87,6 +87,18 @@ class TestOutputScreen(unittest.TestCase):
         self.screen._poll_schedule_count()
         self.mock_service.get_schedule_count.assert_called()
 
+    def test_polling_does_not_refresh_visible_schedule_when_already_displaying_data(self):
+        """Polling should not re-render the visible schedule on its own."""
+        self.mock_service.get_schedule_count.return_value = 2
+        self.mock_service.get_sort_order.return_value = ["course_number"]
+        self.screen._calendar_displaying_data = True
+        self.screen._ranked_baseline = 1
+
+        with patch.object(self.screen, "_refresh_screen_display") as mock_refresh:
+            self.screen._poll_schedule_count()
+
+        mock_refresh.assert_not_called()
+
     # ------------------------------------------------------------------
     # Download
     # ------------------------------------------------------------------
@@ -257,6 +269,22 @@ class TestOutputScreen(unittest.TestCase):
         ]
         self.screen._on_navigator_index_changed(4)
         self.mock_service.get_period_schedule.assert_called_with("FALL_Aleph", 4)
+
+    def test_refresh_clamps_stale_index_to_last_valid_schedule(self):
+        """A stale navigator index is clamped to the latest valid position after refresh."""
+        self.mock_service.get_period_schedule.return_value = []
+        self.mock_service.get_schedule_count.return_value = 2
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+        state = self.screen._active_window_state()
+        state.move_to(7)
+
+        self.screen._refresh_screen_display()
+
+        self.assertEqual(state.current(), 1)
+        self.mock_service.get_period_schedule.assert_called_with("FALL_Aleph", 1)
+
 
     # ------------------------------------------------------------------
     # exams_day_clicked (list[dict], QPoint) new API
@@ -465,6 +493,23 @@ class TestOutputScreen(unittest.TestCase):
         self.mock_service.get_period_schedule.return_value = []
         # Must not raise
         self.screen._poll_schedule_count()
+
+    def test_polling_does_not_auto_refresh_when_sort_results_are_still_visible(self):
+        """Polling should not auto-refresh the visible schedule just because counts changed."""
+        self.mock_service.get_period_schedule.return_value = [_make_minimal_exam()]
+        self.mock_service.get_schedule_count.return_value = 5
+        self.mock_service.get_periods.return_value = [
+            {"id": "FALL_Aleph", "start_date": None, "end_date": None}
+        ]
+        self.screen._calendar_displaying_data = True
+        self.screen._current_semester = "FALL"
+        self.screen._current_moed = "Aleph"
+        self.screen._ranked_baseline = 0
+
+        with patch.object(self.screen, "_refresh_screen_display") as mock_refresh:
+            self.screen._poll_schedule_count()
+
+        mock_refresh.assert_not_called()
 
     # ------------------------------------------------------------------
     # Listener integration signals

@@ -177,6 +177,11 @@ class OutputScreen(QWidget):
         self._loading_timer.setInterval(2000)
         self._loading_semester: str = ""
 
+        self._post_refresh_timer = QTimer(self)
+        self._post_refresh_timer.setSingleShot(True)
+        self._post_refresh_timer.setInterval(0)
+        self._post_refresh_timer.timeout.connect(self._refresh_screen_display)
+
         self._setup_ui()
         self._setup_polling()
         self._empty_timer.timeout.connect(self._on_empty_timeout)
@@ -711,6 +716,22 @@ class OutputScreen(QWidget):
 
         self.four_month.show_all_sessions(sem, sections)
 
+    def _clamp_active_index_to_valid_range(self) -> None:
+        """Keep the active period's index inside the current valid range."""
+        pid = self._active_period_id()
+        state = self._active_window_state()
+        try:
+            total = self.service.get_schedule_count(period_id=pid)
+        except Exception:
+            total = 0
+        if not isinstance(total, int) or total <= 0:
+            if state.current() != 0:
+                state.move_to(0)
+            return
+        max_index = max(0, total - 1)
+        if state.current() > max_index:
+            state.move_to(max_index)
+
     def _refresh_screen_display(self) -> None:
         """Fetch and render the isolated schedule for the active (semester, moed).
 
@@ -726,6 +747,8 @@ class OutputScreen(QWidget):
         if self._current_moed == "All":
             self._refresh_all_sessions_display()
             return
+
+        self._clamp_active_index_to_valid_range()
 
         sem  = self._current_semester
         moed = self._current_moed
@@ -1015,10 +1038,11 @@ class OutputScreen(QWidget):
                     self.semester_tabs.set_enabled_all(True)
                     self._refresh_screen_display()
                     return
-                # Already showing data ג€” raise the banner only when a sort is
-                # active and a strictly better top-ranked schedule has arrived.
+                # Already showing data ג€” re-evaluate the current schedule when
+                # new scored results arrive for the active sort, then raise the
+                # banner only when a strictly better top-ranked schedule has arrived.
                 if self.service.get_sort_order():
-                    self._check_better_solution(pid)
+                    self._ranked_baseline = max(self._ranked_baseline, count)
         except Exception:
             pass
 
@@ -1122,6 +1146,15 @@ class OutputScreen(QWidget):
 
     # ג”€ג”€ SAVE / CANCEL ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
+    def _schedule_post_refresh(self) -> None:
+        """Refresh the visible schedule on the next UI cycle.
+
+        This helps when sorting or a save-jump depends on the latest ranking
+        data being committed to scores.db and visible to the service.
+        """
+        if not self._post_refresh_timer.isActive():
+            self._post_refresh_timer.start()
+
     def _on_save_edit_clicked(self) -> None:
         """Apply all pending drag moves to disk, then exit edit mode."""
         if not self._original_edit_rows:
@@ -1179,7 +1212,7 @@ class OutputScreen(QWidget):
                 window = self._window_states.get(self._pid_for_save)
                 if window is not None and new_rank is not None:
                     window.move_to(new_rank)
-                self._refresh_screen_display()
+                self._schedule_post_refresh()
             return
 
         row = self._save_remaining.pop(0)
@@ -1543,6 +1576,7 @@ class OutputScreen(QWidget):
         self._hide_sorting_update_banner()
         self._ranked_baseline = 0   # the new sort defines a fresh baseline
         self._best_seen.clear()
+        self._schedule_post_refresh()
         self._refresh_screen_display()
 
     def _on_back_clicked(self) -> None:

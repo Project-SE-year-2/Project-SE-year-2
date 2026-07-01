@@ -67,9 +67,6 @@ class _FakeService:
     def save_exam_edit(self, period_id, index, course_number, new_date, new_time_slot, new_room_keys):
         pass
 
-    def rank_of_last_saved_edit(self, period_id):
-        return 0
-
 
 def test_month_grid_propagates_edit_mode_to_output_cells(qtbot):
     """MonthGrid should enable drag/drop on all output day cells in edit mode."""

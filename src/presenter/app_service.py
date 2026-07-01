@@ -844,7 +844,7 @@ class AppService(IAppService):
                     row["time_slot"]     = placement.time_slot.value
                     row["room_ids"]      = [f"{r.building}:{r.room_id}" for r in placement.rooms]
                     row["rooms_display"] = [
-                        f"ג€¢ Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
+                        f"Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
                         for r in placement.rooms
                     ]
                     row["room_ids"]       = [

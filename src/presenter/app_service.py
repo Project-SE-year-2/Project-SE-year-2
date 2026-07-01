@@ -846,11 +846,335 @@ class AppService(IAppService):
                         f"• Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
                         for r in placement.rooms
                     ]
+                    row["room_ids"]       = [
+                        f"{r.building}:{r.room_id}" for r in placement.rooms
+                    ]
                     row["num_students"]   = getattr(course, "num_students", 0)
                     row["total_capacity"] = placement.total_capacity
 
                 result.append(row)
         return result
+
+    # ------------------------------------------------------------------ #
+    # Edit-exam feature                                                   #
+    # ------------------------------------------------------------------ #
+
+    def _validate_manual_move_basic_legacy(
+        self,
+        period_id: str,
+        exam_rows: list[dict],
+        moving_exam: dict,
+        target_date: date,
+    ) -> list[dict]:
+        """Validate moving one exam to target_date within the given rows context.
+
+        Returns a list of error dicts, each with 'rule' and 'reason' keys.
+        An empty list means the move is valid.
+
+        Checks (in order):
+          1. target_date is within the period's [start_date, end_date].
+          2. target_date is not a forbidden/unavailable day.
+          3. No collision — another Required exam from a shared program is
+             already scheduled on target_date in the same rows context.
+        """
+        errors: list[dict] = []
+        course_number = str(moving_exam.get("course_number", ""))
+        course_name   = str(moving_exam.get("course_name", course_number))
+
+        # ── Fetch period metadata ─────────────────────────────────────
+        start_date: date | None = None
+        end_date:   date | None = None
+        forbidden:  set[date]   = set()
+        try:
+            for p in self._datastore.get_periods():
+                pid = getattr(p, "period_id", None) or getattr(p, "id", None)
+                if pid is None:
+                    continue
+                from src.presenter.data_store import _period_id as _make_pid
+                if _make_pid(p) != period_id:
+                    continue
+                start_date = getattr(p, "start_date", None)
+                end_date   = getattr(p, "end_date",   None)
+                forbidden  = set(getattr(p, "forbidden_days", []) or [])
+                break
+        except Exception:
+            pass
+
+        # ── 1. Period bounds ──────────────────────────────────────────
+        if start_date and target_date < start_date:
+            errors.append({
+                "rule":   "period_bounds",
+                "reason": (
+                    f"{target_date.strftime('%d/%m/%Y')} is before the period "
+                    f"start ({start_date.strftime('%d/%m/%Y')})."
+                ),
+            })
+            return errors   # further checks make no sense out of bounds
+        if end_date and target_date > end_date:
+            errors.append({
+                "rule":   "period_bounds",
+                "reason": (
+                    f"{target_date.strftime('%d/%m/%Y')} is after the period "
+                    f"end ({end_date.strftime('%d/%m/%Y')})."
+                ),
+            })
+            return errors
+
+        # ── 2. Forbidden day ─────────────────────────────────────────
+        if target_date in forbidden:
+            errors.append({
+                "rule":   "forbidden_date",
+                "reason": (
+                    f"{target_date.strftime('%d/%m/%Y')} is a forbidden "
+                    "exam day."
+                ),
+            })
+
+        # ── 3. Collision — same program, Required, same date ─────────
+        moving_programs = set(moving_exam.get("programs") or [])
+        moving_type = str(moving_exam.get("type", "Obligatory")).strip()
+
+        for row in exam_rows:
+            if str(row.get("course_number", "")) == course_number:
+                continue   # skip the exam being moved
+            row_date = row.get("exam_date")
+            if isinstance(row_date, str):
+                try:
+                    from datetime import date as _d
+                    row_date = _d.fromisoformat(row_date)
+                except ValueError:
+                    continue
+            if row_date != target_date:
+                continue
+
+            row_programs = set(row.get("programs") or [])
+            shared = moving_programs & row_programs
+            if not shared:
+                continue
+
+            row_type = str(row.get("type", "Obligatory")).strip()
+            # Only flag a collision when BOTH exams are Required (Obligatory).
+            # A Required + Elective pair on the same day is allowed.
+            if "Obligatory" not in moving_type or "Obligatory" not in row_type:
+                continue
+
+            row_name = str(row.get("course_name", row.get("course_number", "")))
+            errors.append({
+                "rule":   "collision",
+                "reason": (
+                    f"{course_name} conflicts with {row_name} on "
+                    f"{target_date.strftime('%d/%m/%Y')} — both are Required exams "
+                    f"for the same program."
+                ),
+            })
+
+        return errors
+
+    def get_room_availability(
+        self,
+        period_id: str,
+        index: int,
+        target_date: date,
+        time_slot: str,
+        exclude_course_number: str,
+    ) -> list[dict]:
+        """Return all rooms with their free-seat count for (target_date, time_slot).
+
+        For each room:
+          - ``free_seats`` = capacity minus students already occupying the room in
+            that time slot on that date, excluding the course being edited.
+          - ``is_assigned`` = True when the room currently belongs to the exam
+            identified by ``exclude_course_number``.
+          - ``room_key``  = "building:room_id" composite key used by EditExamDialog.
+
+        If room scheduling is not active or no schedule exists at the given index,
+        returns an empty list so the dialog can hide the room section gracefully.
+        """
+        import pickle
+
+        all_rooms = self._datastore.get_rooms()
+        if not all_rooms:
+            return []
+
+        # Load the current schedule for this period/index
+        try:
+            schedule = self._get_schedule_for_period_index(period_id, index)
+        except Exception:
+            return []
+
+        if schedule is None:
+            return []
+
+        # Build a map: room_key → students occupying it in (target_date, time_slot)
+        occupied: dict[str, int] = {}
+        assigned_to_course: set[str] = set()
+
+        for course, placement in schedule.placements.items():
+            if not placement.is_room_based:
+                continue
+            if placement.date != target_date:
+                continue
+            slot_val = placement.time_slot.value if placement.time_slot else ""
+            if slot_val != time_slot:
+                continue
+            course_id = str(course.course_id)
+            num_stu = getattr(course, "num_students", 0) or 0
+            for room in placement.rooms:
+                key = f"{room.building}:{room.room_id}"
+                if course_id == str(exclude_course_number):
+                    assigned_to_course.add(key)
+                else:
+                    occupied[key] = occupied.get(key, 0) + num_stu
+
+        result = []
+        for room in all_rooms:
+            key = f"{room.building}:{room.room_id}"
+            seats_used = occupied.get(key, 0)
+            free = max(0, room.capacity - seats_used)
+            result.append({
+                "room_key":    key,
+                "room_id":     room.room_id,
+                "building":    room.building,
+                "capacity":    room.capacity,
+                "free_seats":  free,
+                "is_assigned": key in assigned_to_course,
+            })
+
+        result.sort(key=lambda r: (r["building"], r["room_id"]))
+        return result
+
+    def _get_schedule_for_period_index(self, period_id: str, index: int):
+        """Return the ExamSchedule object for the given period and display index."""
+        disk_count = self._results_reader.get_count(period_id)
+        if disk_count > 0:
+            physical_index = self._resolve_physical_index(period_id, index)
+            if physical_index < disk_count:
+                return self._results_reader.get_schedule_at(period_id, physical_index)
+            return None
+        # Fall back to in-memory results (keyed by period_id)
+        schedules = self._results_by_period.get(period_id, [])
+        if 0 <= index < len(schedules):
+            return schedules[index]
+        return None
+
+    def save_exam_edit(
+        self,
+        period_id: str,
+        index: int,
+        course_number: str,
+        new_date: date,
+        new_time_slot: str | None,
+        new_room_keys: list[str],
+    ) -> None:
+        """Persist an in-place edit to a single exam in the given schedule.
+
+        Updates the exam's date, time slot and room assignments, then
+        overwrites the batch file on disk so the change survives a reload.
+
+        Raises:
+            ValueError: if the course is not found in the schedule.
+            RuntimeError: if the schedule cannot be written back.
+        """
+        disk_count = self._results_reader.get_count(period_id)
+        physical_index = (
+            self._resolve_physical_index(period_id, index)
+            if disk_count > 0
+            else index
+        )
+
+        schedule = self._get_schedule_for_period_index(period_id, index)
+        if schedule is None:
+            raise RuntimeError(f"No schedule found for period '{period_id}' at index {index}.")
+
+        # Find the target course
+        target_course = None
+        for course in schedule.placements:
+            if str(course.course_id) == str(course_number):
+                target_course = course
+                break
+        if target_course is None:
+            raise ValueError(f"Course {course_number} not found in the schedule.")
+
+        # Build the new placement
+        if new_time_slot and new_room_keys:
+            rooms_by_key = {
+                f"{r.building}:{r.room_id}": r
+                for r in self._datastore.get_rooms()
+            }
+            missing = [k for k in new_room_keys if k not in rooms_by_key]
+            if missing:
+                raise ValueError(f"Unknown room(s): {', '.join(missing)}")
+
+            slot_enum = TimeSlot(new_time_slot)
+            selected_room_keys = set(new_room_keys)
+
+            for other_course, placement in schedule.placements.items():
+                if str(other_course.course_id) == str(course_number):
+                    continue
+                if not placement.is_room_based:
+                    continue
+                if placement.date != new_date:
+                    continue
+                if placement.time_slot != slot_enum:
+                    continue
+                occupied_keys = {
+                    f"{room.building}:{room.room_id}"
+                    for room in placement.rooms
+                }
+                overlap = selected_room_keys & occupied_keys
+                if overlap:
+                    raise ValueError(
+                        "Selected room(s) are already occupied in this time slot: "
+                        + ", ".join(sorted(overlap))
+                    )
+
+            room_objs = tuple(
+                rooms_by_key[k] for k in new_room_keys
+            )
+            num_students = int(getattr(target_course, "num_students", 0) or 0)
+            total_capacity = sum(room.capacity for room in room_objs)
+            if num_students and total_capacity < num_students:
+                raise ValueError(
+                    f"Selected rooms fit {total_capacity} students, "
+                    f"but course {course_number} has {num_students} students."
+                )
+            new_placement = ExamPlacement.with_rooms(new_date, slot_enum, room_objs)
+        else:
+            new_placement = ExamPlacement.date_only(new_date)
+
+        # Apply the change to the in-memory schedule object
+        schedule.assign(target_course, new_placement)
+
+        # Persist to disk and keep the ranking database consistent
+        if disk_count > 0 and physical_index < disk_count:
+            self._overwrite_batch_slot(period_id, physical_index, schedule)
+            self._update_score_in_db(period_id, physical_index, schedule)
+
+        if self._ranking_engine is not None:
+            try:
+                self._ranking_engine.close()
+            except Exception:
+                pass
+            self._ranking_engine = None
+
+    def _overwrite_batch_slot(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
+        """Replace one slot in the on-disk batch file with the updated schedule."""
+        import pickle
+
+        batch_num  = index // BATCH_SIZE
+        slot       = index % BATCH_SIZE
+        batch_path = self._results_reader._batch_path(period_id, batch_num)
+        if not batch_path.exists():
+            return
+        with open(batch_path, "rb") as f:
+            batch = pickle.load(f)
+        if slot < len(batch):
+            batch[slot] = schedule
+        temp = batch_path.with_suffix(".part")
+        with open(temp, "wb") as f:
+            pickle.dump(batch, f)
+        temp.replace(batch_path)
+        self._results_reader._batch_cache.pop((period_id, batch_num), None)
 
     def export_schedule(self, index: int, path: str) -> None:
         if index < 0 or index >= len(self._results):
@@ -1057,24 +1381,6 @@ class AppService(IAppService):
                     pass
             schedule.assign(course, exam_date)
         return schedule
-
-    def _overwrite_batch_slot(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
-        """Replace one slot in the on-disk batch file with the edited schedule."""
-        import pickle
-        batch_num = index // BATCH_SIZE
-        slot = index % BATCH_SIZE
-        batch_path = self._results_reader._batch_path(period_id, batch_num)
-        if not batch_path.exists():
-            return
-        with open(batch_path, "rb") as f:
-            batch = pickle.load(f)
-        if slot < len(batch):
-            batch[slot] = schedule
-        temp = batch_path.with_suffix(".part")
-        with open(temp, "wb") as f:
-            pickle.dump(batch, f)
-        temp.replace(batch_path)
-        self._results_reader._batch_cache.pop((period_id, batch_num), None)
 
     def _update_score_in_db(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
         """Re-score the edited schedule and update its row in scores.db."""

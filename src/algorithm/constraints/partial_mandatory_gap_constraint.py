@@ -40,7 +40,7 @@ class PartialMandatoryGapConstraint(IPartialConstraint):
         """Group all assigned exam dates by (program_id, year), only for obligatory requirements."""
         cohort_dates: dict[tuple[str, int], list[date]] = {}
 
-        for course, exam_date in schedule.assignments.items():
+        for course, exam_date in schedule.iter_assignments():
             seen_cohorts = set()
             for req in course.requirements:
                 if req.req_type == ReqType.Obligatory:

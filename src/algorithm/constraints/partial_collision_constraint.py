@@ -22,7 +22,7 @@ class PartialCollisionConstraint(IPartialConstraint):
         """Return False if any (program_id, date) cell already has more than K electives."""
         counts: dict[tuple, int] = {}
 
-        for course, exam_date in schedule.assignments.items():
+        for course, exam_date in schedule.iter_assignments():
             elective_programs = {
                 req.program_id for req in course.requirements
                 if req.req_type == ReqType.Elective

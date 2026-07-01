@@ -1,7 +1,9 @@
 import json
+import os
 import pickle
 import threading
 import time
+import uuid
 from pathlib import Path
 
 from src.models.exam_schedule import ExamSchedule
@@ -36,16 +38,21 @@ class PeriodResultsWriter:
             return self._period_locks[period_id]
 
     @staticmethod
-    def _safe_replace(src: Path, dst: Path, retries: int = 5, delay: float = 0.1) -> None:
-        """Rename src -> dst, retrying on WinError 5 (Access is denied)."""
+    def _safe_replace(src: Path, dst: Path, retries: int = 30, delay: float = 0.05) -> None:
+        """Rename src -> dst, retrying on transient Windows errors.
+
+        WinError 5  (PermissionError)  — file locked by AV/indexer, retry.
+        WinError 2  (FileNotFoundError) — AV may have quarantined the .part
+                                          file; wait briefly and retry.
+        """
         for attempt in range(retries):
             try:
-                src.replace(dst)
+                os.replace(src, dst)
                 return
-            except PermissionError:
+            except (PermissionError, FileNotFoundError):
                 if attempt == retries - 1:
                     raise
-                time.sleep(delay)
+                time.sleep(min(delay * (attempt + 1), 0.5))
 
     def write_batch(self, period_id: str, schedules: list[ExamSchedule]) -> None:
         with self._lock_for(period_id):
@@ -106,11 +113,27 @@ class PeriodResultsWriter:
     def _update_manifest_locked(self, period_id: str, count: int) -> None:
         """Write manifest — must be called while holding the period lock."""
         manifest_path = self._root / period_id / "manifest.json"
-        manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = manifest_path.with_suffix(".part")
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump({"count": count}, f)
-        self._safe_replace(temp_path, manifest_path)
+        last_error: Exception | None = None
+        for attempt in range(30):
+            temp_path = manifest_path.with_name(
+                f"{manifest_path.name}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex}.part"
+            )
+            try:
+                manifest_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(temp_path, "w", encoding="utf-8") as f:
+                    json.dump({"count": count}, f)
+                self._safe_replace(temp_path, manifest_path)
+                return
+            except (FileNotFoundError, PermissionError) as exc:
+                last_error = exc
+                time.sleep(min(0.05 * (attempt + 1), 0.5))
+            finally:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+        if last_error is not None:
+            raise last_error
 
     # Updates the manifest with the new count of schedules for the given period ID
     def update_manifest(self, period_id: str, count: int) -> None:

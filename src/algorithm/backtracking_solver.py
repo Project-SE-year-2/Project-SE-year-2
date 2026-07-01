@@ -214,8 +214,8 @@ class BacktrackingSolver:
         if not remaining:
             return partial.copy()
 
-        course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
-        candidates = self._valid_candidates_for(course, partial, period, constraint_validator)
+        # Candidates are returned by _select_mrv_course — no second enumeration needed.
+        course, rest, candidates = self._select_mrv_course(remaining, partial, period, constraint_validator)
         random.shuffle(candidates)
 
         for candidate in candidates:
@@ -314,17 +314,33 @@ class BacktrackingSolver:
         partial: ExamSchedule,
         period: ExamPeriod,
         constraint_validator: ConstraintValidator,
-    ) -> tuple[Course, list[Course]]:
-        """
-        Pick the course with the fewest remaining valid dates (MRV).
-        Ties broken by static MCV pre-sort order (first in list wins).
+    ) -> tuple[Course, list[Course], list]:
+        """Pick the course with the fewest valid candidates (MRV) and return its
+        full candidate list so callers do not need to recompute it.
+
+        Two-step strategy:
+          1. Compare courses using _count_remaining_values, which enumerates at
+             most _MRV_CAP candidates per course — cheap O(N × cap) scan.
+          2. Compute the FULL candidate list for the selected course exactly once
+             and return it as the third element.
+
+        Before this change every caller called _valid_candidates_for(best, ...)
+        immediately after _select_mrv_course returned, causing the selected
+        course's domain to be enumerated twice per backtracking node.  The full
+        enumeration (with constraint checks) can be expensive, especially in room
+        mode where each candidate is an ExamBlock(date, time_slot).
         """
         best = min(
             remaining,
             key=lambda c: self._count_remaining_values(c, partial, period, constraint_validator),
         )
+        # Compute the full candidate list for the winner once here.
+        # _count_remaining_values above already enumerated up to _MRV_CAP items
+        # from this course's domain; this call enumerates the complete domain so
+        # the caller can iterate over every valid candidate without a second call.
+        best_candidates = self._valid_candidates_for(best, partial, period, constraint_validator)
         rest = [c for c in remaining if c is not best]
-        return best, rest
+        return best, rest, best_candidates
 
     # ── Backtracking (collect-all variant) ───────────────────────────────────
 
@@ -340,8 +356,8 @@ class BacktrackingSolver:
             results.append(partial.copy())
             return
 
-        course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
-        valid_candidates = self._valid_candidates_for(course, partial, period, constraint_validator)
+        # Candidates are returned by _select_mrv_course — no second enumeration needed.
+        course, rest, valid_candidates = self._select_mrv_course(remaining, partial, period, constraint_validator)
         ordered_candidates = self._lcv_sort_dates(valid_candidates, course, rest, partial, period, constraint_validator)
 
         for candidate in ordered_candidates:
@@ -377,8 +393,8 @@ class BacktrackingSolver:
                 yield result
             return
 
-        course, rest = self._select_mrv_course(remaining, partial, period, constraint_validator)
-        valid_candidates = self._valid_candidates_for(course, partial, period, constraint_validator)
+        # Candidates are returned by _select_mrv_course — no second enumeration needed.
+        course, rest, valid_candidates = self._select_mrv_course(remaining, partial, period, constraint_validator)
         ordered_candidates = self._lcv_sort_dates(valid_candidates, course, rest, partial, period, constraint_validator)
 
         for candidate in ordered_candidates:

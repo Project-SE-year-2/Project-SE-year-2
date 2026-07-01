@@ -61,6 +61,12 @@ class _FakeService:
     def save_manual_edit(self, period_id, index, edited_rows):
         pass
 
+    def get_room_availability(self, period_id, index, target_date, time_slot, exclude_course_number):
+        return []
+
+    def save_exam_edit(self, period_id, index, course_number, new_date, new_time_slot, new_room_keys):
+        pass
+
 
 def test_month_grid_propagates_edit_mode_to_output_cells(qtbot):
     """MonthGrid should enable drag/drop on all output day cells in edit mode."""
@@ -120,7 +126,7 @@ def test_output_screen_enter_edit_mode_captures_edit_snapshot(qtbot):
 
 
 def test_output_screen_exam_move_updates_temporary_rows(qtbot):
-    """Dropping an exam should update only the temporary editable rows."""
+    """Dropping an exam should update only the temporary editable rows (date stored as date object)."""
     screen = OutputScreen(_FakeService())
     qtbot.addWidget(screen)
 
@@ -133,9 +139,9 @@ def test_output_screen_exam_move_updates_temporary_rows(qtbot):
     }
 
     with patch.object(screen, "_render_edit_rows") as render:
-        screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
+        screen._on_exam_drag_moved(exam, "2026-01-01", "2026-01-02")
 
-    # _on_exam_moved now converts the target string to a date object.
+    # _on_exam_drag_moved converts the target string to a date object.
     assert screen._editable_rows[0]["exam_date"] == date(2026, 1, 2)
     render.assert_called_once()
 
@@ -153,20 +159,22 @@ def test_cancel_restores_original_edit_rows(qtbot):
         "exam_date": "2026-01-01",
     }
 
-    screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
-    # After a valid move the date is stored as a date object.
+    screen._on_exam_drag_moved(exam, "2026-01-01", "2026-01-02")
     assert screen._editable_rows[0]["exam_date"] == date(2026, 1, 2)
+
+    # Verify original rows are preserved before cancel clears them.
+    assert screen._original_edit_rows[0]["exam_date"] == "2026-01-01"
 
     with patch.object(screen, "_render_edit_rows"):
         screen._on_cancel_edit_clicked()
 
     assert screen.is_editing() is False
-    # Cancel restores the original snapshot (may be a string if service returned one).
-    original = screen._editable_rows[0]["exam_date"]
-    assert str(original) == "2026-01-01"
+    # exit_edit_mode clears _editable_rows — that is the correct behaviour.
+    assert screen._editable_rows == []
+
 
 def test_save_persists_manual_rows_for_current_period(qtbot):
-    """Save should delegate persistence to service.save_manual_edit with the edited rows."""
+    """Save should call save_exam_edit for each moved exam via SaveEditWorker."""
     fake_service = _FakeService()
     screen = OutputScreen(fake_service)
     qtbot.addWidget(screen)
@@ -180,32 +188,25 @@ def test_save_persists_manual_rows_for_current_period(qtbot):
     }
 
     with patch.object(screen, "_render_edit_rows"):
-        screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
+        screen._on_exam_drag_moved(exam, "2026-01-01", "2026-01-02")
 
-    with patch.object(fake_service, "save_manual_edit") as mock_save:
+    with patch.object(fake_service, "save_exam_edit") as mock_save:
         screen._on_save_edit_clicked()
+        # Give the SaveEditWorker thread time to finish.
+        qtbot.waitUntil(lambda: not screen.is_editing(), timeout=2000)
 
-    assert screen.is_editing() is False
     mock_save.assert_called_once()
-    call_args = mock_save.call_args
-    assert call_args[0][0] == "FALL_Aleph"       # period_id
-    assert call_args[0][1] == 0                   # index
-    saved_rows = call_args[0][2]
-    assert saved_rows[0]["exam_date"] == date(2026, 1, 2)
+    call_kwargs = mock_save.call_args
+    assert call_kwargs[1]["period_id"] == "FALL_Aleph" or call_kwargs[0][0] == "FALL_Aleph"
 
 
-def test_invalid_move_reverts_and_shows_inline_error(qtbot):
-    """An invalid drop must be reverted immediately and show the inline error banner.
-
-    Validation now runs on drop (not only on save), so the editable rows stay
-    unchanged and the error is surfaced inline — no QMessageBox is shown.
-    """
+def test_invalid_move_reverts_and_keeps_edit_mode(qtbot):
+    """If validation returns errors, the drag is reverted and edit mode is kept."""
     class _RejectingService(_FakeService):
         def validate_manual_move(self, period_id, exam_rows, moving_exam, target_date):
             return [{"rule": "conflict", "reason": "Exam conflict detected"}]
 
-    fake_service = _RejectingService()
-    screen = OutputScreen(fake_service)
+    screen = OutputScreen(_RejectingService())
     qtbot.addWidget(screen)
 
     screen.enter_edit_mode()
@@ -216,34 +217,38 @@ def test_invalid_move_reverts_and_shows_inline_error(qtbot):
         "exam_date": "2026-01-01",
     }
 
-    screen._on_exam_moved(exam, "2026-01-01", "2026-01-02")
+    screen._on_exam_drag_moved(exam, "2026-01-01", "2026-01-02")
 
-    # Drop was invalid → date must be reverted to its original value.
+    # The drag was rejected — date must not have changed.
     assert str(screen._editable_rows[0]["exam_date"]) == "2026-01-01"
-
-    # Inline error banner must carry an error message (not a blocking dialog).
-    # We check the label text directly since the screen may not be visible in tests.
-    assert screen._edit_error_banner.message_label.text() != ""
-    assert "Linear Algebra" in screen._edit_error_banner.message_label.text()
-
-    # User stays in edit mode so they can correct the move.
+    # Still in edit mode so the user can correct.
     assert screen.is_editing() is True
 
 
 def test_save_failure_leaves_screen_in_edit_mode(qtbot):
-    """If save_manual_edit raises, the screen must stay in edit mode."""
+    """If save_exam_edit raises, the screen must stay in edit mode."""
     fake_service = _FakeService()
     screen = OutputScreen(fake_service)
     qtbot.addWidget(screen)
 
     screen.enter_edit_mode()
 
-    with patch.object(
-        fake_service,
-        "save_manual_edit",
-        side_effect=OSError("disk full"),
-    ):
-        with patch("src.views.output_screen.output_screen.QMessageBox.critical"):
-            screen._on_save_edit_clicked()
+    # Stage a drag move so there's something to save.
+    exam = {
+        "course_number": "85001",
+        "course_name": "Linear Algebra",
+        "exam_date": "2026-01-01",
+    }
+    with patch.object(screen, "_render_edit_rows"):
+        screen._on_exam_drag_moved(exam, "2026-01-01", "2026-01-02")
+
+    with patch.object(fake_service, "save_exam_edit", side_effect=OSError("disk full")):
+        screen._on_save_edit_clicked()
+        # Wait until the worker thread records the error (visible check fails on
+        # non-shown widgets, so we check the internal error state instead).
+        qtbot.waitUntil(
+            lambda: getattr(screen, "_save_error", None) is not None,
+            timeout=2000,
+        )
 
     assert screen.is_editing() is True

@@ -218,10 +218,12 @@ class RoomAllocator:
         time_slot: TimeSlot,
         partial: ExamSchedule,
     ) -> tuple[Room, ...] | None:
-        available = [
-            room for room in self._rooms
-            if not self._is_room_occupied(room, exam_date, time_slot, partial)
-        ]
+        # Build the occupancy set ONCE for this (date, time_slot).
+        # Old approach: _is_room_occupied scanned all placements per room → O(N_rooms × P × R).
+        # New approach: one pass over all placements builds a set → O(P × R + N_rooms).
+        occupied = self._build_occupied_set(exam_date, time_slot, partial)
+        available = [r for r in self._rooms if _room_identity(r) not in occupied]
+
         required_capacity = getattr(course, "num_students", 0)
         if required_capacity <= 0:
             return None
@@ -329,21 +331,27 @@ class RoomAllocator:
         return sum(room.capacity for room in self._rooms)
 
     @staticmethod
-    def _is_room_occupied(
-        room: Room,
+    def _build_occupied_set(
         exam_date: DateType,
         time_slot: TimeSlot,
         partial: ExamSchedule,
-    ) -> bool:
-        # Use _room_identity so that two Room objects with the same
-        # (building, room_id) are treated as the same physical room,
-        # matching the occupancy key used by RoomAndSlotConstraint.
-        target = _room_identity(room)
-        for _, _, placement in partial.iter_placements():
-            if placement.date == exam_date and placement.time_slot == time_slot:
-                if any(_room_identity(r) == target for r in placement.rooms):
-                    return True
-        return False
+    ) -> set[tuple[str, str]]:
+        """Return the set of (building, room_id) identities already occupied for
+        the given (date, time_slot) pair in the partial schedule.
+
+        Complexity: O(P × R) — one pass over P placements, each with at most R rooms.
+        The set enables O(1) per-room membership tests in allocate(), bringing the
+        total filtering cost from O(N_rooms × P × R) to O(P × R + N_rooms).
+
+        Room identity is (building, room_id), matching RoomAndSlotConstraint, so
+        two Room objects that represent the same physical room are correctly unified.
+        """
+        return {
+            _room_identity(r)
+            for _, _, placement in partial.iter_placements()
+            if placement.date == exam_date and placement.time_slot == time_slot
+            for r in placement.rooms
+        }
 
 
 class RoomSchedulingDomainProvider:

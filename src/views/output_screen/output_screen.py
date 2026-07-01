@@ -1157,7 +1157,7 @@ class OutputScreen(QWidget):
                 return
 
         self.save_edit_btn.setEnabled(False)
-        self.save_edit_btn.setText("Savingג€¦")
+        self.save_edit_btn.setText("Saving...")
 
         self._save_remaining = list(moved)
         self._save_error: str | None = None
@@ -1174,7 +1174,11 @@ class OutputScreen(QWidget):
             if self._save_error:
                 self._edit_error_banner.show_error(self._save_error)
             else:
+                new_rank = self.service.rank_of_last_saved_edit(self._pid_for_save)
                 self.exit_edit_mode()
+                window = self._window_states.get(self._pid_for_save)
+                if window is not None and new_rank is not None:
+                    window.move_to(new_rank)
                 self._refresh_screen_display()
             return
 

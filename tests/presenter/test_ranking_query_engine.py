@@ -376,3 +376,71 @@ def test_avg_room_distance_date_only_mode_uses_tie_breaker_order(tmp_path):
         (0, 3),
         (1, 2),
     ]
+
+
+# ---------------------------------------------------------------------------
+# find_rank
+# ---------------------------------------------------------------------------
+
+def test_find_rank_with_sort_returns_correct_position(db, engine):
+    """Best schedule by sort must be rank 0, worst must be last."""
+    db.insert("fall_a", 0, 0, _m(span=5))
+    db.insert("fall_a", 0, 1, _m(span=20))
+    db.insert("fall_a", 0, 2, _m(span=10))
+
+    # span_required sorts DESC: span=20 → rank 0, span=10 → rank 1, span=5 → rank 2
+    assert engine.find_rank("fall_a", ["span_required"], 0, 1) == 0
+    assert engine.find_rank("fall_a", ["span_required"], 0, 2) == 1
+    assert engine.find_rank("fall_a", ["span_required"], 0, 0) == 2
+
+
+def test_find_rank_without_sort_counts_by_physical_order(db, engine):
+    """Empty sort_cols: rank = count of rows before (batch, index) in natural order."""
+    db.insert("fall_a", 0, 0, _m())
+    db.insert("fall_a", 0, 2, _m())
+    db.insert("fall_a", 1, 0, _m())
+
+    assert engine.find_rank("fall_a", [], 0, 0) == 0
+    assert engine.find_rank("fall_a", [], 0, 2) == 1
+    assert engine.find_rank("fall_a", [], 1, 0) == 2
+
+
+def test_find_rank_returns_none_when_not_in_db(db, engine):
+    """A (batch, index) pair absent from scores.db must return None."""
+    db.insert("fall_a", 0, 0, _m())
+    assert engine.find_rank("fall_a", ["span_required"], 9, 9) is None
+
+
+def test_find_rank_without_sort_returns_none_when_not_in_db(db, engine):
+    """Unsorted path must also return None for a missing (batch, index)."""
+    db.insert("fall_a", 0, 0, _m())
+    db.insert("fall_a", 0, 1, _m())
+    assert engine.find_rank("fall_a", [], 5, 99) is None
+
+
+def test_find_rank_returns_none_for_unknown_period(db, engine):
+    db.insert("fall_a", 0, 0, _m())
+    assert engine.find_rank("other_period", ["span_required"], 0, 0) is None
+
+
+def test_find_rank_tie_uses_physical_order_as_tiebreaker(db, engine):
+    """Equal metric values must be broken by (batch, index) ASC."""
+    db.insert("fall_a", 0, 2, _m(span=10))
+    db.insert("fall_a", 0, 0, _m(span=10))
+    db.insert("fall_a", 0, 1, _m(span=10))
+
+    assert engine.find_rank("fall_a", ["span_required"], 0, 0) == 0
+    assert engine.find_rank("fall_a", ["span_required"], 0, 1) == 1
+    assert engine.find_rank("fall_a", ["span_required"], 0, 2) == 2
+
+
+def test_find_rank_multi_column_sort(db, engine):
+    """find_rank respects multi-column sort order."""
+    db.insert("fall_a", 0, 0, _m(span=10, conflicts=2))
+    db.insert("fall_a", 0, 1, _m(span=10, conflicts=0))
+    db.insert("fall_a", 0, 2, _m(span=20, conflicts=5))
+
+    # Primary span DESC → (0,2) is rank 0; secondary conflicts ASC → (0,1) rank 1, (0,0) rank 2
+    assert engine.find_rank("fall_a", ["span_required", "elective_conflicts"], 0, 2) == 0
+    assert engine.find_rank("fall_a", ["span_required", "elective_conflicts"], 0, 1) == 1
+    assert engine.find_rank("fall_a", ["span_required", "elective_conflicts"], 0, 0) == 2

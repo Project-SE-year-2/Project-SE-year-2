@@ -169,6 +169,48 @@ class RankingQueryEngine:
             terms.append(f"{col} {direction}")
         return ", ".join(terms)
 
+    def find_rank(self, period_id: str, sort_cols: list,
+                  batch_number: int, index_in_batch: int) -> int | None:
+        """Return the 0-based rank of the schedule at (batch_number, index_in_batch).
+
+        Returns None if the schedule is not found in scores.db for this period.
+        """
+        if not sort_cols:
+            exists = self._conn.execute(
+                "SELECT 1 FROM scores WHERE period_id = ? "
+                "AND batch_number = ? AND index_in_batch = ?",
+                (period_id, batch_number, index_in_batch),
+            ).fetchone()
+            if exists is None:
+                return None
+            row = self._conn.execute(
+                "SELECT COUNT(*) FROM scores WHERE period_id = ? "
+                "AND (batch_number < ? OR (batch_number = ? AND index_in_batch < ?))",
+                (period_id, batch_number, batch_number, index_in_batch),
+            ).fetchone()
+            return row[0] if row else None
+
+        try:
+            order_clause = self._build_order_clause(sort_cols)
+            self._ensure_index_for(sort_cols)
+            row = self._conn.execute(
+                f"""
+                SELECT rn FROM (
+                    SELECT batch_number, index_in_batch,
+                           ROW_NUMBER() OVER (
+                               ORDER BY {order_clause},
+                                        batch_number ASC, index_in_batch ASC
+                           ) - 1 AS rn
+                    FROM scores WHERE period_id = ?
+                )
+                WHERE batch_number = ? AND index_in_batch = ?
+                """,
+                (period_id, batch_number, index_in_batch),
+            ).fetchone()
+            return row[0] if row else None
+        except Exception:
+            return None
+
     def close(self) -> None:
         self._conn.close()
 

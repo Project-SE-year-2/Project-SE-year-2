@@ -1254,3 +1254,57 @@ def test_resolve_physical_index_raises_when_engine_returns_no_rows(monkeypatch, 
 
     # In-memory cache must not be updated after a failed save.
     assert pid not in service._manual_edits
+
+
+# ------------------------------------------------------------------ #
+# rank_of_last_saved_edit                                             #
+# ------------------------------------------------------------------ #
+
+def test_rank_of_last_saved_edit_returns_none_before_any_save(monkeypatch):
+    service = _make_service(monkeypatch)
+    assert service.rank_of_last_saved_edit("FALL_Aleph") is None
+
+
+def test_rank_of_last_saved_edit_returns_none_for_wrong_period(monkeypatch):
+    service = _make_service(monkeypatch)
+    service._last_saved_physical = ("FALL_Aleph", 3)
+    assert service.rank_of_last_saved_edit("SPRI_Aleph") is None
+
+
+def test_rank_of_last_saved_edit_returns_physical_index_when_no_sort(monkeypatch):
+    service = _make_service(monkeypatch)
+    service._last_saved_physical = ("FALL_Aleph", 7)
+    service._sort_cols = []
+    assert service.rank_of_last_saved_edit("FALL_Aleph") == 7
+
+
+def test_rank_of_last_saved_edit_returns_physical_index_when_no_engine(monkeypatch, tmp_path):
+    service = _make_service(monkeypatch)
+    service._last_saved_physical = ("FALL_Aleph", 5)
+    service._sort_cols = ["span_required"]
+    # No scores.db -> _get_ranking_engine returns None -> falls back to physical index
+    service._results_reader = ResultsReader(root_path=tmp_path / "results")
+    assert service.rank_of_last_saved_edit("FALL_Aleph") == 5
+
+
+def test_rank_of_last_saved_edit_queries_find_rank_when_sort_active(monkeypatch, tmp_path):
+    from src.presenter.scores_database import ScoresDatabase, ScheduleMetrics
+
+    service = _make_service(monkeypatch)
+
+    results_root = tmp_path / "results"
+    results_root.mkdir(parents=True)
+    db_path = results_root / "scores.db"
+
+    db = ScoresDatabase(db_path)
+    db.insert("FALL_Aleph", 0, 0, ScheduleMetrics(1, 1, 0, 5,  1, 0.0))
+    db.insert("FALL_Aleph", 0, 1, ScheduleMetrics(1, 1, 0, 20, 1, 0.0))
+    db.insert("FALL_Aleph", 0, 2, ScheduleMetrics(1, 1, 0, 10, 1, 0.0))
+    db.close()
+
+    service._results_reader = ResultsReader(root_path=results_root)
+    service._sort_cols = ["span_required"]
+    # Physical index 1 -> batch 0, slot 1 -> span=20 -> rank 0 (best)
+    service._last_saved_physical = ("FALL_Aleph", 1)
+
+    assert service.rank_of_last_saved_edit("FALL_Aleph") == 0

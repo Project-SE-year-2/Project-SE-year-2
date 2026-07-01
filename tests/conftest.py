@@ -2,6 +2,8 @@ import os
 import sys
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+if os.name == "nt":
+    os.environ.setdefault("QT_QPA_FONTDIR", r"C:\Windows\Fonts")
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

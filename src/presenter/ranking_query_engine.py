@@ -176,6 +176,13 @@ class RankingQueryEngine:
         Returns None if the schedule is not found in scores.db for this period.
         """
         if not sort_cols:
+            exists = self._conn.execute(
+                "SELECT 1 FROM scores WHERE period_id = ? "
+                "AND batch_number = ? AND index_in_batch = ?",
+                (period_id, batch_number, index_in_batch),
+            ).fetchone()
+            if exists is None:
+                return None
             row = self._conn.execute(
                 "SELECT COUNT(*) FROM scores WHERE period_id = ? "
                 "AND (batch_number < ? OR (batch_number = ? AND index_in_batch < ?))",

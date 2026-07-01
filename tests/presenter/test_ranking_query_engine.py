@@ -411,6 +411,13 @@ def test_find_rank_returns_none_when_not_in_db(db, engine):
     assert engine.find_rank("fall_a", ["span_required"], 9, 9) is None
 
 
+def test_find_rank_without_sort_returns_none_when_not_in_db(db, engine):
+    """Unsorted path must also return None for a missing (batch, index)."""
+    db.insert("fall_a", 0, 0, _m())
+    db.insert("fall_a", 0, 1, _m())
+    assert engine.find_rank("fall_a", [], 5, 99) is None
+
+
 def test_find_rank_returns_none_for_unknown_period(db, engine):
     db.insert("fall_a", 0, 0, _m())
     assert engine.find_rank("other_period", ["span_required"], 0, 0) is None

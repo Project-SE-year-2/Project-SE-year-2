@@ -5,15 +5,15 @@ OutputScreen
 Layout
 ------
 QVBoxLayout (inside QScrollArea)
-ג”ג”€ג”€ Toolbar: [ג† Back]  ֲ·ֲ·ֲ·ֲ·ֲ·  [ג¬‡ Download Schedule]
-ג”ג”€ג”€ SemesterTabsWidget: [נƒ FALL]  [נ¸ SPRING]
-ג””ג”€ג”€ MoedCalendarOutputWidget (white card)
-      ג”ג”€ג”€ Header: icon + title | [׳׳•׳¢׳“ ׳] [׳׳•׳¢׳“ ׳‘] | ג€¹ N of M ג€÷
-      ג”ג”€ג”€ Dynamic horizontal months (rebuilt per period date range)
-      ג””ג”€ג”€ Legend
+- Toolbar: [Back]  ·····  [Download Schedule]
+- SemesterTabsWidget: [FALL]  [SPRING]
+- MoedCalendarOutputWidget (white card)
+  - Header: icon + title | [Prev] [Next] | N of M
+  - Dynamic horizontal months (rebuilt per period date range)
+  - Legend
 
-Navigation model ג€” per-period
-------------------------------
+Navigation model - per-period
+-----------------------------
 Each period stores its own navigation state in _window_states. (UI-owned state).
 NEXT/PREV update the active period's WindowState and then call
 service.get_period_schedule(period_id, current_index) to fetch the new data.
@@ -25,18 +25,18 @@ Switching tabs loads the stored index for the new period.
 
 Period ID mapping
 -----------------
-UI semester names ג†’ backend Semester enum values via _SEMESTER_TO_ID:
-    "FALL"   ג†’ "FALL"
-    "SPRING" ג†’ "SPRI"
+UI semester names -> backend Semester enum values via _SEMESTER_TO_ID:
+    "FALL"   -> "FALL"
+    "SPRING" -> "SPRI"
 
-Exam filtering ג€” two-layer
+Exam filtering - two-layer
 --------------------------
-Primary:  exam_date in the period's date range from get_periods().
+Primary: exam_date in the period's date range from get_periods().
 Fallback: if date-range filter yields nothing, filter by the "semester"
-          and "moed" metadata fields embedded by _format_schedule_rows.
+and "moed" metadata fields embedded by _format_schedule_rows.
 
-"No period" banner
-------------------
+No period banner
+----------------
 When get_periods() has no entry for the active period_id,
 MoedCalendarOutputWidget.show_no_period() shows a styled warning.
 
@@ -85,7 +85,7 @@ from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
 from src.views.output_screen.window_state import WindowState
 
 
-# ג”€ג”€ Semester-name ג†’ backend period-id prefix mapping ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+# --- Semester-name -> backend period-id prefix mapping ---
 _SEMESTER_TO_ID: dict[str, str] = {
     "FALL":   "FALL",
     "SPRING": "SPRI",
@@ -120,7 +120,7 @@ class OutputScreen(QWidget):
         super().__init__(parent)
         self.service = service
 
-        # ג”€ג”€ Shared global counter (for legacy compat properties) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+        # --- Shared global counter (for legacy compat properties) ---
         self._global_index: int = 0
         self._global_total: int = 0
 
@@ -154,12 +154,12 @@ class OutputScreen(QWidget):
 
         # EP-149 bug 1: number of schedules the current view reflects. When the
         # active period's count grows past this, the poll timer pops the refresh
-        # banner ג€” so newly generated (better-ranked) schedules are offered as
+        # banner -- so newly generated (better-ranked) schedules are offered as
         # early as the next poll tick. Reset to 0 means "recapture on next render".
         self._ranked_baseline: int = 0
 
         # EP-150: best (rank-1) score last seen per period, for the active sort.
-        # When it improves, a strictly better schedule was found ג†’ notify. Empty
+        # When it improves, a strictly better schedule was found -> notify. Empty
         # entry means "re-baseline on next poll" (no false notification).
         self._best_seen: dict[str, float] = {}
 
@@ -279,7 +279,7 @@ class OutputScreen(QWidget):
 
     @property
     def current_schedules(self) -> list:
-        # Backward-compat stub ג€” isolated architecture no longer uses a buffer.
+        # Backward-compat stub -- isolated architecture no longer uses a buffer.
         return []
 
     @current_schedules.setter
@@ -403,7 +403,7 @@ class OutputScreen(QWidget):
         self._scroll.setWidget(content)
         root.addWidget(self._scroll)
 
-        # Hidden CalendarTableWidget ג€” backward-compat for EP-65 tests
+        # Hidden CalendarTableWidget -- backward-compat for EP-65 tests
         self.calendar = CalendarTableWidget()
         self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
         self._apply_edit_mode_ui()
@@ -443,7 +443,7 @@ class OutputScreen(QWidget):
         )
         row.addWidget(self._conflict_text, stretch=1)
 
-        close_btn = QPushButton("ג•")
+        close_btn = QPushButton("×")
         close_btn.setFixedSize(28, 28)
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet("""
@@ -483,7 +483,7 @@ class OutputScreen(QWidget):
         row.setContentsMargins(16, 12, 16, 12)
         row.setSpacing(12)
 
-        icon = QLabel("ג“")
+        icon = QLabel("✓")
         icon.setStyleSheet("color: #16A34A; font-size: 18px; font-weight: 700;")
         row.addWidget(icon)
 
@@ -546,7 +546,7 @@ class OutputScreen(QWidget):
     def _show_sorting_update_banner(self, message: str | None = None) -> None:
         """Show the optimized-results pending update banner.
 
-        message overrides the banner text ג€” used by EP-150 to say specifically
+        message overrides the banner text -- used by EP-150 to say specifically
         that a *better* schedule was found rather than just "more available".
         """
         if message is not None:
@@ -568,7 +568,7 @@ class OutputScreen(QWidget):
     def showEvent(self, event) -> None:
         super().showEvent(event)
 
-        # Always reset to FALL ג€” Moed Aleph as the default view.
+        # Always reset to FALL -- Moed Aleph as the default view.
         self._current_semester = "FALL"
         self._current_moed     = "Aleph"
         self.semester_tabs.set_selected("FALL")
@@ -586,10 +586,10 @@ class OutputScreen(QWidget):
         # would silently jump back to schedule 0.
         #
         # Rule:
-        #   active period count == 0  ג†’ first show before any generation (or after a
+        #   active period count == 0  -> first show before any generation (or after a
         #                         fresh generation reset in _on_generation_finished).
         #                         Reset all state and show a loading indicator.
-        #   active period count  > 0  ג†’ data is already loaded; just refresh the
+        #   active period count  > 0  -> data is already loaded; just refresh the
         #                         display at the stored positions and return.
         if self._active_period_count() > 0:
             self._sync_active_counter_state()
@@ -609,7 +609,7 @@ class OutputScreen(QWidget):
             self._loading_timer.start()
 
         # Immediately check if data is already available (generation finished
-        # before the user arrived here) ג€” render the first schedule right away.
+        # before the user arrived here) -- render the first schedule right away.
         pid = self._active_period_id()
         try:
             count = self.service.get_schedule_count(period_id=pid)
@@ -632,7 +632,7 @@ class OutputScreen(QWidget):
     # ג”€ג”€ Semester / moed switching ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def _on_semester_changed(self, semester: str) -> None:
-        """Switch semester tab ג€” restore the stored index for the new period."""
+        """Switch semester tab -- restore the stored index for the new period."""
         if self._edit_schedule_mode:
             return
         self._current_semester = semester
@@ -776,7 +776,7 @@ class OutputScreen(QWidget):
                     forbidden  = p.get("forbidden_days", [])
                     break
         except Exception:
-            period_found = True   # service failed ג†’ assume period exists
+            period_found = True   # service failed -> assume period exists
 
         # ג”€ג”€ Period not configured ג†’ styled warning ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         if not period_found:
@@ -806,7 +806,7 @@ class OutputScreen(QWidget):
                 self._check_cross_moed_conflicts(sem, moed, exams)
         else:
             # Only show "no schedules" if we are certain there are none.
-            # If count > 0 the data simply isn't ready yet ג€” keep loading.
+            # If count > 0 the data simply isn't ready yet -- keep loading.
             self._calendar_displaying_data = False
             try:
                 still_generating = bool(self.service.is_period_generating(pid))
@@ -856,12 +856,12 @@ class OutputScreen(QWidget):
         return rows, start_date, end_date
 
     def _on_loading_timeout(self) -> None:
-        """Called 2 s after generation started ג€” show the loading state if still no data."""
+        """Called 2 s after generation started -- show the loading state if still no data."""
         if not self._calendar_displaying_data:
             self.four_month.show_loading(self._loading_semester)
 
     def _on_empty_timeout(self) -> None:
-        """Called 2 s after we first detected no data ג€” show the empty state."""
+        """Called 2 s after we first detected no data -- show the empty state."""
         if not self._calendar_displaying_data:
             self.four_month.show_empty(self._empty_semester)
 
@@ -877,7 +877,7 @@ class OutputScreen(QWidget):
         with the same course in another moed of the same semester."""
         sem_code = _SEMESTER_TO_ID.get(semester, semester)
 
-        # Build (course_id, date_str) ג†’ course_name map for the current schedule.
+        # Build (course_id, date_str) -> course_name map for the current schedule.
         current_pairs: dict[tuple, str] = {}
         for e in current_exams:
             cid  = str(e.get("course_number", ""))
@@ -915,7 +915,7 @@ class OutputScreen(QWidget):
     # ג”€ג”€ Per-period navigator ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def _on_navigator_index_changed(self, index: int) -> None:
-        """Advance ONLY the active period ג€” other periods stay unchanged.
+        """Advance ONLY the active period -- other periods stay unchanged.
 
         The new isolated architecture stores a local index per period and
         fetches that period's schedule directly via get_period_schedule().
@@ -945,7 +945,7 @@ class OutputScreen(QWidget):
         self._sync_active_counter_state()
 
         self._hide_sorting_update_banner()
-        # The view now reflects every schedule generated so far ג€” move the
+        # The view now reflects every schedule generated so far -- move the
         # baseline up so the banner only reappears when newer ones arrive.
         self._ranked_baseline = self._active_period_count()
         # Re-baseline the best score too, so EP-150 only re-fires on a future
@@ -956,7 +956,7 @@ class OutputScreen(QWidget):
         self._refresh_screen_display()
 
     def _on_prefetch_needed(self, _loaded_so_far: int) -> None:
-        # No-op in isolated mode ג€” each NEXT fetches on demand.
+        # No-op in isolated mode -- each NEXT fetches on demand.
         pass
 
     def _check_better_solution(self, period_id: str) -> None:

@@ -535,7 +535,7 @@ class AppService(IAppService):
                     if msg_type == "period_infeasible":
                         pid = msg["period_id"]
                         self._infeasible_periods.add(pid)
-                        reason = msg.get("reason", "האילוצים שנבחרו אינם מאפשרים שיבוץ לתקופה זו.")
+                        reason = msg.get("reason", "The selected constraints do not allow scheduling for this period.")
                         yield pid, [("infeasible", reason)]
 
                     if msg_type in ("period_done", "period_ready"):

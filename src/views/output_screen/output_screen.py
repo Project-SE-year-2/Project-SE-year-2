@@ -1,18 +1,18 @@
-"""
+﻿"""
 OutputScreen
 ============
 
 Layout
 ------
 QVBoxLayout (inside QScrollArea)
-├── Toolbar: [← Back]  ·····  [⬇ Download Schedule]
-├── SemesterTabsWidget: [🍃 FALL]  [🌸 SPRING]
-└── MoedCalendarOutputWidget (white card)
-      ├── Header: icon + title | [מועד א] [מועד ב] | ‹ N of M ›
-      ├── Dynamic horizontal months (rebuilt per period date range)
-      └── Legend
+ג”ג”€ג”€ Toolbar: [ג† Back]  ֲ·ֲ·ֲ·ֲ·ֲ·  [ג¬‡ Download Schedule]
+ג”ג”€ג”€ SemesterTabsWidget: [נƒ FALL]  [נ¸ SPRING]
+ג””ג”€ג”€ MoedCalendarOutputWidget (white card)
+      ג”ג”€ג”€ Header: icon + title | [׳׳•׳¢׳“ ׳] [׳׳•׳¢׳“ ׳‘] | ג€¹ N of M ג€÷
+      ג”ג”€ג”€ Dynamic horizontal months (rebuilt per period date range)
+      ג””ג”€ג”€ Legend
 
-Navigation model — per-period
+Navigation model ג€” per-period
 ------------------------------
 Each period stores its own navigation state in _window_states. (UI-owned state).
 NEXT/PREV update the active period's WindowState and then call
@@ -25,11 +25,11 @@ Switching tabs loads the stored index for the new period.
 
 Period ID mapping
 -----------------
-UI semester names → backend Semester enum values via _SEMESTER_TO_ID:
-    "FALL"   → "FALL"
-    "SPRING" → "SPRI"
+UI semester names ג†’ backend Semester enum values via _SEMESTER_TO_ID:
+    "FALL"   ג†’ "FALL"
+    "SPRING" ג†’ "SPRI"
 
-Exam filtering — two-layer
+Exam filtering ג€” two-layer
 --------------------------
 Primary:  exam_date in the period's date range from get_periods().
 Fallback: if date-range filter yields nothing, filter by the "semester"
@@ -54,9 +54,8 @@ into one unified ExamSchedule and writes it to disk.
 
 from __future__ import annotations
 
-from datetime import date as _date
-
 from copy import deepcopy
+from datetime import date as _date
 
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
@@ -76,6 +75,7 @@ from PyQt5.QtGui import QIcon
 from src.models.enums import Semester, Moed
 from src.styles.icons import load_pixmap, ICON_DOWNLOAD
 from src.views.output_screen.day_detail_dialog import DayDetailDialog
+from src.views.output_screen.edit_exam_dialog import EditExamDialog
 from src.views.output_screen.moed_calendar_output_widget import MoedCalendarOutputWidget
 from src.views.output_screen.semester_tabs_widget import SemesterTabsWidget
 from src.views.settings_screen.ranking_config_widget import RankingConfigDialog
@@ -85,7 +85,7 @@ from src.styles.output_screen_style import OUTPUT_SCREEN_STYLE
 from src.views.output_screen.window_state import WindowState
 
 
-# ── Semester-name → backend period-id prefix mapping ─────────────────────────
+# ג”€ג”€ Semester-name ג†’ backend period-id prefix mapping ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 _SEMESTER_TO_ID: dict[str, str] = {
     "FALL":   "FALL",
     "SPRING": "SPRI",
@@ -120,11 +120,11 @@ class OutputScreen(QWidget):
         super().__init__(parent)
         self.service = service
 
-        # ── Shared global counter (for legacy compat properties) ──────────────
+        # ג”€ג”€ Shared global counter (for legacy compat properties) ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         self._global_index: int = 0
         self._global_total: int = 0
 
-        # ── Per-period window states ─────────────────────────────────────────────
+        # ג”€ג”€ Per-period window states ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         # Each period has its own WindowState to track history, current pointer.
         # This allows the user to navigate back and forth
         # within each period independently, without affecting other periods.
@@ -134,30 +134,32 @@ class OutputScreen(QWidget):
             for moed in Moed
         }
 
-        # ── Active view ───────────────────────────────────────────────────────
+        # ג”€ג”€ Active view ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         self._current_semester: str = "FALL"
         self._current_moed:     str = "Aleph"
         self._check_conflicts_next: bool = False
         self._day_dialog: DayDetailDialog | None = None
+        self._edit_dialog: EditExamDialog | None = None
+        self._edit_schedule_mode: bool = False
+        # Edit mode state (pending changes tracked here until SAVE)
+        self._editable_rows: list[dict] = []
+        self._original_edit_rows: list[dict] | None = None
+        self._edit_period_start: _date | None = None
+        self._edit_period_end:   _date | None = None
+        self._edit_forbidden_days: set = set()
+        self._pending_refresh_while_editing: bool = False
         # True only when the calendar is actually rendering a real schedule.
         # Used by the poll timer to know when a re-render is still needed.
         self._calendar_displaying_data: bool = False
-        self._edit_mode: bool = False
-        self._pending_refresh_while_editing: bool = False
-
-        self._original_edit_rows: list[dict] | None = None
-        self._editable_rows: list[dict] = []
-        self._edit_period_start: _date | None = None
-        self._edit_period_end: _date | None = None
 
         # EP-149 bug 1: number of schedules the current view reflects. When the
         # active period's count grows past this, the poll timer pops the refresh
-        # banner — so newly generated (better-ranked) schedules are offered as
+        # banner ג€” so newly generated (better-ranked) schedules are offered as
         # early as the next poll tick. Reset to 0 means "recapture on next render".
         self._ranked_baseline: int = 0
 
         # EP-150: best (rank-1) score last seen per period, for the active sort.
-        # When it improves, a strictly better schedule was found → notify. Empty
+        # When it improves, a strictly better schedule was found ג†’ notify. Empty
         # entry means "re-baseline on next poll" (no false notification).
         self._best_seen: dict[str, float] = {}
 
@@ -180,7 +182,7 @@ class OutputScreen(QWidget):
         self._empty_timer.timeout.connect(self._on_empty_timeout)
         self._loading_timer.timeout.connect(self._on_loading_timeout)
 
-    # ── Active period ID ──────────────────────────────────────────────────────
+    # ג”€ג”€ Active period ID ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def _active_period_id(self) -> str:
         """Backend period_id for current semester + moed (e.g. "SPRI_Aleph")."""
@@ -237,7 +239,7 @@ class OutputScreen(QWidget):
             self.four_month.set_active_moed(moed)
             return
 
-    # ── Active WindowState ─────────────────────────────────────────────────────
+    # ג”€ג”€ Active WindowState ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
     def _active_window_state(self) -> WindowState:
         """Return the WindowState object for the currently active period."""
         pid = self._active_period_id()
@@ -247,6 +249,11 @@ class OutputScreen(QWidget):
         """Return the current schedule index for a period from WindowState."""
         return self._window_states.setdefault(period_id, WindowState()).current()
 
+    def _sync_active_counter_state(self) -> None:
+        """Keep legacy counter fields aligned with the active period only."""
+        self._global_index = self._active_window_state().current()
+        self._global_total = self._active_period_count()
+
     def _current_export_indices(self) -> dict[str, int]:
         """Return export-compatible period indices derived from WindowState."""
         return {
@@ -254,19 +261,20 @@ class OutputScreen(QWidget):
             for pid, state in self._window_states.items()
         }
 
-    # ── Backward-compat properties ────────────────────────────────────────────
+    # ג”€ג”€ Backward-compat properties ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     @property
     def current_index(self) -> int:
-        return self._global_index
+        return self._active_window_state().current()
 
     @current_index.setter
     def current_index(self, value: int) -> None:
-        self._global_index = value
+        self._active_window_state().move_to(value)
+        self._sync_active_counter_state()
 
     @property
     def current_schedules(self) -> list:
-        # Backward-compat stub — isolated architecture no longer uses a buffer.
+        # Backward-compat stub ג€” isolated architecture no longer uses a buffer.
         return []
 
     @current_schedules.setter
@@ -275,13 +283,13 @@ class OutputScreen(QWidget):
 
     @property
     def total_schedules(self) -> int:
-        return self._global_total
+        return self._active_period_count()
 
     @total_schedules.setter
     def total_schedules(self, value: int) -> None:
-        self._global_total = value
+        self._global_total = max(0, int(value)) if isinstance(value, int) else 0
 
-    # ── UI construction ───────────────────────────────────────────────────────
+    # ג”€ג”€ UI construction ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def _setup_ui(self) -> None:
         self.setObjectName("outputScreen")
@@ -303,7 +311,7 @@ class OutputScreen(QWidget):
 
         # Toolbar
         toolbar = QHBoxLayout()
-        self.back_btn = QPushButton("← Back")
+        self.back_btn = QPushButton("ג† Back")
         self.back_btn.setObjectName("backBtn")
         self.back_btn.clicked.connect(self._on_back_clicked)
 
@@ -319,14 +327,15 @@ class OutputScreen(QWidget):
         self.sort_settings_btn.setObjectName("sortSettingsBtn")
         self.sort_settings_btn.clicked.connect(self._show_sort_settings)
 
-        self.edit_btn = QPushButton("EDIT")
-        self.edit_btn.setObjectName("editBtn")
-        self.edit_btn.clicked.connect(self.enter_edit_mode)
+        self.edit_schedule_btn = QPushButton("Edit Schedule")
+        self.edit_schedule_btn.setObjectName("editScheduleBtn")
+        self.edit_schedule_btn.setCheckable(True)
+        self.edit_schedule_btn.clicked.connect(self._on_edit_schedule_toggled)
 
         toolbar.addWidget(self.back_btn)
         toolbar.addStretch()
+        toolbar.addWidget(self.edit_schedule_btn)
         toolbar.addWidget(self.sort_settings_btn)
-        toolbar.addWidget(self.edit_btn)
         toolbar.addWidget(self.download_btn)
         main_layout.addLayout(toolbar)
 
@@ -347,9 +356,16 @@ class OutputScreen(QWidget):
         self._sorting_update_banner = self._build_sorting_update_banner()
         self._sorting_update_banner.setVisible(False)
         main_layout.addWidget(self._sorting_update_banner)
-        self._edit_mode_banner = self._build_edit_mode_banner()
-        self._edit_mode_banner.setVisible(False)
-        main_layout.addWidget(self._edit_mode_banner)
+
+        # Edit-mode banner (SAVE / CANCEL)
+        self._edit_schedule_mode_banner = self._build_edit_mode_banner()
+        self._edit_schedule_mode_banner.setVisible(False)
+        main_layout.addWidget(self._edit_schedule_mode_banner)
+
+        # Inline error banner for edit-mode drag validation
+        self._edit_error_banner = ErrorBanner()
+        self._edit_error_banner.setVisible(False)
+        main_layout.addWidget(self._edit_error_banner)
         self._success_timer = QTimer(self)
         self._success_timer.setSingleShot(True)
         self._success_timer.timeout.connect(lambda: self._success_banner.setVisible(False))
@@ -361,11 +377,12 @@ class OutputScreen(QWidget):
         # MoedCalendarOutputWidget
         self.four_month = MoedCalendarOutputWidget()
         self.four_month.exam_day_clicked.connect(self._on_exam_day_clicked)
-        self.four_month.exam_moved.connect(self._on_exam_moved)
+        self.four_month.exam_moved.connect(self._on_exam_drag_moved)
         self.four_month.moed_changed.connect(self._on_moed_changed)
 
         self._sort_dialog = RankingConfigDialog(self)
         self.ranking_panel = self._sort_dialog.ranking_widget
+        self.ranking_panel.sort_order_changed.connect(self.on_sort_changed)
 
         body_layout.addWidget(self.four_month, stretch=1)
         main_layout.addLayout(body_layout, stretch=1)
@@ -381,7 +398,7 @@ class OutputScreen(QWidget):
         self._scroll.setWidget(content)
         root.addWidget(self._scroll)
 
-        # Hidden CalendarTableWidget — backward-compat for EP-65 tests
+        # Hidden CalendarTableWidget ג€” backward-compat for EP-65 tests
         self.calendar = CalendarTableWidget()
         self.calendar.exams_day_clicked.connect(self._on_exam_day_clicked)
         self._apply_edit_mode_ui()
@@ -389,7 +406,7 @@ class OutputScreen(QWidget):
 
     def _show_sort_settings(self):
         """Open the Sorting Preferences dialog."""
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             return
         room_on = self.service.get_constraint_settings().room_scheduling_enabled
         self.ranking_panel.set_room_scheduling_enabled(room_on)
@@ -421,7 +438,7 @@ class OutputScreen(QWidget):
         )
         row.addWidget(self._conflict_text, stretch=1)
 
-        close_btn = QPushButton("✕")
+        close_btn = QPushButton("ג•")
         close_btn.setFixedSize(28, 28)
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet("""
@@ -461,7 +478,7 @@ class OutputScreen(QWidget):
         row.setContentsMargins(16, 12, 16, 12)
         row.setSpacing(12)
 
-        icon = QLabel("✓")
+        icon = QLabel("ג“")
         icon.setStyleSheet("color: #16A34A; font-size: 18px; font-weight: 700;")
         row.addWidget(icon)
 
@@ -524,7 +541,7 @@ class OutputScreen(QWidget):
     def _show_sorting_update_banner(self, message: str | None = None) -> None:
         """Show the optimized-results pending update banner.
 
-        message overrides the banner text — used by EP-150 to say specifically
+        message overrides the banner text ג€” used by EP-150 to say specifically
         that a *better* schedule was found rather than just "more available".
         """
         if message is not None:
@@ -541,12 +558,12 @@ class OutputScreen(QWidget):
         self.poll_timer.timeout.connect(self._poll_schedule_count)
         self.destroyed.connect(self.poll_timer.stop)
 
-    # ── Qt events ─────────────────────────────────────────────────────────────
+    # ג”€ג”€ Qt events ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
 
-        # Always reset to FALL — Moed Aleph as the default view.
+        # Always reset to FALL ג€” Moed Aleph as the default view.
         self._current_semester = "FALL"
         self._current_moed     = "Aleph"
         self.semester_tabs.set_selected("FALL")
@@ -564,22 +581,22 @@ class OutputScreen(QWidget):
         # would silently jump back to schedule 0.
         #
         # Rule:
-        #   _global_total == 0  → first show before any generation (or after a
+        #   active period count == 0  ג†’ first show before any generation (or after a
         #                         fresh generation reset in _on_generation_finished).
         #                         Reset all state and show a loading indicator.
-        #   _global_total  > 0  → data is already loaded; just refresh the
+        #   active period count  > 0  ג†’ data is already loaded; just refresh the
         #                         display at the stored positions and return.
-        if self._global_total > 0:
+        if self._active_period_count() > 0:
+            self._sync_active_counter_state()
             self._calendar_displaying_data = False
             self._refresh_screen_display()
             self.poll_timer.start(self.POLL_INTERVAL_MS)
             return
 
-        # ── First show / no data yet ──────────────────────────────────────────
-        self._global_index = 0
-        
+        # ג”€ג”€ First show / no data yet ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         for state in self._window_states.values():
             state.clear()
+        self._sync_active_counter_state()
         self._calendar_displaying_data = False
         self.semester_tabs.set_enabled_all(False)
         self._loading_semester = self._current_semester
@@ -587,12 +604,12 @@ class OutputScreen(QWidget):
             self._loading_timer.start()
 
         # Immediately check if data is already available (generation finished
-        # before the user arrived here) — render the first schedule right away.
+        # before the user arrived here) ג€” render the first schedule right away.
         pid = self._active_period_id()
         try:
             count = self.service.get_schedule_count(period_id=pid)
             if isinstance(count, int) and count > 0:
-                self._global_total = count
+                self._sync_active_counter_state()
                 self.semester_tabs.set_enabled_all(True)
                 self._refresh_screen_display()
                 self.poll_timer.start(self.POLL_INTERVAL_MS)
@@ -607,14 +624,14 @@ class OutputScreen(QWidget):
         super().hideEvent(event)
         self.poll_timer.stop()
 
-    # ── Semester / moed switching ─────────────────────────────────────────────
+    # ג”€ג”€ Semester / moed switching ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def _on_semester_changed(self, semester: str) -> None:
-        """Switch semester tab — restore the stored index for the new period."""
-        if self._edit_mode:
+        """Switch semester tab ג€” restore the stored index for the new period."""
+        if self._edit_schedule_mode:
             return
         self._current_semester = semester
-        self._global_index = self._active_window_state().current()
+        self._sync_active_counter_state()
         self._hide_conflict_banner()
         self._hide_sorting_update_banner()
         self._check_conflicts_next = True
@@ -625,7 +642,7 @@ class OutputScreen(QWidget):
 
     def _on_moed_changed(self, moed: str) -> None:
         """Switch moed, or switch to the read-only All Sessions overview."""
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             return
         self._current_moed = moed
         self._hide_conflict_banner()
@@ -637,13 +654,13 @@ class OutputScreen(QWidget):
             self._refresh_all_sessions_display()
             return
 
-        self._global_index = self._active_window_state().current()
+        self._sync_active_counter_state()
         self._check_conflicts_next = True
         self._ranked_baseline = 0   # recapture for the newly active moed
         self._best_seen.clear()
         self._refresh_screen_display()
 
-    # ── Central display refresh ───────────────────────────────────────────────
+    # ג”€ג”€ Central display refresh ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def _refresh_all_sessions_display(self) -> None:
         """Fetch and render the read-only All Sessions overview for the active semester.
@@ -693,7 +710,7 @@ class OutputScreen(QWidget):
         per-period cache (legacy mode).  No Cartesian-product mixing occurs.
         """
         # Guard: if "All Sessions" is active, delegate to the dedicated method.
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             self._pending_refresh_while_editing = True
             return
 
@@ -706,14 +723,14 @@ class OutputScreen(QWidget):
         pid  = self._active_period_id()
         idx = self._active_window_state().current()
 
-        # ── Fetch isolated period schedule ────────────────────────────────────
+        # ג”€ג”€ Fetch isolated period schedule ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         try:
             exams = self.service.get_period_schedule(pid, idx)
         except Exception as exc:
             print(f"OutputScreen: get_period_schedule({pid}, {idx}) failed: {exc}")
             exams = []
 
-        # ── Resolve period date range ─────────────────────────────────────────
+        # ג”€ג”€ Resolve period date range ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         start_date: _date | None = None
         end_date:   _date | None = None
         forbidden:  list | None = None
@@ -727,19 +744,19 @@ class OutputScreen(QWidget):
                     forbidden  = p.get("forbidden_days", [])
                     break
         except Exception:
-            period_found = True   # service failed → assume period exists
+            period_found = True   # service failed ג†’ assume period exists
 
-        # ── Period not configured → styled warning ────────────────────────────
+        # ג”€ג”€ Period not configured ג†’ styled warning ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         if not period_found:
             self.four_month.show_no_period(sem, moed)
             self._update_navigator()
             return
 
-        # ── Update calendar card ──────────────────────────────────────────────
+        # ג”€ג”€ Update calendar card ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
         if exams:
             self._empty_timer.stop()
             self._loading_timer.stop()
-            self._global_total = max(self._global_total, 1)
+            self._sync_active_counter_state()
             self._calendar_displaying_data = True
             # Capture the baseline the first time this period shows data, so the
             # poll timer can later detect newly generated schedules.
@@ -757,7 +774,7 @@ class OutputScreen(QWidget):
                 self._check_cross_moed_conflicts(sem, moed, exams)
         else:
             # Only show "no schedules" if we are certain there are none.
-            # If count > 0 the data simply isn't ready yet — keep loading.
+            # If count > 0 the data simply isn't ready yet ג€” keep loading.
             self._calendar_displaying_data = False
             try:
                 still_generating = bool(self.service.is_period_generating(pid))
@@ -807,16 +824,16 @@ class OutputScreen(QWidget):
         return rows, start_date, end_date
 
     def _on_loading_timeout(self) -> None:
-        """Called 2 s after generation started — show the loading state if still no data."""
+        """Called 2 s after generation started ג€” show the loading state if still no data."""
         if not self._calendar_displaying_data:
             self.four_month.show_loading(self._loading_semester)
 
     def _on_empty_timeout(self) -> None:
-        """Called 2 s after we first detected no data — show the empty state."""
+        """Called 2 s after we first detected no data ג€” show the empty state."""
         if not self._calendar_displaying_data:
             self.four_month.show_empty(self._empty_semester)
 
-    # ── Cross-moed conflict detection ─────────────────────────────────────────
+    # ג”€ג”€ Cross-moed conflict detection ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     _MOED_LABEL: dict[str, str] = {"Aleph": "A", "Bet": "B", "Gimel": "C"}
     _ALL_MOEDS = ["Aleph", "Bet", "Gimel"]
@@ -828,7 +845,7 @@ class OutputScreen(QWidget):
         with the same course in another moed of the same semester."""
         sem_code = _SEMESTER_TO_ID.get(semester, semester)
 
-        # Build (course_id, date_str) → course_name map for the current schedule.
+        # Build (course_id, date_str) ג†’ course_name map for the current schedule.
         current_pairs: dict[tuple, str] = {}
         for e in current_exams:
             cid  = str(e.get("course_number", ""))
@@ -863,29 +880,29 @@ class OutputScreen(QWidget):
         if conflicts:
             self._show_conflict_banner("\n".join(conflicts))
 
-    # ── Per-period navigator ──────────────────────────────────────────────────
+    # ג”€ג”€ Per-period navigator ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def _on_navigator_index_changed(self, index: int) -> None:
-        """Advance ONLY the active period — other periods stay unchanged.
+        """Advance ONLY the active period ג€” other periods stay unchanged.
 
         The new isolated architecture stores a local index per period and
         fetches that period's schedule directly via get_period_schedule().
         No Cartesian-product scanning or cross-period interference.
         """
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             return
         pid = self._active_period_id()
         state = self._active_window_state()
         state.move_to(index)
 
-        self._global_index = state.current()
+        self._sync_active_counter_state()
         self._hide_conflict_banner()
         self._check_conflicts_next = True
         self._refresh_screen_display()
 
     def _on_refresh_pending_clicked(self) -> None:
         """Accept pending optimized results and refresh the current display."""
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             self._pending_refresh_while_editing = True
             return
         state = self._active_window_state()
@@ -893,10 +910,10 @@ class OutputScreen(QWidget):
         # A manual refresh means the user wants to see the best/current top
         # result from the updated data, so restart this period's navigation at 0.
         state.clear()
-        self._global_index = 0
+        self._sync_active_counter_state()
 
         self._hide_sorting_update_banner()
-        # The view now reflects every schedule generated so far — move the
+        # The view now reflects every schedule generated so far ג€” move the
         # baseline up so the banner only reappears when newer ones arrive.
         self._ranked_baseline = self._active_period_count()
         # Re-baseline the best score too, so EP-150 only re-fires on a future
@@ -907,7 +924,7 @@ class OutputScreen(QWidget):
         self._refresh_screen_display()
 
     def _on_prefetch_needed(self, _loaded_so_far: int) -> None:
-        # No-op in isolated mode — each NEXT fetches on demand.
+        # No-op in isolated mode ג€” each NEXT fetches on demand.
         pass
 
     def _check_better_solution(self, period_id: str) -> None:
@@ -931,11 +948,11 @@ class OutputScreen(QWidget):
         """Push the active period's local index and exact per-period total.
 
         When the period has no schedules (total == 0) the navigator shows
-        "— of —" and both NEXT and PREV are disabled automatically by
+        "ג€” of ג€”" and both NEXT and PREV are disabled automatically by
         ScheduleNavigatorWidget.set_state(total=0).
 
         Guard: in "All Sessions" mode the navigator is always hidden and
-        must not be touched — the overview panel replaces it.
+        must not be touched ג€” the overview panel replaces it.
         """
         if self._current_moed == "All":
             return
@@ -944,7 +961,7 @@ class OutputScreen(QWidget):
         current_idx = self._period_index(pid)
 
         # get_schedule_count(period_id) is authoritative: 0 = no schedules.
-        # Do NOT fall back to _global_total here — a period may genuinely have
+        # Do NOT fall back to _global_total here ג€” a period may genuinely have
         # zero schedules while another period has many.
         try:
             total = self.service.get_schedule_count(period_id=pid)
@@ -953,15 +970,14 @@ class OutputScreen(QWidget):
         except Exception:
             total = 0
 
-        if total > 0:
-            self._global_total = max(self._global_total, total)
+        self._sync_active_counter_state()
 
         # Hide the entire navigator bar (counter + Prev/Next) when there are
-        # no schedules for this period — show it again as soon as data arrives.
+        # no schedules for this period ג€” show it again as soon as data arrives.
         self.navigator.setVisible(total > 0)
         self.navigator.set_state(current=current_idx, total=total, loaded=total)
 
-    # ── Polling ───────────────────────────────────────────────────────────────
+    # ג”€ג”€ Polling ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     def _poll_schedule_count(self) -> None:
         """Refresh total/display every POLL_INTERVAL_MS.
@@ -969,7 +985,7 @@ class OutputScreen(QWidget):
         Checks whether per-period data has arrived since the last poll.
         When data first appears, re-renders so the loading indicator clears.
 
-        Guard: in "All Sessions" mode no polling is needed — the view is
+        Guard: in "All Sessions" mode no polling is needed ג€” the view is
         read-only and contains no live navigation counter.
         """
         if self._current_moed == "All":
@@ -980,17 +996,17 @@ class OutputScreen(QWidget):
         try:
             count = self.service.get_schedule_count(period_id=pid)
             if isinstance(count, int) and count > 0:
-                self._global_total = max(self._global_total, count)
+                self._sync_active_counter_state()
                 if not self._calendar_displaying_data:
-                    if self._edit_mode:
+                    if self._edit_schedule_mode:
                         self._pending_refresh_while_editing = True
                         return
-                    # Calendar is showing empty/loading but data is available —
+                    # Calendar is showing empty/loading but data is available ג€”
                     # re-render immediately so the first schedule appears.
                     self.semester_tabs.set_enabled_all(True)
                     self._refresh_screen_display()
                     return
-                # Already showing data — raise the banner only when a sort is
+                # Already showing data ג€” raise the banner only when a sort is
                 # active and a strictly better top-ranked schedule has arrived.
                 if self.service.get_sort_order():
                     self._check_better_solution(pid)
@@ -999,21 +1015,365 @@ class OutputScreen(QWidget):
 
         self._update_navigator()
 
-    # ── Exam cell click → DayDetailDialog ────────────────────────────────────
+    # ג”€ג”€ Edit Schedule mode ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+
+    def is_editing(self) -> bool:
+        """Return True when edit-schedule mode is active."""
+        return self._edit_schedule_mode
+
+    def _on_edit_schedule_toggled(self, checked: bool) -> None:
+        if checked:
+            self.enter_edit_mode()
+        else:
+            # Button un-toggled manually ג€” treat as cancel
+            self._on_cancel_edit_clicked()
+
+    # ג”€ג”€ Enter / exit edit mode ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+
+    def enter_edit_mode(self) -> None:
+        if self._edit_schedule_mode:
+            return
+
+        pid = self._active_period_id()
+        idx = self._active_window_state().current()
+        try:
+            rows = self.service.get_period_schedule(pid, idx) or []
+        except Exception:
+            rows = []
+
+        start_date = end_date = None
+        forbidden: set = set()
+        try:
+            for p in self.service.get_periods():
+                if p.get("id") == pid:
+                    start_date = _to_date(p.get("start_date"))
+                    end_date   = _to_date(p.get("end_date"))
+                    forbidden  = {_to_date(d) for d in p.get("forbidden_days", [])}
+                    break
+        except Exception:
+            pass
+
+        self._original_edit_rows  = deepcopy(rows)
+        self._editable_rows       = deepcopy(rows)
+        self._edit_period_start   = start_date
+        self._edit_period_end     = end_date
+        self._edit_forbidden_days = forbidden
+        self._edit_schedule_mode  = True
+        self._pending_refresh_while_editing = False
+        self._apply_edit_mode_ui()
+
+    def exit_edit_mode(self) -> None:
+        if not self._edit_schedule_mode:
+            return
+        self._edit_error_banner.hide_error()
+        self._edit_schedule_mode = False
+        self._original_edit_rows = None
+        self._editable_rows      = []
+        if self._edit_dialog is not None:
+            self._edit_dialog.close()
+            self._edit_dialog = None
+        self._apply_edit_mode_ui()
+        if self._pending_refresh_while_editing:
+            self._pending_refresh_while_editing = False
+            self._refresh_screen_display()
+
+    def _apply_edit_mode_ui(self) -> None:
+        editing = self._edit_schedule_mode
+        self.edit_schedule_btn.setChecked(editing)
+        self.edit_schedule_btn.setText("Exit Edit Mode" if editing else "Edit Schedule")
+        self.edit_schedule_btn.setStyleSheet(
+            "QPushButton { background: #FEF2F2; color: #DC2626;"
+            " border: 1.5px solid #FECACA; border-radius: 8px;"
+            " padding: 6px 14px; font-weight: 600; }"
+            if editing else ""
+        )
+        self._edit_schedule_mode_banner.setVisible(editing)
+        self.navigator.setEnabled(not editing)
+        self.sort_settings_btn.setEnabled(not editing)
+        self.download_btn.setEnabled(not editing)
+        self.four_month.set_edit_mode(editing)
+
+    def _render_edit_rows(self) -> None:
+        """Re-render the calendar from the pending editable rows without
+        resetting the current month view."""
+        self.four_month.update_schedule(
+            self._editable_rows,
+            semester=self._current_semester,
+            start_date=self._edit_period_start,
+            end_date=self._edit_period_end,
+            preserve_month_index=True,
+        )
+        # Re-apply edit mode on newly created cells
+        self.four_month.set_edit_mode(True)
+
+    # ג”€ג”€ SAVE / CANCEL ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+
+    def _on_save_edit_clicked(self) -> None:
+        """Apply all pending drag moves to disk, then exit edit mode."""
+        if not self._original_edit_rows:
+            self.exit_edit_mode()
+            return
+
+        # Find rows whose exam_date changed
+        original_by_id = {str(r.get("course_number", "")): r
+                          for r in self._original_edit_rows}
+        moved = [
+            r for r in self._editable_rows
+            if str(r.get("exam_date", "")) !=
+               str(original_by_id.get(str(r.get("course_number", "")), {}).get("exam_date", ""))
+        ]
+
+        if not moved:
+            self.exit_edit_mode()
+            return
+
+        from src.presenter.save_edit_worker import SaveEditWorker
+
+        pid = self._active_period_id()
+        idx = self._active_window_state().current()
+
+        self.save_edit_btn.setEnabled(False)
+        self.save_edit_btn.setText("Savingג€¦")
+
+        self._save_remaining = list(moved)
+        self._save_error: str | None = None
+        self._pid_for_save = pid
+        self._idx_for_save = idx
+        self._run_next_save()
+
+    def _run_next_save(self) -> None:
+        from src.presenter.save_edit_worker import SaveEditWorker
+
+        if self._save_error or not self._save_remaining:
+            self.save_edit_btn.setEnabled(True)
+            self.save_edit_btn.setText("SAVE")
+            if self._save_error:
+                self._edit_error_banner.show_error(self._save_error)
+            else:
+                self.exit_edit_mode()
+                self._refresh_screen_display()
+            return
+
+        row = self._save_remaining.pop(0)
+        worker = SaveEditWorker(
+            service       = self.service,
+            period_id     = self._pid_for_save,
+            index         = self._idx_for_save,
+            course_number = str(row.get("course_number", "")),
+            new_date      = _to_date(row.get("exam_date")),
+            new_time_slot = row.get("time_slot"),
+            new_room_keys = list(row.get("room_ids") or []),
+            parent        = self,
+        )
+        worker.finished.connect(self._run_next_save)
+        worker.error.connect(self._on_save_error)
+        worker.start()
+
+    def _on_save_error(self, msg: str) -> None:
+        self._save_error = msg
+        self._save_remaining.clear()
+        self._run_next_save()
+
+    def _on_cancel_edit_clicked(self) -> None:
+        self._edit_error_banner.hide_error()
+        if self._original_edit_rows is not None:
+            self._editable_rows = deepcopy(self._original_edit_rows)
+            self._render_edit_rows()
+        self.exit_edit_mode()
+        self._refresh_screen_display()
+
+    def _on_edit_exam_clicked(self, exam: dict, anchor) -> None:
+        """Open EditExamDialog alongside the day-list panel (which stays open)."""
+        if self._edit_dialog is not None:
+            self._edit_dialog.close()
+            self._edit_dialog = None
+        # Day-list dialog intentionally NOT closed ג€” user keeps seeing all exams.
+
+        period_id = self._active_period_id()
+        index     = self._active_window_state().current()
+
+        self._edit_dialog = EditExamDialog(
+            exam           = exam,
+            period_id      = period_id,
+            schedule_index = index,
+            service        = self.service,
+            program_names  = self._get_program_names(),
+            anchor_pos     = None,
+            parent         = self,
+        )
+        self._edit_dialog.exam_saved.connect(self._on_exam_edit_saved)
+        self._edit_dialog.finished.connect(lambda: setattr(self, "_edit_dialog", None))
+        self._edit_dialog.show()
+        # Reposition both dialogs side-by-side centered after both are rendered.
+        QTimer.singleShot(20, self._reposition_dialogs_side_by_side)
+
+    def _on_exam_drag_moved(self, exam: dict, source_date: str, target_date: str) -> None:
+        """Validate and stage a drag move ג€” changes are NOT written to disk yet."""
+        if not self._edit_schedule_mode:
+            return
+
+        try:
+            new_date = _date.fromisoformat(target_date)
+        except ValueError:
+            return
+
+        # Validate date against period bounds
+        errors = self._validate_drag_date(exam, new_date)
+        if errors:
+            self._edit_error_banner.show_error(errors[0])
+            return
+
+        # Apply the move to _editable_rows (in-memory only)
+        course_number = str(exam.get("course_number", ""))
+        for row in self._editable_rows:
+            if str(row.get("course_number", "")) == course_number:
+                row["exam_date"] = new_date
+                break
+
+        self._edit_error_banner.hide_error()
+        self._render_edit_rows()
+
+    def _validate_drag_date(self, exam: dict, target_date: _date) -> list[str]:
+        """Return human-readable error strings for an invalid drag target.
+
+        Delegates to service.validate_manual_move so the same rules
+        (period bounds, forbidden days, program collisions) apply both
+        for drags and for the EditExamDialog date picker.
+        """
+        pid = self._active_period_id()
+        try:
+            errors = self.service.validate_manual_move(
+                pid, self._editable_rows, exam, target_date
+            )
+            course_name = str(exam.get("course_name") or exam.get("course_number", ""))
+            return [
+                f"{course_name}: {e['reason']}" for e in errors
+            ]
+        except Exception:
+            return []
+
+    def _build_edit_mode_banner(self) -> QFrame:
+        banner = QFrame()
+        banner.setObjectName("editModeBanner")
+        banner.setStyleSheet("""
+            QFrame#editModeBanner {
+                background: #FFFBEB;
+                border: 1.5px solid #FBBF24;
+                border-radius: 10px;
+            }
+        """)
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(16, 10, 16, 10)
+        row.setSpacing(12)
+
+        lbl = QLabel("Edit mode is active. Drag exams or click Edit on a day to reschedule.")
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet("color: #92400E; font-size: 13px; font-weight: 600; background: transparent;")
+        row.addWidget(lbl, stretch=1)
+
+        self.save_edit_btn = QPushButton("SAVE")
+        self.save_edit_btn.setObjectName("saveEditBtn")
+        self.save_edit_btn.setStyleSheet(
+            "QPushButton { background: #4338CA; color: #FFF; border: none;"
+            " border-radius: 8px; padding: 6px 20px; font-weight: 700; }"
+            " QPushButton:hover { background: #3730A3; }"
+            " QPushButton:disabled { background: #C7D2FE; }"
+        )
+        self.save_edit_btn.clicked.connect(self._on_save_edit_clicked)
+        row.addWidget(self.save_edit_btn)
+
+        self.cancel_edit_btn = QPushButton("CANCEL")
+        self.cancel_edit_btn.setObjectName("cancelEditBtn")
+        self.cancel_edit_btn.setStyleSheet(
+            "QPushButton { background: #FFF; color: #475569; border: 1.5px solid #CBD5E1;"
+            " border-radius: 8px; padding: 6px 16px; font-weight: 600; }"
+            " QPushButton:hover { background: #F8FAFC; }"
+        )
+        self.cancel_edit_btn.clicked.connect(self._on_cancel_edit_clicked)
+        row.addWidget(self.cancel_edit_btn)
+
+        return banner
+
+    def _reposition_dialogs_side_by_side(self) -> None:
+        """Place DayDetailDialog and EditExamDialog adjacent and centered together."""
+        from PyQt5.QtWidgets import QApplication as _QApp
+        day  = self._day_dialog
+        edit = self._edit_dialog
+        if day is None or edit is None:
+            return
+        if not day.isVisible() or not edit.isVisible():
+            return
+
+        screen = _QApp.primaryScreen().availableGeometry()
+        gap    = 12  # px between the two panels
+
+        dw = day.width()
+        ew = edit.width()
+        total_w = dw + gap + ew
+
+        # Horizontal: center the pair together
+        start_x = screen.left() + (screen.width() - total_w) // 2
+        start_x = max(screen.left(), start_x)
+
+        # Vertical: center each independently (they may have different heights)
+        day_y  = screen.top() + (screen.height() - day.height())  // 2
+        edit_y = screen.top() + (screen.height() - edit.height()) // 2
+
+        day.move(start_x, max(screen.top(), day_y))
+        edit.move(start_x + dw + gap, max(screen.top(), edit_y))
+
+    def _on_exam_edit_saved(self, updated_exam: dict) -> None:
+        """Called when the user saves changes in EditExamDialog."""
+        # Also propagate the change into _editable_rows so the staged state
+        # stays consistent with what the dialog persisted.
+        course_number = str(updated_exam.get("course_number", ""))
+        for row in self._editable_rows:
+            if str(row.get("course_number", "")) == course_number:
+                row.update(updated_exam)
+                break
+        self._refresh_screen_display()
+
+    # ג”€ג”€ Exam cell click ג†’ DayDetailDialog (or EditExamDialog in edit mode) ג”€ג”€ג”€ג”€
 
     def _on_exam_day_clicked(self, exams: list, anchor) -> None:
-        # Close any previously open detail dialog before opening a new one
+        if not exams:
+            return
+
+        # In Edit Schedule mode: show all exams for the day with an Edit button
+        # per exam so the user can pick which one to edit.
+        if self._edit_schedule_mode:
+            if self._day_dialog is not None:
+                self._day_dialog.close()
+                self._day_dialog = None
+            program_names = self._get_program_names()
+            exam_date     = exams[0].get("exam_date")
+            self._day_dialog = DayDetailDialog(
+                exams         = exams,
+                exam_date     = exam_date,
+                program_names = program_names,
+                anchor_pos    = None,   # centered by _center_on_screen()
+                edit_mode     = True,
+                parent        = self,
+            )
+            self._day_dialog.edit_requested.connect(
+                lambda exam: self._on_edit_exam_clicked(exam, anchor)
+            )
+            self._day_dialog.finished.connect(lambda: setattr(self, "_day_dialog", None))
+            self._day_dialog.show()
+            return
+
+        # Normal view mode: show the read-only DayDetailDialog
         if self._day_dialog is not None:
             self._day_dialog.close()
             self._day_dialog = None
 
         program_names = self._get_program_names()
-        exam_date     = exams[0].get("exam_date") if exams else None
+        exam_date     = exams[0].get("exam_date")
         self._day_dialog = DayDetailDialog(
             exams         = exams,
             exam_date     = exam_date,
             program_names = program_names,
-            anchor_pos    = anchor,
+            anchor_pos    = None,   # always centered
             parent        = self,
         )
         self._day_dialog.finished.connect(lambda: setattr(self, "_day_dialog", None))
@@ -1029,7 +1389,7 @@ class OutputScreen(QWidget):
         except Exception:
             return {}
 
-    # ── EngineListener integration ────────────────────────────────────────────
+    # ג”€ג”€ EngineListener integration ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     _PERIOD_PREFIX_TO_TAB: dict[str, str] = {
         "FALL": "FALL",
@@ -1062,7 +1422,7 @@ class OutputScreen(QWidget):
         if period_id != self._active_period_id():
             return
 
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             self._pending_refresh_while_editing = True
             return
 
@@ -1073,126 +1433,42 @@ class OutputScreen(QWidget):
                 self._check_better_solution(period_id)
             return
 
-        # Data just arrived for the currently-visible period — update count and render.
+        # Data just arrived for the currently-visible period ג€” update count and render.
         try:
             count = self.service.get_schedule_count(period_id=period_id)
             if isinstance(count, int) and count > 0:
-                self._global_total = max(self._global_total, count)
+                self._sync_active_counter_state()
                 self._refresh_screen_display()
         except Exception:
             pass
 
     def _on_generation_finished(self, total: int) -> None:
-        """Called when generation is fully complete — all period data available.
+        """Called when generation is fully complete ג€” all period data available.
 
         Re-enables tabs, updates the total, resets indices to 0, and renders
         the first schedule for the currently visible period.
         """
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             self._pending_refresh_while_editing = True
             return
         self.semester_tabs.set_enabled_all(True)
-        # Update total from the active period's exact count.
-        pid = self._active_period_id()
-        real_total = total if isinstance(total, int) and total > 0 else 0
-        try:
-            count = self.service.get_schedule_count(period_id=pid)
-            if isinstance(count, int) and count > 0:
-                real_total = count
-        except Exception:
-            pass
-        self._global_total = real_total
-
         # Reset all WindowState objects and render schedule 0 for the active period.
         
         for state in self._window_states.values():
             state.clear()
         self._hide_sorting_update_banner()
-        self._global_index = 0
+        self._active_window_state().clear()
+        self._sync_active_counter_state()
         self._refresh_screen_display()
 
     def _on_generation_error(self, message: str) -> None:
         self._generation_error_banner.show_error(message)
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             self._pending_refresh_while_editing = True
             return
         self.semester_tabs.set_enabled_all(True)
 
-    # ── Toolbar ───────────────────────────────────────────────────────────────
-
-    def is_editing(self) -> bool:
-        """Return True when manual edit mode is active."""
-        return self._edit_mode
-
-
-    def enter_edit_mode(self) -> None:
-        """Enter manual schedule edit mode."""
-        if self._edit_mode:
-            return
-        
-        rows, start_date, end_date = self._current_visible_rows_snapshot()
-
-        self._original_edit_rows = deepcopy(rows)
-        self._editable_rows = deepcopy(rows)
-        self._edit_period_start = start_date
-        self._edit_period_end = end_date
-
-        self._edit_mode = True
-        self._pending_refresh_while_editing = False
-        self._apply_edit_mode_ui()
-
-    def _on_exam_moved(self, exam: dict, source_date: str, target_date: str) -> None:
-        """Apply a temporary UI-only exam move while edit mode is active."""
-        if not self._edit_mode:
-            return
-
-        course_number = str(exam.get("course_number", ""))
-        if not course_number or not source_date or not target_date:
-            return
-
-        matching_row = None
-
-        for row in self._editable_rows:
-            if str(row.get("course_number", "")) != course_number:
-                continue
-
-            if str(row.get("exam_date", "")) == source_date:
-                matching_row = row
-                break
-
-            if matching_row is None:
-                matching_row = row
-
-        if matching_row is None:
-            return
-
-        matching_row["exam_date"] = target_date
-
-
-        self._render_edit_rows()
-
-    def _render_edit_rows(self) -> None:
-        """Render the temporary editable schedule rows without jumping to month 1."""
-        self.four_month.update_schedule(
-            self._editable_rows,
-            semester=self._current_semester,
-            start_date=self._edit_period_start,
-            end_date=self._edit_period_end,
-            preserve_month_index=True,
-        )
-
-    def exit_edit_mode(self) -> None:
-        """Exit manual schedule edit mode and apply deferred refresh if needed."""
-        if not self._edit_mode:
-            return
-
-        self._edit_mode = False
-        self._apply_edit_mode_ui()
-
-        if self._pending_refresh_while_editing:
-            self._pending_refresh_while_editing = False
-            self._refresh_screen_display()
-
+    # ג”€ג”€ Helpers ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
 
     @staticmethod
     def _to_date(value) -> "_date":
@@ -1218,7 +1494,7 @@ class OutputScreen(QWidget):
                 all_errors.extend(errors)
 
             if all_errors:
-                reasons = "\n".join(f"• {e['reason']}" for e in all_errors)
+                reasons = "\n".join(f"ג€¢ {e['reason']}" for e in all_errors)
                 QMessageBox.warning(
                     self,
                     "Cannot Save",
@@ -1268,31 +1544,20 @@ class OutputScreen(QWidget):
         self.exit_edit_mode()
 
 
-    def _apply_edit_mode_ui(self) -> None:
-        """Update buttons, navigation, and banners according to edit mode."""
-        editing = self._edit_mode
-
-        self.edit_btn.setVisible(not editing)
-        self._edit_mode_banner.setVisible(editing)
-
-        self.sort_settings_btn.setEnabled(not editing)
-        self.download_btn.setEnabled(not editing)
-        self.semester_tabs.set_enabled_all(not editing)
-
-        if hasattr(self.navigator, "set_navigation_enabled"):
-            self.navigator.set_navigation_enabled(not editing)
-
-        if hasattr(self.four_month, "set_edit_mode"):
-            self.four_month.set_edit_mode(editing)
-
-    def on_sort_changed(self, _sort_cols: list = None) -> None:
+    def on_sort_changed(self, sort_cols: list = None) -> None:
         """Reset all period navigation states to 0 when the sort order changes."""
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             self._pending_refresh_while_editing = True
             return
+        selected = list(sort_cols or [])
+        try:
+            self.service.set_sort_order(selected)
+            self.service.refresh_ranked_view()
+        except Exception:
+            pass
         for state in self._window_states.values():
             state.clear()
-        self._global_index = 0
+        self._sync_active_counter_state()
         self._hide_sorting_update_banner()
         self._ranked_baseline = 0   # the new sort defines a fresh baseline
         self._best_seen.clear()
@@ -1303,7 +1568,7 @@ class OutputScreen(QWidget):
             self._day_dialog.close()
             self._day_dialog = None
 
-        if self._edit_mode:
+        if self._edit_schedule_mode:
             QMessageBox.warning(
                 self,
                 "Edit Mode Active",
@@ -1317,7 +1582,7 @@ class OutputScreen(QWidget):
         """Export the currently displayed per-period schedules into one combined file.
 
         Uses export_by_period_indices() which reads each period at its local
-        index — exactly what is shown on screen — and merges them into a single
+        index ג€” exactly what is shown on screen ג€” and merges them into a single
         human-readable report.
         """
         # Check that at least one period has data.
@@ -1378,3 +1643,4 @@ class OutputScreen(QWidget):
         row.addWidget(self.cancel_edit_btn)
 
         return banner
+

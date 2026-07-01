@@ -60,6 +60,8 @@ class _FullImpl(IAppService):
     def clear_results(self) -> None: pass
     def validate_manual_move(self, period_id, exam_rows, moving_exam, target_date): return []
     def save_manual_edit(self, period_id, index, edited_rows): pass
+    def get_room_availability(self, period_id, index, target_date, time_slot, exclude_course_number): return []
+    def save_exam_edit(self, period_id, index, course_number, new_date, new_time_slot, new_room_keys): pass
 
 
 # ------------------------------------------------------------------ #

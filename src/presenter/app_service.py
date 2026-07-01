@@ -535,7 +535,7 @@ class AppService(IAppService):
                     if msg_type == "period_infeasible":
                         pid = msg["period_id"]
                         self._infeasible_periods.add(pid)
-                        reason = msg.get("reason", "האילוצים שנבחרו אינם מאפשרים שיבוץ לתקופה זו.")
+                        reason = msg.get("reason", "׳”׳׳™׳׳•׳¦׳™׳ ׳©׳ ׳‘׳—׳¨׳• ׳׳™׳ ׳ ׳׳׳₪׳©׳¨׳™׳ ׳©׳™׳‘׳•׳¥ ׳׳×׳§׳•׳₪׳” ׳–׳•.")
                         yield pid, [("infeasible", reason)]
 
                     if msg_type in ("period_done", "period_ready"):
@@ -844,7 +844,7 @@ class AppService(IAppService):
                     row["time_slot"]     = placement.time_slot.value
                     row["room_ids"]      = [f"{r.building}:{r.room_id}" for r in placement.rooms]
                     row["rooms_display"] = [
-                        f"• Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
+                        f"ג€¢ Building {r.building} - Room {r.room_id} ({r.capacity} seats)"
                         for r in placement.rooms
                     ]
                     row["room_ids"]       = [

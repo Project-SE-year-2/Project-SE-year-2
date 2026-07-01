@@ -1176,7 +1176,9 @@ class OutputScreen(QWidget):
             else:
                 new_rank = self.service.rank_of_last_saved_edit(self._pid_for_save)
                 self.exit_edit_mode()
-                self._active_window_state().move_to(new_rank)
+                window = self._window_states.get(self._pid_for_save)
+                if window is not None and new_rank is not None:
+                    window.move_to(new_rank)
                 self._refresh_screen_display()
             return
 

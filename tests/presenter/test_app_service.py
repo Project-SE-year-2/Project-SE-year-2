@@ -1260,15 +1260,15 @@ def test_resolve_physical_index_raises_when_engine_returns_no_rows(monkeypatch, 
 # rank_of_last_saved_edit                                             #
 # ------------------------------------------------------------------ #
 
-def test_rank_of_last_saved_edit_returns_zero_before_any_save(monkeypatch):
+def test_rank_of_last_saved_edit_returns_none_before_any_save(monkeypatch):
     service = _make_service(monkeypatch)
-    assert service.rank_of_last_saved_edit("FALL_Aleph") == 0
+    assert service.rank_of_last_saved_edit("FALL_Aleph") is None
 
 
-def test_rank_of_last_saved_edit_returns_zero_for_wrong_period(monkeypatch):
+def test_rank_of_last_saved_edit_returns_none_for_wrong_period(monkeypatch):
     service = _make_service(monkeypatch)
     service._last_saved_physical = ("FALL_Aleph", 3)
-    assert service.rank_of_last_saved_edit("SPRI_Aleph") == 0
+    assert service.rank_of_last_saved_edit("SPRI_Aleph") is None
 
 
 def test_rank_of_last_saved_edit_returns_physical_index_when_no_sort(monkeypatch):

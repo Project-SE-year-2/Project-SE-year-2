@@ -307,6 +307,7 @@ class AppService(IAppService):
         self._infeasible_periods = set()
         self._constraint_index = None
         self._manual_edits = {}
+        self._last_saved_physical = None
 
 
     def load_constraint_settings_from_file(self, path: str) -> None:
@@ -1418,7 +1419,7 @@ class AppService(IAppService):
         """
         stored = getattr(self, "_last_saved_physical", None)
         if stored is None or stored[0] != period_id:
-            return 0
+            return None
         physical_index = stored[1]
         if not self._sort_cols:
             return physical_index
@@ -1427,8 +1428,7 @@ class AppService(IAppService):
             return physical_index
         batch_num = physical_index // BATCH_SIZE
         slot      = physical_index % BATCH_SIZE
-        rank = engine.find_rank(period_id, self._sort_cols, batch_num, slot)
-        return rank if rank is not None else 0
+        return engine.find_rank(period_id, self._sort_cols, batch_num, slot)
 
     def get_current_combination(self) -> list[dict]:
         """Return the currently selected schedule combination across all periods.

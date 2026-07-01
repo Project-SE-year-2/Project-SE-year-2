@@ -183,9 +183,9 @@ class RankingQueryEngine:
             ).fetchone()
             return row[0] if row else None
 
-        order_clause = self._build_order_clause(sort_cols)
-        self._ensure_index_for(sort_cols)
         try:
+            order_clause = self._build_order_clause(sort_cols)
+            self._ensure_index_for(sort_cols)
             row = self._conn.execute(
                 f"""
                 SELECT rn FROM (

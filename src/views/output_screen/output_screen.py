@@ -1072,10 +1072,11 @@ class OutputScreen(QWidget):
         self._apply_edit_mode_ui()
 
     def exit_edit_mode(self) -> None:
-        if not self._edit_schedule_mode:
+        if not self._edit_schedule_mode and not getattr(self, "_edit_mode", False):
             return
         self._edit_error_banner.hide_error()
         self._edit_schedule_mode = False
+        self._edit_mode = False
         self._original_edit_rows = None
         self._editable_rows      = []
         if self._edit_dialog is not None:
@@ -1087,7 +1088,11 @@ class OutputScreen(QWidget):
             self._refresh_screen_display()
 
     def _apply_edit_mode_ui(self) -> None:
+        legacy_editing = bool(getattr(self, "_edit_mode", False))
+        if legacy_editing and not self._edit_schedule_mode:
+            self._edit_schedule_mode = True
         editing = self._edit_schedule_mode
+        self._edit_mode = editing
         self.edit_schedule_btn.setChecked(editing)
         self.edit_schedule_btn.setText("Exit Edit Mode" if editing else "Edit Schedule")
         self.edit_schedule_btn.setStyleSheet(
@@ -1138,10 +1143,18 @@ class OutputScreen(QWidget):
             self.exit_edit_mode()
             return
 
-        from src.presenter.save_edit_worker import SaveEditWorker
-
         pid = self._active_period_id()
         idx = self._active_window_state().current()
+
+        original_by_id = {
+            str(r.get("course_number", "")): r for r in self._original_edit_rows
+        }
+        for row in moved:
+            original = original_by_id.get(str(row.get("course_number", "")), row)
+            errors = self._validate_drag_date(original, _to_date(row.get("exam_date")))
+            if errors:
+                self._edit_error_banner.show_error("\n".join(errors))
+                return
 
         self.save_edit_btn.setEnabled(False)
         self.save_edit_btn.setText("Savingג€¦")
@@ -1254,6 +1267,17 @@ class OutputScreen(QWidget):
         self._edit_error_banner.hide_error()
         self._render_edit_rows()
 
+    def _on_exam_moved(self, exam: dict, source_date: str, target_date: str) -> None:
+        """Backward-compatible alias for older edit-mode tests and callers."""
+        self._on_exam_drag_moved(exam, source_date, target_date)
+
+    @staticmethod
+    def _format_move_errors(course_name: str, errors: list[dict]) -> str:
+        """Format manual-move validation errors for the inline edit banner."""
+        return "\n".join(
+            f"{course_name}: {e.get('reason', str(e))}" for e in errors
+        )
+
     def _validate_drag_date(self, exam: dict, target_date: _date) -> list[str]:
         """Return human-readable error strings for an invalid drag target.
 
@@ -1267,9 +1291,8 @@ class OutputScreen(QWidget):
                 pid, self._editable_rows, exam, target_date
             )
             course_name = str(exam.get("course_name") or exam.get("course_number", ""))
-            return [
-                f"{course_name}: {e['reason']}" for e in errors
-            ]
+            formatted = self._format_move_errors(course_name, errors)
+            return [line for line in formatted.splitlines() if line.strip()]
         except Exception:
             return []
 

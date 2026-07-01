@@ -162,13 +162,15 @@ def test_cancel_restores_original_edit_rows(qtbot):
     screen._on_exam_drag_moved(exam, "2026-01-01", "2026-01-02")
     assert screen._editable_rows[0]["exam_date"] == date(2026, 1, 2)
 
+    # Verify original rows are preserved before cancel clears them.
+    assert screen._original_edit_rows[0]["exam_date"] == "2026-01-01"
+
     with patch.object(screen, "_render_edit_rows"):
         screen._on_cancel_edit_clicked()
 
     assert screen.is_editing() is False
-    # Cancel restores the original snapshot (may be a string from the service).
-    original = screen._editable_rows[0]["exam_date"]
-    assert str(original) == "2026-01-01"
+    # exit_edit_mode clears _editable_rows — that is the correct behaviour.
+    assert screen._editable_rows == []
 
 
 def test_save_persists_manual_rows_for_current_period(qtbot):

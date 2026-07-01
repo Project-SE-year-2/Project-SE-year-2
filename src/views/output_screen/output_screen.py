@@ -358,9 +358,9 @@ class OutputScreen(QWidget):
         main_layout.addWidget(self._sorting_update_banner)
 
         # Edit-mode banner (SAVE / CANCEL)
-        self._edit_schedule_mode_banner = self._build_edit_mode_banner()
-        self._edit_schedule_mode_banner.setVisible(False)
-        main_layout.addWidget(self._edit_schedule_mode_banner)
+        self._edit_mode_banner = self._build_edit_mode_banner()
+        self._edit_mode_banner.setVisible(False)
+        main_layout.addWidget(self._edit_mode_banner)
 
         # Inline error banner for edit-mode drag validation
         self._edit_error_banner = ErrorBanner()
@@ -1087,7 +1087,7 @@ class OutputScreen(QWidget):
             " padding: 6px 14px; font-weight: 600; }"
             if editing else ""
         )
-        self._edit_schedule_mode_banner.setVisible(editing)
+        self._edit_mode_banner.setVisible(editing)
         self.navigator.setEnabled(not editing)
         self.sort_settings_btn.setEnabled(not editing)
         self.download_btn.setEnabled(not editing)
@@ -1114,13 +1114,15 @@ class OutputScreen(QWidget):
             self.exit_edit_mode()
             return
 
-        # Find rows whose exam_date changed
+        # Find rows whose date, slot, or room assignment changed.
         original_by_id = {str(r.get("course_number", "")): r
                           for r in self._original_edit_rows}
         moved = [
             r for r in self._editable_rows
-            if str(r.get("exam_date", "")) !=
-               str(original_by_id.get(str(r.get("course_number", "")), {}).get("exam_date", ""))
+            if self._edit_row_changed(
+                r,
+                original_by_id.get(str(r.get("course_number", "")), {}),
+            )
         ]
 
         if not moved:
@@ -1155,7 +1157,7 @@ class OutputScreen(QWidget):
             return
 
         row = self._save_remaining.pop(0)
-        worker = SaveEditWorker(
+        self._save_worker = SaveEditWorker(
             service       = self.service,
             period_id     = self._pid_for_save,
             index         = self._idx_for_save,
@@ -1165,9 +1167,19 @@ class OutputScreen(QWidget):
             new_room_keys = list(row.get("room_ids") or []),
             parent        = self,
         )
-        worker.finished.connect(self._run_next_save)
-        worker.error.connect(self._on_save_error)
-        worker.start()
+        self._save_worker.finished.connect(self._run_next_save)
+        self._save_worker.error.connect(self._on_save_error)
+        self._save_worker.start()
+
+    @staticmethod
+    def _edit_row_changed(row: dict, original: dict) -> bool:
+        if not original:
+            return True
+        return (
+            str(row.get("exam_date", "")) != str(original.get("exam_date", ""))
+            or str(row.get("time_slot", "")) != str(original.get("time_slot", ""))
+            or list(row.get("room_ids") or []) != list(original.get("room_ids") or [])
+        )
 
     def _on_save_error(self, msg: str) -> None:
         self._save_error = msg
@@ -1324,14 +1336,14 @@ class OutputScreen(QWidget):
 
     def _on_exam_edit_saved(self, updated_exam: dict) -> None:
         """Called when the user saves changes in EditExamDialog."""
-        # Also propagate the change into _editable_rows so the staged state
-        # stays consistent with what the dialog persisted.
+        # Propagate the dialog change into _editable_rows only. Disk persistence
+        # happens later when the user clicks the main edit-mode SAVE button.
         course_number = str(updated_exam.get("course_number", ""))
         for row in self._editable_rows:
             if str(row.get("course_number", "")) == course_number:
                 row.update(updated_exam)
                 break
-        self._refresh_screen_display()
+        self._render_edit_rows()
 
     # ג”€ג”€ Exam cell click ג†’ DayDetailDialog (or EditExamDialog in edit mode) ג”€ג”€ג”€ג”€
 
@@ -1476,72 +1488,6 @@ class OutputScreen(QWidget):
             return value
         return _date.fromisoformat(str(value))
 
-    def _on_save_edit_clicked(self) -> None:
-        """Validate and persist manual edit-mode changes."""
-        pid = self._active_period_id()
-
-        # Normalise exam_date to date objects (drag-and-drop stores strings).
-        for row in self._editable_rows:
-            row["exam_date"] = self._to_date(row["exam_date"])
-
-        moved = self._find_moved_exams()
-        if moved:
-            all_errors = []
-            for exam in moved:
-                errors = self.service.validate_manual_move(
-                    pid, self._editable_rows, exam, exam["exam_date"]
-                )
-                all_errors.extend(errors)
-
-            if all_errors:
-                reasons = "\n".join(f"ג€¢ {e['reason']}" for e in all_errors)
-                QMessageBox.warning(
-                    self,
-                    "Cannot Save",
-                    f"The following issues prevent saving:\n\n{reasons}",
-                )
-                return
-
-        current_index = self._active_window_state().current()
-        try:
-            self.service.save_manual_edit(pid, current_index, self._editable_rows)
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                "Save Failed",
-                f"Could not save the edited schedule:\n\n{exc}",
-            )
-            return
-        self._pending_refresh_while_editing = True
-        self.exit_edit_mode()
-
-    def _find_moved_exams(self) -> list[dict]:
-        """Return rows from _editable_rows whose exam_date differs from the original."""
-        if not self._original_edit_rows:
-            return []
-        original_by_id = {
-            r["course_number"]: self._to_date(r["exam_date"])
-            for r in self._original_edit_rows
-        }
-        return [
-            row for row in self._editable_rows
-            if original_by_id.get(row["course_number"]) != self._to_date(row["exam_date"])
-        ]
-
-
-    def _on_cancel_edit_clicked(self) -> None:
-        """Cancel edit-mode changes and return to normal view mode.
-
-        Pending refresh is intentionally discarded here: CANCEL means the user wants
-        to keep the currently displayed schedule as-is and leave edit mode without
-        applying newly arrived optimizer results.
-        """
-        if self._original_edit_rows is not None:
-            self._editable_rows = deepcopy(self._original_edit_rows)
-            self._render_edit_rows()
-
-        self._pending_refresh_while_editing = False
-        self.exit_edit_mode()
 
 
     def on_sort_changed(self, sort_cols: list = None) -> None:
@@ -1612,35 +1558,4 @@ class OutputScreen(QWidget):
             )
 
 
-    def _build_edit_mode_banner(self) -> QFrame:
-        """Build a visible banner that indicates edit mode is active."""
-        banner = QFrame()
-        banner.setObjectName("editModeBanner")
-        banner.setStyleSheet("""
-            QFrame#editModeBanner {
-                background: #FFFBEB;
-                border: 1.5px solid #FBBF24;
-                border-radius: 10px;
-            }
-        """)
-
-        row = QHBoxLayout(banner)
-        row.setContentsMargins(16, 12, 16, 12)
-
-        label = QLabel("Edit mode is active. Save or cancel your changes before navigating.")
-        label.setWordWrap(True)
-        label.setStyleSheet("color: #92400E; font-size: 14px; font-weight: 700;")
-        row.addWidget(label, stretch=1)
-
-        self.save_edit_btn = QPushButton("SAVE")
-        self.save_edit_btn.setObjectName("saveEditBtn")
-        self.save_edit_btn.clicked.connect(self._on_save_edit_clicked)
-        row.addWidget(self.save_edit_btn)
-
-        self.cancel_edit_btn = QPushButton("CANCEL")
-        self.cancel_edit_btn.setObjectName("cancelEditBtn")
-        self.cancel_edit_btn.clicked.connect(self._on_cancel_edit_clicked)
-        row.addWidget(self.cancel_edit_btn)
-
-        return banner
 

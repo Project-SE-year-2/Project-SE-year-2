@@ -859,7 +859,7 @@ class AppService(IAppService):
     # Edit-exam feature                                                   #
     # ------------------------------------------------------------------ #
 
-    def validate_manual_move(
+    def _validate_manual_move_basic_legacy(
         self,
         period_id: str,
         exam_rows: list[dict],
@@ -1047,8 +1047,9 @@ class AppService(IAppService):
         """Return the ExamSchedule object for the given period and display index."""
         disk_count = self._results_reader.get_count(period_id)
         if disk_count > 0:
-            if index < disk_count:
-                return self._results_reader.get_schedule_at(period_id, index)
+            physical_index = self._resolve_physical_index(period_id, index)
+            if physical_index < disk_count:
+                return self._results_reader.get_schedule_at(period_id, physical_index)
             return None
         # Fall back to in-memory results
         schedules = self._results.get(period_id, [])
@@ -1074,10 +1075,12 @@ class AppService(IAppService):
             ValueError: if the course is not found in the schedule.
             RuntimeError: if the schedule cannot be written back.
         """
-        import pickle
-        import shutil
-        from src.models.exam_placement import ExamPlacement
-        from src.models.enums import TimeSlot
+        disk_count = self._results_reader.get_count(period_id)
+        physical_index = (
+            self._resolve_physical_index(period_id, index)
+            if disk_count > 0
+            else index
+        )
 
         schedule = self._get_schedule_for_period_index(period_id, index)
         if schedule is None:
@@ -1098,14 +1101,44 @@ class AppService(IAppService):
                 f"{r.building}:{r.room_id}": r
                 for r in self._datastore.get_rooms()
             }
+            missing = [k for k in new_room_keys if k not in rooms_by_key]
+            if missing:
+                raise ValueError(f"Unknown room(s): {', '.join(missing)}")
+
+            slot_enum = TimeSlot(new_time_slot)
+            selected_room_keys = set(new_room_keys)
+
+            for other_course, placement in schedule.placements.items():
+                if str(other_course.course_id) == str(course_number):
+                    continue
+                if not placement.is_room_based:
+                    continue
+                if placement.date != new_date:
+                    continue
+                if placement.time_slot != slot_enum:
+                    continue
+                occupied_keys = {
+                    f"{room.building}:{room.room_id}"
+                    for room in placement.rooms
+                }
+                overlap = selected_room_keys & occupied_keys
+                if overlap:
+                    raise ValueError(
+                        "Selected room(s) are already occupied in this time slot: "
+                        + ", ".join(sorted(overlap))
+                    )
+
             room_objs = tuple(
-                rooms_by_key[k] for k in new_room_keys if k in rooms_by_key
+                rooms_by_key[k] for k in new_room_keys
             )
-            try:
-                slot_enum = TimeSlot(new_time_slot)
-                new_placement = ExamPlacement.with_rooms(new_date, slot_enum, room_objs)
-            except (ValueError, KeyError):
-                new_placement = ExamPlacement.date_only(new_date)
+            num_students = int(getattr(target_course, "num_students", 0) or 0)
+            total_capacity = sum(room.capacity for room in room_objs)
+            if num_students and total_capacity < num_students:
+                raise ValueError(
+                    f"Selected rooms fit {total_capacity} students, "
+                    f"but course {course_number} has {num_students} students."
+                )
+            new_placement = ExamPlacement.with_rooms(new_date, slot_enum, room_objs)
         else:
             new_placement = ExamPlacement.date_only(new_date)
 
@@ -1113,9 +1146,8 @@ class AppService(IAppService):
         schedule.assign(target_course, new_placement)
 
         # Persist to disk
-        disk_count = self._results_reader.get_count(period_id)
-        if disk_count > 0 and index < disk_count:
-            self._overwrite_batch_slot(period_id, index, schedule)
+        if disk_count > 0 and physical_index < disk_count:
+            self._overwrite_batch_slot(period_id, physical_index, schedule)
 
     def _overwrite_batch_slot(self, period_id: str, index: int, schedule: ExamSchedule) -> None:
         """Replace one slot in the on-disk batch file with the updated schedule."""

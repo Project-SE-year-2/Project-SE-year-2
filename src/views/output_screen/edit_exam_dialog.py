@@ -28,7 +28,6 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from src.presenter.save_edit_worker import SaveEditWorker
 from src.styles.edit_exam_dialog_style import (
     EDIT_DIALOG_MAX_WIDTH,
     EDIT_DIALOG_MIN_HEIGHT,
@@ -166,7 +165,6 @@ class EditExamDialog(QDialog):
         self._assigned_rooms:    list[dict]        = []   # {room_key, room_id, building}
         self._all_rooms:         list[dict]        = []   # full availability list
         self._room_scheduling:   bool              = False
-        self._save_worker:       SaveEditWorker | None = None
 
         self._build_ui()
         self._load_room_data()
@@ -731,14 +729,17 @@ class EditExamDialog(QDialog):
             self._room_table.setItem(row_idx, 2, self._cell(str(room["capacity"])))
             self._room_table.setItem(row_idx, 3, self._cell(str(room["free_seats"])))
 
-            is_full = (not is_assigned) and room["free_seats"] == 0
+            is_full = (
+                not is_assigned
+                and int(room.get("free_seats", 0)) < int(room.get("capacity", 0))
+            )
 
             if is_assigned:
                 btn = QPushButton("Assigned")
                 btn.setStyleSheet(ASSIGNED_BTN_STYLE)
                 btn.setEnabled(False)
             elif is_full:
-                btn = QPushButton("Full")
+                btn = QPushButton("Occupied")
                 btn.setStyleSheet(
                     "QPushButton { background: #FEF2F2; color: #DC2626;"
                     " border: 1.5px solid #FECACA; border-radius: 6px;"
@@ -854,33 +855,7 @@ class EditExamDialog(QDialog):
                 self._show_error(errors[0])
                 return
 
-        course_number = str(self._exam.get("course_number", ""))
         new_room_keys = [r["room_key"] for r in self._assigned_rooms]
-
-        # Disable Save and show "Saving…" while the background worker runs.
-        self._save_btn.setEnabled(False)
-        self._save_btn.setText("Saving…")
-
-        self._save_worker = SaveEditWorker(
-            service       = self._service,
-            period_id     = self._period_id,
-            index         = self._schedule_index,
-            course_number = course_number,
-            new_date      = self._selected_date,
-            new_time_slot = self._selected_slot,
-            new_room_keys = new_room_keys,
-            parent        = self,
-        )
-        self._save_worker.finished.connect(
-            lambda: self._on_save_finished(new_room_keys)
-        )
-        self._save_worker.error.connect(self._on_save_error)
-        self._save_worker.start()
-
-    def _on_save_finished(self, new_room_keys: list[str]) -> None:
-        self._save_btn.setEnabled(True)
-        self._save_btn.setText("Save Changes")
-
         updated = dict(self._exam)
         updated["exam_date"] = self._selected_date
         if self._selected_slot is not None:
@@ -890,19 +865,15 @@ class EditExamDialog(QDialog):
         self.exam_saved.emit(updated)
         self.close()
 
-    def _on_save_error(self, message: str) -> None:
-        self._save_btn.setEnabled(True)
-        self._save_btn.setText("Save Changes")
-        self._show_error(message)
-
     def _validate_capacity(self) -> list[str]:
         num_students = int(self._exam.get("num_students") or 0)
         if num_students == 0:
             return []
+        selected_keys = {x["room_key"] for x in self._assigned_rooms}
         total_cap = sum(
-            r.get("capacity", 0)
+            r.get("free_seats", 0)
             for r in self._all_rooms
-            if r["room_key"] in {x["room_key"] for x in self._assigned_rooms}
+            if r["room_key"] in selected_keys
         )
         if total_cap < num_students:
             course_name = self._exam.get("course_name", str(self._exam.get("course_number", "")))

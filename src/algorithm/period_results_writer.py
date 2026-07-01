@@ -3,6 +3,7 @@ import os
 import pickle
 import threading
 import time
+import uuid
 from pathlib import Path
 
 from src.models.exam_schedule import ExamSchedule
@@ -107,19 +108,27 @@ class PeriodResultsWriter:
     def _update_manifest_locked(self, period_id: str, count: int) -> None:
         """Write manifest — must be called while holding the period lock."""
         manifest_path = self._root / period_id / "manifest.json"
-        manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = manifest_path.with_name(
-            f"{manifest_path.name}.{os.getpid()}.{threading.get_ident()}.part"
-        )
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump({"count": count}, f)
-        try:
-            self._safe_replace(temp_path, manifest_path)
-        finally:
+        last_error: Exception | None = None
+        for attempt in range(30):
+            temp_path = manifest_path.with_name(
+                f"{manifest_path.name}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex}.part"
+            )
             try:
-                temp_path.unlink(missing_ok=True)
-            except Exception:
-                pass
+                manifest_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(temp_path, "w", encoding="utf-8") as f:
+                    json.dump({"count": count}, f)
+                self._safe_replace(temp_path, manifest_path)
+                return
+            except (FileNotFoundError, PermissionError) as exc:
+                last_error = exc
+                time.sleep(min(0.05 * (attempt + 1), 0.5))
+            finally:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+        if last_error is not None:
+            raise last_error
 
     # Updates the manifest with the new count of schedules for the given period ID
     def update_manifest(self, period_id: str, count: int) -> None:

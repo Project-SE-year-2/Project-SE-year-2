@@ -311,7 +311,7 @@ class OutputScreen(QWidget):
 
         # Toolbar
         toolbar = QHBoxLayout()
-        self.back_btn = QPushButton("ג† Back")
+        self.back_btn = QPushButton("Back")
         self.back_btn.setObjectName("backBtn")
         self.back_btn.clicked.connect(self._on_back_clicked)
 
@@ -651,6 +651,11 @@ class OutputScreen(QWidget):
 
         if moed == "All":
             # All Sessions is read-only: no navigation, no conflict checks.
+            try:
+                if self.service.get_sort_order():
+                    self.service.refresh_ranked_view()
+            except Exception:
+                pass
             self._refresh_all_sessions_display()
             return
 
@@ -671,10 +676,14 @@ class OutputScreen(QWidget):
         sem      = self._current_semester
         sem_code = _SEMESTER_TO_ID.get(sem, sem)
         sections: list[dict] = []
+        try:
+            sort_active = bool(self.service.get_sort_order())
+        except Exception:
+            sort_active = False
 
         for moed in ["Aleph", "Bet", "Gimel"]:
             pid  = f"{sem_code}_{moed}"
-            idx = self._period_index(pid)
+            idx = 0 if sort_active else self._period_index(pid)
             exams: list = []
             start_date: _date | None = None
             end_date:   _date | None = None

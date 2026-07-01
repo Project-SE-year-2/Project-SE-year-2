@@ -244,8 +244,10 @@ def test_save_failure_leaves_screen_in_edit_mode(qtbot):
 
     with patch.object(fake_service, "save_exam_edit", side_effect=OSError("disk full")):
         screen._on_save_edit_clicked()
+        # Wait until the worker thread records the error (visible check fails on
+        # non-shown widgets, so we check the internal error state instead).
         qtbot.waitUntil(
-            lambda: screen._edit_error_banner.isVisible() or not screen.is_editing(),
+            lambda: getattr(screen, "_save_error", None) is not None,
             timeout=2000,
         )
 

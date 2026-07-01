@@ -1,4 +1,5 @@
 import json
+import os
 import pickle
 import threading
 import time
@@ -36,16 +37,16 @@ class PeriodResultsWriter:
             return self._period_locks[period_id]
 
     @staticmethod
-    def _safe_replace(src: Path, dst: Path, retries: int = 5, delay: float = 0.1) -> None:
+    def _safe_replace(src: Path, dst: Path, retries: int = 30, delay: float = 0.05) -> None:
         """Rename src -> dst, retrying on WinError 5 (Access is denied)."""
         for attempt in range(retries):
             try:
-                src.replace(dst)
+                os.replace(src, dst)
                 return
             except PermissionError:
                 if attempt == retries - 1:
                     raise
-                time.sleep(delay)
+                time.sleep(min(delay * (attempt + 1), 0.5))
 
     def write_batch(self, period_id: str, schedules: list[ExamSchedule]) -> None:
         with self._lock_for(period_id):
@@ -107,10 +108,18 @@ class PeriodResultsWriter:
         """Write manifest — must be called while holding the period lock."""
         manifest_path = self._root / period_id / "manifest.json"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = manifest_path.with_suffix(".part")
+        temp_path = manifest_path.with_name(
+            f"{manifest_path.name}.{os.getpid()}.{threading.get_ident()}.part"
+        )
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump({"count": count}, f)
-        self._safe_replace(temp_path, manifest_path)
+        try:
+            self._safe_replace(temp_path, manifest_path)
+        finally:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     # Updates the manifest with the new count of schedules for the given period ID
     def update_manifest(self, period_id: str, count: int) -> None:

@@ -27,9 +27,9 @@ from src.views.shared_components.calendar_widgets.output_day_cell import OutputD
 class MonthGrid(QWidget):
     """Single-month grid widget shared between INPUT and OUTPUT modes."""
 
-    input_day_toggled   = pyqtSignal(object)           # QDate
-    output_exam_clicked = pyqtSignal(object, object)   # list[dict], QPoint
-    exam_moved          = pyqtSignal(object, str, str) # exam_dict, source_date, target_date
+    input_day_toggled   = pyqtSignal(object)          # QDate
+    output_exam_clicked = pyqtSignal(object, object)  # list[dict], QPoint
+    exam_moved = pyqtSignal(object, str, str)
 
     def __init__(self, mode: CalendarMode, parent=None):
         super().__init__(parent)
@@ -40,6 +40,7 @@ class MonthGrid(QWidget):
     def set_edit_mode(self, enabled: bool) -> None:
         """Enable or disable drag/drop on all output day cells."""
         self._edit_mode = enabled
+
         for cell in self.findChildren(OutputDayCell):
             cell.set_edit_mode(enabled)
 
@@ -62,6 +63,7 @@ class MonthGrid(QWidget):
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setFixedHeight(30)
             color = DAY_COLOR_WEEKEND if col in (0, 6) else DAY_HEADER_WEEKDAY_COLOR
+            # Plain inline style (no selector) avoids Qt parse warnings
             lbl.setStyleSheet(
                 f"color: {color}; font-size: 11px; font-weight: 700;"
                 f" background: {DAY_HEADER_BG}; padding: 4px 0px;"
@@ -126,9 +128,8 @@ class MonthGrid(QWidget):
             cell = OutputDayCell(qdate, is_other_month=is_other,
                                  is_weekend=is_weekend)
             cell.exam_clicked.connect(self.output_exam_clicked)
-            cell.exam_moved.connect(self.exam_moved)
-            # Apply current edit mode to newly created cells
             cell.set_edit_mode(self._edit_mode)
+            cell.exam_moved.connect(self.exam_moved.emit)
 
             if is_other:
                 pass  # already rendered as faded by OutputDayCell default

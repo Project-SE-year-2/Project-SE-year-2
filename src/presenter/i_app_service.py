@@ -358,53 +358,29 @@ class IAppService(ABC):
         period_id: str,
         exam_rows: list[dict],
         moving_exam: dict,
-        target_date,
+        target_date: date,
     ) -> list[dict]:
         """Validate whether moving `moving_exam` to `target_date` is legal.
 
-        Returns list of error dicts, each with "rule" and "reason" keys.
-        An empty list means the move is valid.
+        Args:
+            period_id:    Backend period ID (e.g. "FALL_Aleph").
+            exam_rows:    All exam rows currently displayed for the period.
+            moving_exam:  The exam dict being moved.
+            target_date:  The proposed new date.
+
+        Returns:
+            List of error dicts, each with "rule" and "reason" keys.
+            An empty list means the move is valid.
         """
 
     @abstractmethod
     def save_manual_edit(self, period_id: str, index: int, edited_rows: list[dict]) -> None:
-        """Persist a manually edited schedule (full row list) at the given index.
+        """Persist a manually edited schedule at the given index for period_id.
 
         Args:
             period_id:    Backend period ID (e.g. "FALL_Aleph").
             index:        The schedule index that was displayed when the user saved.
             edited_rows:  The complete list of exam-row dicts after manual edits.
-        """
-
-    @abstractmethod
-    def get_room_availability(
-        self,
-        period_id: str,
-        index: int,
-        target_date,
-        time_slot: str,
-        exclude_course_number: str,
-    ) -> list[dict]:
-        """Return all rooms with free-seat counts for the given date/time slot.
-
-        Returns list of dicts: {room_key, room_id, building, capacity,
-        free_seats, is_assigned}.  Empty when room scheduling is off.
-        """
-
-    @abstractmethod
-    def save_exam_edit(
-        self,
-        period_id: str,
-        index: int,
-        course_number: str,
-        new_date,
-        new_time_slot: str | None,
-        new_room_keys: list[str],
-    ) -> None:
-        """Persist an in-place edit to a single exam's date, time slot, and rooms.
-
-        Updates date, time slot, and room assignments, then writes the
-        changed schedule back to disk so the change survives a reload.
         """
 
     @abstractmethod

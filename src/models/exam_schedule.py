@@ -50,28 +50,6 @@ class ExamSchedule:
         for period, course, placement in self._all_store_items():
             yield period, course, placement
 
-    def iter_assignments(self):
-        """Yield (course, date) for every primary-period placement.
-
-        Zero-allocation alternative to assignments.items():
-        .assignments builds two dicts (placements + assignments).
-        This generator yields directly from _store — no intermediate dicts.
-        Used in partial constraint checkers that run on every backtracking node.
-        """
-        for (p, course), placement in self._store.items():
-            if p is self.period:
-                yield course, placement.date
-
-    def iter_assignment_dates(self):
-        """Yield just the date for every primary-period placement.
-
-        Zero-allocation alternative to assignments.values().
-        Used in partial constraint checkers that run on every backtracking node.
-        """
-        for (p, _), placement in self._store.items():
-            if p is self.period:
-                yield placement.date
-
     def assign(self, course: Course, exam_date: DateType | ExamPlacement) -> None:
         """Assign a course to either a legacy date or a full ExamPlacement."""
         self.unassign(course)

@@ -65,18 +65,16 @@ def output_screen(qtbot):
 def test_default_state_is_view_mode(output_screen):
     """OutputScreen starts in normal view mode."""
     assert output_screen.is_editing() is False
-    # edit_schedule_btn is always visible (checkable toggle, not hidden/shown)
-    assert output_screen.edit_schedule_btn.isVisible() is True
+    assert output_screen.edit_btn.isVisible() is True
     assert output_screen._edit_mode_banner.isVisible() is False
 
 
 def test_enter_edit_mode_shows_banner_and_save_cancel(output_screen, qtbot):
-    """Entering edit mode shows the SAVE/CANCEL banner."""
-    output_screen.enter_edit_mode()
+    """Clicking EDIT enters edit mode and shows SAVE/CANCEL inside the edit banner."""
+    qtbot.mouseClick(output_screen.edit_btn, Qt.LeftButton)
 
     assert output_screen.is_editing() is True
-    # The toggle button stays visible but is checked
-    assert output_screen.edit_schedule_btn.isChecked() is True
+    assert output_screen.edit_btn.isVisible() is False
     assert output_screen.save_edit_btn.isVisible() is True
     assert output_screen.cancel_edit_btn.isVisible() is True
     assert output_screen._edit_mode_banner.isVisible() is True
@@ -89,7 +87,7 @@ def test_cancel_exits_edit_mode(output_screen, qtbot):
     qtbot.mouseClick(output_screen.cancel_edit_btn, Qt.LeftButton)
 
     assert output_screen.is_editing() is False
-    assert output_screen.edit_schedule_btn.isChecked() is False
+    assert output_screen.edit_btn.isVisible() is True
     assert output_screen._edit_mode_banner.isVisible() is False
 
 
@@ -100,7 +98,7 @@ def test_save_exits_edit_mode(output_screen, qtbot):
     qtbot.mouseClick(output_screen.save_edit_btn, Qt.LeftButton)
 
     assert output_screen.is_editing() is False
-    assert output_screen.edit_schedule_btn.isChecked() is False
+    assert output_screen.edit_btn.isVisible() is True
     assert output_screen._edit_mode_banner.isVisible() is False
 
 

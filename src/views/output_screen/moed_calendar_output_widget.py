@@ -151,7 +151,6 @@ class MoedCalendarOutputWidget(QWidget):
     """White card: semester header + moed toggle + horizontal months + legend."""
 
     exam_day_clicked = pyqtSignal(object, object)   # list[dict], QPoint
-    exam_moved       = pyqtSignal(object, str, str) # exam_dict, source_date, target_date
     moed_changed     = pyqtSignal(str)              # "Aleph" | "Bet" | "Gimel"
     exam_moved = pyqtSignal(object, str, str)
 
@@ -167,7 +166,6 @@ class MoedCalendarOutputWidget(QWidget):
         self._edit_mode: bool = False
         self._period_start: _date | None = None
         self._period_end:   _date | None = None
-        self._edit_mode_active: bool = False
         self._setup_ui()
 
     def set_edit_mode(self, enabled: bool) -> None:
@@ -466,12 +464,6 @@ class MoedCalendarOutputWidget(QWidget):
     def _on_cell_clicked(self, exams: list, anchor) -> None:
         self.exam_day_clicked.emit(exams, anchor)
 
-    def set_edit_mode(self, enabled: bool) -> None:
-        """Enable/disable drag-and-drop on every visible day cell."""
-        self._edit_mode_active = enabled
-        for mg in self._month_grids:
-            mg.set_edit_mode(enabled)
-
     def _rebuild_month_cards(self) -> None:
         """Clear and recreate MonthGrid cards.
 
@@ -518,11 +510,14 @@ class MoedCalendarOutputWidget(QWidget):
 
             mg = MonthGrid(CalendarMode.OUTPUT)
             mg.output_exam_clicked.connect(self._on_cell_clicked)
-            mg.exam_moved.connect(self.exam_moved)
+            if hasattr(mg, "exam_moved"):
+                mg.exam_moved.connect(self.exam_moved.emit)
+
+            if hasattr(mg, "set_edit_mode"):
+                mg.set_edit_mode(self._edit_mode)
+                
             mg.populate_output(year, month, self._exams_by_date, self._unavail_dates,
                                period_start=pstart, period_end=pend)
-            if self._edit_mode_active:
-                mg.set_edit_mode(True)
             self._month_grids.append(mg)
             cl.addWidget(mg, stretch=1)
 
@@ -935,8 +930,7 @@ class MoedCalendarOutputWidget(QWidget):
         else:
             self._months = self._compute_months_from_exams(semester)
 
-        # Reset to the first month unless the caller asks to preserve the
-        # current month (used when re-rendering during live edit mode).
+        # Reset to the first month whenever new schedule data is loaded
         if preserve_month_index:
             self._current_month_idx = max(
                 0,

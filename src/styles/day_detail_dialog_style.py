@@ -4,14 +4,7 @@ Style definitions for DayDetailDialog (multi-exam day popup).
 Light-theme card that floats over the dark calendar. All colors are
 self-contained here because they belong to a light sub-surface, not to
 the app's main dark palette (which lives in theme.py).
-
-In edit mode the dialog is shown at a larger fixed width (420 px) and
-positioned to the LEFT of the EditExamDialog panel.
 """
-
-# ── Edit-mode sizing ─────────────────────────────────────────────────
-EDIT_MODE_MIN_WIDTH = 420
-EDIT_MODE_MAX_WIDTH = 460
 
 # ── Light card surface ────────────────────────────────────────────────
 CARD_BG            = "#FFFFFF"

@@ -21,16 +21,15 @@ Up to MAX_VISIBLE_BADGES exam pills are shown; if more exams exist a
 
 from __future__ import annotations
 
-import json
-
-from PyQt5.QtCore import QDate, QMimeData, QPoint, Qt, pyqtSignal
+from PyQt5.QtCore import QDate, QPoint, Qt, pyqtSignal, QMimeData
 from PyQt5.QtGui import QDrag
+import json
 from PyQt5.QtWidgets import (
-    QApplication,
     QFrame,
     QLabel,
     QSizePolicy,
     QVBoxLayout,
+    QApplication,
 )
 
 from src.styles.calendar_table_style import (
@@ -61,9 +60,6 @@ class OutputDayCell(QFrame):
     # Emits (list[dict], QPoint) — the full exam list for the day + the
     # global bottom-left corner of the cell so the caller can anchor the popup.
     exam_clicked = pyqtSignal(object, object)
-
-    # Emits (exam_dict, source_date_str, target_date_str) when an exam is
-    # dragged from another cell and dropped here in edit-schedule mode.
     exam_moved = pyqtSignal(object, str, str)
 
     def __init__(self, qdate: QDate, is_other_month: bool = False,
@@ -73,12 +69,11 @@ class OutputDayCell(QFrame):
         self._is_other    = is_other_month
         self._is_weekend  = is_weekend
         self._all_exams: list[dict] = []
+        self._edit_mode = False
         self._exam_data: dict | None = None   # primary exam (first in list)
+        self._drag_start_pos = None
+        self._drag_exam: dict | None = None
         self._unavailable = False
-        self._edit_mode   = False
-        self._drag_start_pos: QPoint | None = None
-        self._drag_exam: dict | None = None   # exam under the cursor when drag started
-        # Drops are only accepted on in-range, non-other-month, non-unavailable days.
         self._drop_allowed = not is_other_month
         self._setup_ui()
         self.setAcceptDrops(False)
@@ -101,10 +96,7 @@ class OutputDayCell(QFrame):
                 f"background: {UNAVAIL_CIRCLE_BG}; border: 1px solid {UNAVAIL_CIRCLE_BORDER}; "
                 f"border-radius: 12px;"
             )
-        return (
-            f"font-size: 13px; font-weight: 700; color: {color}; "
-            f"background: transparent; border: none; border-radius: 0px;"
-        )
+        return f"font-size: 13px; font-weight: 700; color: {color}; background: transparent; border: none; border-radius: 0px;"
 
     def _badge_lbl_style(self, color: str) -> str:
         """Generate the stylesheet for the badge label with the given text colour."""
@@ -195,7 +187,7 @@ class OutputDayCell(QFrame):
         exam_type_lower = exam_type.strip().lower()
         is_elective = "elective" in exam_type_lower or "elect" in exam_type_lower
         color = ELECT_TEXT if is_elective else REQ_TEXT
-
+        
         self._more_lbl = QLabel(f"+{count}")
         self._more_lbl.setAlignment(Qt.AlignCenter)
         self._more_lbl.setStyleSheet(
@@ -204,6 +196,12 @@ class OutputDayCell(QFrame):
         self._badges_layout.addWidget(self._more_lbl)
 
     # ── Public API ────────────────────────────────────────────────────────────
+    def set_edit_mode(self, enabled: bool) -> None:
+        """Allow drag/drop only while OutputScreen is in edit mode."""
+        self._edit_mode = enabled
+        self.setAcceptDrops(enabled and self._drop_allowed)
+        self.setCursor(Qt.OpenHandCursor if enabled and self._all_exams else Qt.ArrowCursor)
+
 
     def set_exams(self, exams: list[dict]) -> None:
         """
@@ -232,6 +230,7 @@ class OutputDayCell(QFrame):
             self._pill_widgets.append(pill)
 
         if hidden_count > 0:
+            # Use the type of the first hidden exam for colour consistency
             first_hidden_type = str(exams[MAX_VISIBLE_BADGES].get("type", "Obligatory"))
             self._add_more_label(hidden_count, first_hidden_type)
 
@@ -252,6 +251,7 @@ class OutputDayCell(QFrame):
         self._day_num.setStyleSheet(self._day_num_style(UNAVAIL_CIRCLE_TEXT, is_unavail=True))
         self._clear_badges()
 
+        # Single rose pill
         pill = QFrame()
         pill.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         pill.setStyleSheet(BADGE_UNAVAILABLE_STYLE)
@@ -265,6 +265,7 @@ class OutputDayCell(QFrame):
         lbl.setStyleSheet(self._badge_lbl_style(UNAVAIL_OUT_TEXT))
         pill_layout.addWidget(lbl)
 
+        # Keep public reference expected by tests
         self._badge_lbl = lbl
         self._pill_widgets.append(pill)
         self._badges_layout.addWidget(pill)
@@ -292,102 +293,112 @@ class OutputDayCell(QFrame):
         self._badges_area.setVisible(False)
         self.setCursor(Qt.ArrowCursor)
 
-    # ── Edit-mode control ─────────────────────────────────────────────────────
-
-    def set_edit_mode(self, enabled: bool) -> None:
-        self._edit_mode = enabled
-        self.setAcceptDrops(enabled and self._drop_allowed)
-
     # ── Events ────────────────────────────────────────────────────────────────
 
-    def _exam_at_pos(self, pos) -> dict:
-        """Return the exam dict for the pill widget under pos, falling back to the first exam."""
-        widget = self.childAt(pos)
-        while widget is not None and widget is not self:
-            exam = getattr(widget, "_exam_data", None)
-            if exam is not None:
-                return exam
-            widget = widget.parent()
-        return self._all_exams[0]
-
-    def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.LeftButton:
-            if self._edit_mode and self._all_exams:
-                self._drag_start_pos = event.pos()
-                self._drag_exam = self._exam_at_pos(event.pos())
-            elif self._all_exams:
-                anchor = self.mapToGlobal(QPoint(0, self.height()))
-                self.exam_clicked.emit(self._all_exams, anchor)
-        super().mousePressEvent(event)
-
     def mouseMoveEvent(self, event) -> None:
+        """Start dragging the selected exam pill after the standard drag threshold."""
+        if not self._edit_mode or self._drag_exam is None:
+            return super().mouseMoveEvent(event)
+
+        if self._drag_start_pos is None:
+            return super().mouseMoveEvent(event)
+
         if (
-            self._edit_mode
-            and self._all_exams
-            and self._drag_start_pos is not None
-            and event.buttons() & Qt.LeftButton
-        ):
-            dist = (event.pos() - self._drag_start_pos).manhattanLength()
-            if dist >= 8:
-                self._start_drag()
-        super().mouseMoveEvent(event)
+            event.pos() - self._drag_start_pos
+        ).manhattanLength() < QApplication.startDragDistance():
+            return
 
-    def mouseReleaseEvent(self, event) -> None:
-        if event.button() == Qt.LeftButton and self._edit_mode and self._all_exams:
-            # Short press (no drag started) → open edit dialog
-            if self._drag_start_pos is not None:
-                dist = (event.pos() - self._drag_start_pos).manhattanLength()
-                if dist < 8:
-                    anchor = self.mapToGlobal(QPoint(0, self.height()))
-                    self.exam_clicked.emit(self._all_exams, anchor)
-        self._drag_start_pos = None
-        super().mouseReleaseEvent(event)
+        exam = self._drag_exam
+        source_date = str(exam.get("exam_date", ""))
 
-    def _start_drag(self) -> None:
-        exam = self._drag_exam if self._drag_exam is not None else self._all_exams[0]
-        source_date = str(exam.get("exam_date", self._qdate.toString(Qt.ISODate)))
+        if not source_date:
+            return super().mouseMoveEvent(event)
 
-        payload = {k: str(v) if not isinstance(v, (str, int, float, bool, list)) else v
-                   for k, v in exam.items()}
+        payload = {
+            "exam": exam,
+            "source_date": source_date,
+        }
 
         mime = QMimeData()
-        mime.setText(json.dumps({
-            "exam":        payload,
-            "source_date": source_date,
-        }))
+        mime.setData(
+            "application/x-exam-move",
+            json.dumps(payload, default=str).encode("utf-8"),
+        )
 
         drag = QDrag(self)
         drag.setMimeData(mime)
         drag.exec_(Qt.MoveAction)
+
         self._drag_start_pos = None
         self._drag_exam = None
 
-    # ── Drop target ───────────────────────────────────────────────────────────
 
     def dragEnterEvent(self, event) -> None:
-        if self._edit_mode and self._drop_allowed and event.mimeData().hasText():
+        if (
+            self._edit_mode
+            and self._drop_allowed
+            and event.mimeData().hasFormat("application/x-exam-move")
+        ):
             event.acceptProposedAction()
-            self.setStyleSheet(
-                "QFrame { background: #EEF2FF; border: 2px dashed #818CF8; }"
-            )
         else:
             event.ignore()
 
-    def dragLeaveEvent(self, event) -> None:
-        self.setStyleSheet(f"QFrame {{ background: {CELL_BG}; }}")
+
+    def dragMoveEvent(self, event) -> None:
+        if (
+            self._edit_mode
+            and self._drop_allowed
+            and event.mimeData().hasFormat("application/x-exam-move")
+        ):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def dropEvent(self, event) -> None:
-        self.setStyleSheet(f"QFrame {{ background: {CELL_BG}; }}")
         if not self._edit_mode or not self._drop_allowed:
             event.ignore()
             return
+
+        if not event.mimeData().hasFormat("application/x-exam-move"):
+            event.ignore()
+            return
+
         try:
-            data = json.loads(event.mimeData().text())
-            exam        = data["exam"]
-            source_date = data["source_date"]
-            target_date = self._qdate.toString(Qt.ISODate)
-            if source_date != target_date:
-                self.exam_moved.emit(exam, source_date, target_date)
-            event.acceptProposedAction()
+            payload = json.loads(
+                bytes(event.mimeData().data("application/x-exam-move")).decode("utf-8")
+            )
         except Exception:
             event.ignore()
+            return
+
+        exam = payload.get("exam", {})
+        source_date = payload.get("source_date", "")
+        target_date = self._qdate.toString("yyyy-MM-dd")
+
+        if not source_date or not target_date or source_date == target_date:
+            event.ignore()
+            return
+
+        self.exam_moved.emit(exam, source_date, target_date)
+        event.acceptProposedAction()
+
+    def mousePressEvent(self, event) -> None:
+        """Store drag source in edit mode, otherwise open the details popup."""
+        if event.button() == Qt.LeftButton and self._all_exams:
+            if self._edit_mode:
+                child = self.childAt(event.pos())
+                self._drag_exam = getattr(child, "_exam_data", None)
+
+                if self._drag_exam is None and child is not None:
+                    parent = child.parent()
+                    self._drag_exam = getattr(parent, "_exam_data", None)
+
+                if self._drag_exam is not None:
+                    self._drag_start_pos = event.pos()
+                    super().mousePressEvent(event)
+                    return
+
+            anchor = self.mapToGlobal(QPoint(0, self.height()))
+            self.exam_clicked.emit(self._all_exams, anchor)
+
+        super().mousePressEvent(event)

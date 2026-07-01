@@ -447,8 +447,6 @@ class InputScreen(QWidget):
                 "No valid schedule was found. "
                 "Try relaxing the constraints or expanding the exam period date range."
             )
-        # Parent the timer to self so it is destroyed with the widget and never
-        # fires on a deleted object (guards against orphaned timers in tests).
         self._finish_timer = QTimer(self)
         self._finish_timer.setSingleShot(True)
         self._finish_timer.timeout.connect(self.switch_to_output.emit)

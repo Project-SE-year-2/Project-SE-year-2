@@ -290,14 +290,14 @@ class TestOutputScreen(unittest.TestCase):
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
     def test_exams_day_clicked_passes_anchor_to_dialog(self, MockDialog):
-        """DayDetailDialog is always opened centered (anchor_pos=None) regardless
-        of where the user clicked, so the dialog never opens off-screen."""
+        """The QPoint anchor received from the signal must be forwarded to DayDetailDialog."""
         self.mock_service.get_available_programs.return_value = []
+        # Emit the signal with a specific anchor point
         anchor = QPoint(123, 456)
         self.screen._on_exam_day_clicked([_make_minimal_exam()], anchor)
+        # Extract the anchor_pos kwarg passed to the dialog constructor and verify it matches
         kw = MockDialog.call_args[1]
-        # Centering is handled by _center_on_screen(); anchor_pos is always None.
-        self.assertIsNone(kw["anchor_pos"])
+        self.assertEqual(kw["anchor_pos"], anchor)
 
     @patch("src.views.output_screen.output_screen.DayDetailDialog")
     def test_on_exam_clicked_shim_wraps_single_exam_in_list(self, MockDialog):
@@ -349,7 +349,7 @@ class TestOutputScreen(unittest.TestCase):
         MockDialog.assert_called_once()
         _, kwargs = MockDialog.call_args
         self.assertEqual(kwargs["exams"], exam_list)
-        self.assertIsNone(kwargs["anchor_pos"])   # always centered, not anchored to cell
+        self.assertEqual(kwargs["anchor_pos"], anchor_point)
         self.assertEqual(kwargs["program_names"], {"83101": "Computer Engineering"})
 
     # ------------------------------------------------------------------

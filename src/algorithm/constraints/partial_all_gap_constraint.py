@@ -39,7 +39,7 @@ class PartialAllGapConstraint(IPartialConstraint):
         """Group all assigned exam dates by (program_id, year), ignoring requirement type."""
         cohort_dates: dict[tuple[str, int], list[date]] = {}
 
-        for course, exam_date in schedule.iter_assignments():
+        for course, exam_date in schedule.assignments.items():
             seen_cohorts = set()
             for req in course.requirements:
                 key = (req.program_id, req.year)

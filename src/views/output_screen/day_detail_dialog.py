@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import date as date_type
 
-from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import QEvent, QPoint, Qt, QTimer
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
@@ -34,8 +34,6 @@ from PyQt5.QtWidgets import (
 from src.styles.day_detail_dialog_style import (
     CARD_STYLE,
     CLOSE_BTN_STYLE,
-    EDIT_MODE_MAX_WIDTH,
-    EDIT_MODE_MIN_WIDTH,
     COURSE_CODE_ELECTIVE_STYLE,
     COURSE_CODE_REQUIRED_STYLE,
     COURSE_NAME_INLINE_STYLE,
@@ -85,21 +83,10 @@ class _ExamRow(QFrame):
       prog row: Programs Affected (N)
       list    : • Full Name (AB)                          AB
                   …
-      (edit mode only)
-      edit row: [Edit]
     """
 
-    edit_requested = pyqtSignal(dict)   # emitted only in edit_mode
-
-    def __init__(
-        self,
-        exam: dict,
-        program_names: dict[str, str],
-        edit_mode: bool = False,
-        parent=None,
-    ):
+    def __init__(self, exam: dict, program_names: dict[str, str], parent=None):
         super().__init__(parent)
-        self._exam     = exam
         elective   = _is_elective(exam)
         border_clr = EXAM_ROW_ELECTIVE_BORDER if elective else EXAM_ROW_REQUIRED_BORDER
         self.setStyleSheet(exam_row_style(border_clr))
@@ -108,23 +95,6 @@ class _ExamRow(QFrame):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 10, 14, 10)
         outer.setSpacing(6)
-
-        # ── Time slot row (edit mode: clock icon + time) ─────────────
-        if edit_mode and exam.get("time_slot"):
-            from src.views.output_screen.edit_exam_dialog import _slot_label
-            slot_row = QHBoxLayout()
-            slot_row.setSpacing(6)
-            slot_row.setContentsMargins(0, 0, 0, 0)
-            clock_lbl = QLabel("🕐")
-            clock_lbl.setStyleSheet("font-size: 14px; background: transparent;")
-            time_lbl = QLabel(_slot_label(exam.get("time_slot")))
-            time_lbl.setStyleSheet(
-                "color: #334155; font-size: 14px; font-weight: 600; background: transparent;"
-            )
-            slot_row.addWidget(clock_lbl)
-            slot_row.addWidget(time_lbl)
-            slot_row.addStretch()
-            outer.addLayout(slot_row)
 
         # ── Top row: code  name  |  badge ────────────────────────────
         top = QHBoxLayout()
@@ -206,25 +176,6 @@ class _ExamRow(QFrame):
             capacity_lbl.setStyleSheet(ROOM_CAPACITY_STYLE)
             outer.addWidget(capacity_lbl)
 
-        # ── Edit button (visible only in edit mode) ───────────────────
-        if edit_mode:
-            edit_row = QHBoxLayout()
-            edit_row.setContentsMargins(0, 4, 0, 0)
-            edit_row.addStretch()
-            edit_btn = QPushButton("Edit")
-            edit_btn.setCursor(Qt.PointingHandCursor)
-            edit_btn.setStyleSheet("""
-                QPushButton {
-                    background: #4338CA; color: #FFFFFF;
-                    border: none; border-radius: 8px;
-                    padding: 5px 18px; font-size: 13px; font-weight: 600;
-                }
-                QPushButton:hover { background: #3730A3; }
-            """)
-            edit_btn.clicked.connect(lambda: self.edit_requested.emit(self._exam))
-            edit_row.addWidget(edit_btn)
-            outer.addLayout(edit_row)
-
 
 # ---------------------------------------------------------------------------
 # DayDetailDialog
@@ -239,12 +190,8 @@ class DayDetailDialog(QDialog):
         exam_date:     the date shown in the title.
         program_names: optional {program_id: display_name} mapping.
         anchor_pos:    global QPoint to position the dialog (bottom of clicked cell).
-        edit_mode:     when True each exam row shows an "Edit" button.
         parent:        optional parent widget.
     """
-
-    # Emitted when the user clicks "Edit" on a specific exam row (edit_mode only).
-    edit_requested = pyqtSignal(dict)
 
     def __init__(
         self,
@@ -252,34 +199,22 @@ class DayDetailDialog(QDialog):
         exam_date=None,
         program_names: dict[str, str] | None = None,
         anchor_pos: QPoint | None = None,
-        edit_mode: bool = False,
         parent=None,
     ):
         super().__init__(parent)
         self._exams         = exams or []
         self._exam_date     = exam_date
         self._program_names = program_names or {}
-        self._edit_mode     = edit_mode
         self._build_ui()
 
-        # Position after the widget is shown so geometry is known.
+        if anchor_pos is not None:
+            self.move(anchor_pos)
+
         QTimer.singleShot(0, lambda: QApplication.instance().installEventFilter(self))
-        QTimer.singleShot(0, self._center_on_screen)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._clamp_to_screen()
-
-    def _center_on_screen(self) -> None:
-        screen = QApplication.primaryScreen().availableGeometry()
-        geo    = self.frameGeometry()
-        if self._edit_mode:
-            # In edit mode: place on the LEFT half so the edit dialog can sit to the right.
-            x = screen.left() + (screen.width() // 2 - geo.width()) // 2
-        else:
-            x = screen.left() + (screen.width() - geo.width()) // 2
-        y = screen.top()  + (screen.height() - geo.height()) // 2
-        self.move(max(screen.left(), x), max(screen.top(), y))
 
     def _clamp_to_screen(self) -> None:
         """Nudge the dialog inward if it would be clipped by a screen edge."""
@@ -303,12 +238,8 @@ class DayDetailDialog(QDialog):
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setModal(False)
-        if self._edit_mode:
-            self.setMinimumWidth(EDIT_MODE_MIN_WIDTH)
-            self.setMaximumWidth(EDIT_MODE_MAX_WIDTH)
-        else:
-            self.setMinimumWidth(340)
-            self.setMaximumWidth(440)
+        self.setMinimumWidth(340)
+        self.setMaximumWidth(440)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -346,10 +277,7 @@ class DayDetailDialog(QDialog):
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setStyleSheet("background: transparent;")
-        # No fixed max-height: the dialog is clamped to the screen by
-        # _clamp_to_screen(), and the scroll area expands to show all exams.
-        screen_h = QApplication.primaryScreen().availableGeometry().height()
-        scroll.setMaximumHeight(int(screen_h * 0.75))
+        scroll.setMaximumHeight(420)
 
         rows_widget = QWidget()
         rows_widget.setStyleSheet("background: transparent;")
@@ -358,10 +286,7 @@ class DayDetailDialog(QDialog):
         rows_layout.setSpacing(8)
 
         for exam in self._exams:
-            row = _ExamRow(exam, self._program_names, edit_mode=self._edit_mode)
-            if self._edit_mode:
-                row.edit_requested.connect(self.edit_requested)
-            rows_layout.addWidget(row)
+            rows_layout.addWidget(_ExamRow(exam, self._program_names))
 
         rows_layout.addStretch()
         scroll.setWidget(rows_widget)
